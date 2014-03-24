@@ -1,4 +1,4 @@
-bcwc_pcie-objs := bcwc_drv.o
+bcwc_pcie-objs := bcwc_hw.o bcwc_drv.o
 obj-m := bcwc_pcie.o
 
 KVERSION := $(shell uname -r)
