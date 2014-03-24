@@ -40,11 +40,13 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_LINK_IO);
 	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_LINK_IO);
 	dev_priv->link_io = ioremap_nocache(start, len);
+	dev_priv->link_io_len = len;
 
 	/* Device IO */
 	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_DEV_IO);
 	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_DEV_IO);
 	dev_priv->dev_io = ioremap_nocache(start, len);
+	dev_priv->dev_io_len = len;
 
 	return 0;
 }

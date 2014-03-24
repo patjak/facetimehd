@@ -24,7 +24,9 @@ struct bcwc_private {
 
 	/* Mapped PCI resources */
 	void *link_io;
+	u32 link_io_len;
 	void *dev_io;
+	u32 dev_io_len;
 
 	struct work_struct irq_work;
 
