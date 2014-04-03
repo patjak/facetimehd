@@ -14,9 +14,9 @@
 
 #include <linux/pci.h>
 
-#define BCWC_PCI_LINK_IO 0
-#define BCWC_PCI_DEV_MEM 1
-#define BCWC_PCI_DEV_IO  2
+#define BCWC_PCI_DEV_IO  0
+#define BCWC_PCI_DEV_MEM 2
+#define BCWC_PCI_LINK_IO 4
 
 struct bcwc_private {
 	struct pci_dev *pdev;
