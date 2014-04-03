@@ -12,6 +12,8 @@
 #ifndef _BCWC_HW_H
 #define _BCWC_HW_H
 
+#include <linux/pci.h>
+
 #define BCWC_LINK_REG_READ(offset) ioread32(dev_priv->link_io + (offset))
 #define BCWC_LINK_REG_WRITE(val, offset) iowrite32((val), \
 						   dev_priv->link_io + (offset))

@@ -13,10 +13,16 @@
 #define _PCWC_PCIE_H
 
 #include <linux/pci.h>
+#include "bcwc_reg.h"
 
 #define BCWC_PCI_DEV_IO  0
 #define BCWC_PCI_DEV_MEM 2
 #define BCWC_PCI_LINK_IO 4
+
+struct bcwc_reg {
+	u32 offset;
+	u32 value;
+};
 
 struct bcwc_private {
 	struct pci_dev *pdev;
@@ -32,6 +38,10 @@ struct bcwc_private {
 
 	/* Hardware info */
 	u32 core_clk;
+
+	/* DDR_PHY saved registers. Offsets need to be initialized somewhere */
+	u32 ddr_phy_num_regs;
+	struct bcwc_reg ddr_reg_map[DDR_PHY_NUM_REGS];
 };
 
 #endif
