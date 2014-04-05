@@ -26,7 +26,7 @@ static int bcwc_hw_set_core_clk(struct bcwc_private *dev_priv)
 
 static int bcwc_hw_s2_pll_reset(struct bcwc_private *dev_priv)
 {
-	BCWC_DEV_REG_WRITE(0x40, DDR_PHY_2C);
+	BCWC_ISP_REG_WRITE(0x40, DDR_PHY_2C);
 	bcwc_hw_pci_post(dev_priv);
 
 	return 0;
@@ -36,19 +36,19 @@ static int bcwc_hw_s2_init_pcie_link(struct bcwc_private *dev_priv)
 {
 	u32 reg;
 
-	BCWC_DEV_REG_WRITE(S2_PCIE_LINK_D000, 0x10);
+	BCWC_ISP_REG_WRITE(0x10, S2_PCIE_LINK_D000);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_DEV_REG_WRITE(S2_PCIE_LINK_D120, 0x1804);
+	BCWC_ISP_REG_WRITE(0x1804, S2_PCIE_LINK_D120);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_DEV_REG_WRITE(S2_PCIE_LINK_D124, 0xac5800);
+	BCWC_ISP_REG_WRITE(0xac5800, S2_PCIE_LINK_D124);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_DEV_REG_WRITE(S2_PCIE_LINK_D120, 0x1804);
+	BCWC_ISP_REG_WRITE(0x1804, S2_PCIE_LINK_D120);
 	bcwc_hw_pci_post(dev_priv);
 
-	reg = BCWC_DEV_REG_READ(S2_PCIE_LINK_D124);
+	reg = BCWC_ISP_REG_READ(S2_PCIE_LINK_D124);
 	if (reg == 0xac5800) {
 	}
 
@@ -61,7 +61,7 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 	u32 reg;
 	int retries = 0;
 
-	ref_clk_25 = (BCWC_DEV_REG_READ(S2_PLL_STATUS_04) && 0x8);
+	ref_clk_25 = (BCWC_ISP_REG_READ(S2_PLL_STATUS_04) && 0x8);
 
 	if (ref_clk_25)
 		dev_info(&dev_priv->pdev->dev, "Refclk: 25MHz\n");
@@ -71,38 +71,38 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 	if (ddr_speed == 400) {
 		if (ref_clk_25) {
 			/* Ref clk 25 */
-			BCWC_DEV_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
+			BCWC_ISP_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x19280804, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x19280804, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
-			BCWC_DEV_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
+			BCWC_ISP_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x14280603, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x14280603, S2_PLL_CTRL_24);
 		}
 	} else if (ddr_speed == 300) {
 		if (ref_clk_25) {
 			/* Ref clk 25 */
-			BCWC_DEV_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
+			BCWC_ISP_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x14280804, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x14280804, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
-			BCWC_DEV_REG_WRITE(0x00480078, S2_PLL_CTRL_510);
+			BCWC_ISP_REG_WRITE(0x00480078, S2_PLL_CTRL_510);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x19280c06, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x19280c06, S2_PLL_CTRL_24);
 		}
 	} else if (ddr_speed == 200) {
 		if (ref_clk_25) {
 			/* Ref clk 25 */
-			BCWC_DEV_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
+			BCWC_ISP_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x14280c06, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x14280c06, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
-			BCWC_DEV_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
+			BCWC_ISP_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x19281008, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x19281008, S2_PLL_CTRL_24);
 		}
 	} else {
 		if (ddr_speed != 450) {
@@ -114,14 +114,14 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 
 		if (ref_clk_25) {
 			/* Ref clk 25 */
-			BCWC_DEV_REG_WRITE(0x04b00000, S2_PLL_CTRL_20);
+			BCWC_ISP_REG_WRITE(0x04b00000, S2_PLL_CTRL_20);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x14280904, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x14280904, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
-			BCWC_DEV_REG_WRITE(0x0048007d, S2_PLL_CTRL_510);
+			BCWC_ISP_REG_WRITE(0x0048007d, S2_PLL_CTRL_510);
 			bcwc_hw_pci_post(dev_priv);
-			BCWC_DEV_REG_WRITE(0x19280904, S2_PLL_CTRL_24);
+			BCWC_ISP_REG_WRITE(0x19280904, S2_PLL_CTRL_24);
 		}
 	}
 
@@ -131,7 +131,7 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 	dev_info(&dev_priv->pdev->dev, "Waiting for PLL to lock\n");
 
 	do {
-		reg = BCWC_DEV_REG_READ(S2_PLL_STATUS_0C) & 0x80;
+		reg = BCWC_ISP_REG_READ(S2_PLL_STATUS_0C) & 0x80;
 		udelay(10);
 		retries++;
 	} while (!reg && retries <= 10000);
@@ -143,12 +143,12 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 		dev_info(&dev_priv->pdev->dev, "PLL is locked\n");
 	}
 
-	reg = BCWC_DEV_REG_READ(S2_PLL_STATUS_A8);
-	BCWC_DEV_REG_WRITE(reg | 0x1, S2_PLL_STATUS_A8);
+	reg = BCWC_ISP_REG_READ(S2_PLL_STATUS_A8);
+	BCWC_ISP_REG_WRITE(reg | 0x1, S2_PLL_STATUS_A8);
 	bcwc_hw_pci_post(dev_priv);
 	udelay(10000);
 
-	reg = BCWC_DEV_REG_READ(S2_PLL_STATUS_A8);
+	reg = BCWC_ISP_REG_READ(S2_PLL_STATUS_A8);
 	if (reg & 0x1) {
 		dev_info(&dev_priv->pdev->dev, "PLL is in bypass mode\n");
 	} else {
@@ -177,13 +177,13 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		return -EIO;
 	}
 
-	reg = BCWC_DEV_REG_READ(DDR_PHY_9C);
+	reg = BCWC_ISP_REG_READ(DDR_PHY_9C);
 	reg &= 0xfffffcff;
 
-	BCWC_DEV_REG_WRITE(reg, DDR_PHY_9C);
+	BCWC_ISP_REG_WRITE(reg, DDR_PHY_9C);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_DEV_REG_WRITE(reg | 0x300, DDR_PHY_9C);
+	BCWC_ISP_REG_WRITE(reg | 0x300, DDR_PHY_9C);
 	bcwc_hw_pci_post(dev_priv);
 
 	/*
@@ -207,44 +207,44 @@ static int bcwc_hw_save_ddr_phy_regs(struct bcwc_private *dev_priv)
 
 	for (i = 0; i < dev_priv->ddr_phy_num_regs; i++) {
 		offset = dev_priv->ddr_reg_map[i].offset;
-		reg = BCWC_DEV_REG_READ(offset + DDR_PHY_REG_BASE);
+		reg = BCWC_ISP_REG_READ(offset + DDR_PHY_REG_BASE);
 		dev_priv->ddr_reg_map[i].value = reg;
 	}
 
 	return 0;
 }
 
-static int bcwc_hw_irq_init(struct bcwc_private *dev_priv)
+static int bcwc_hw_isp_init(struct bcwc_private *dev_priv)
 {
 	u32 num_channels, queue_size;
 	u32 reg;
 	int i, retries;
 
-	BCWC_LINK_REG_WRITE(IRQ_IPC_NUM_CHAN, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_IPC_NUM_CHAN);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_IPC_QUEUE_SIZE, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_IPC_QUEUE_SIZE);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_08, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_REG_08);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_0C, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_FW_HEAP_SIZE);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_10, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_REG_10);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_14, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_REG_14);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_18, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_REG_18);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_1C, 0);
+	BCWC_ISP_REG_WRITE(0, IRQ_REG_1C);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_41024, 0xffffffff);
+	BCWC_ISP_REG_WRITE(0xffffffff, IRQ_REG_41024);
 	bcwc_hw_pci_post(dev_priv);
 
 	/*
@@ -252,20 +252,20 @@ static int bcwc_hw_irq_init(struct bcwc_private *dev_priv)
 	 * FIXME: Check if we can do 64bit writes on PCIe
 	 */
 	for (i = IRQ_REG_RANGE_START; i <= IRQ_REG_RANGE_END; i += 8) {
-		BCWC_LINK_REG_WRITE(0xffffff, i);
-		BCWC_LINK_REG_WRITE(0x000000, i + 4);
+		BCWC_ISP_REG_WRITE(0xffffff, i);
+		BCWC_ISP_REG_WRITE(0x000000, i + 4);
 	}
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_40008, 0x80000000);
+	BCWC_ISP_REG_WRITE( 0x80000000, IRQ_REG_40008);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_LINK_REG_WRITE(IRQ_REG_40004, 0x1);
+	BCWC_ISP_REG_WRITE(0x1, IRQ_REG_40004);
 	bcwc_hw_pci_post(dev_priv);
 
 
 	for (retries = 0; retries < 1000; retries++) {
-		reg = BCWC_LINK_REG_READ(IRQ_REG_40004);
+		reg = BCWC_ISP_REG_READ(IRQ_REG_40004);
 		if ((reg & 0xff) == 0xf0)
 			break;
 		udelay(10);
@@ -276,10 +276,10 @@ static int bcwc_hw_irq_init(struct bcwc_private *dev_priv)
 		return -EIO;
 	}
 
-	BCWC_LINK_REG_WRITE(0xffffffff, IRQ_REG_41024);
+	BCWC_ISP_REG_WRITE(0xffffffff, IRQ_REG_41024);
 
-	num_channels = BCWC_LINK_REG_READ(IRQ_IPC_NUM_CHAN) + 1;
-	queue_size = BCWC_LINK_REG_READ(IRQ_IPC_QUEUE_SIZE);
+	num_channels = BCWC_ISP_REG_READ(IRQ_IPC_NUM_CHAN) + 1;
+	queue_size = BCWC_ISP_REG_READ(IRQ_IPC_QUEUE_SIZE);
 
 	dev_info(&dev_priv->pdev->dev,
 		 "Number of IPC channels: %u, queue size: %u\n",
@@ -292,8 +292,21 @@ static int bcwc_hw_irq_init(struct bcwc_private *dev_priv)
 	}
 
 	/*
-	allocate_device_memory(queue_size, &ret, 0);
+	bcwc_alloc_dev_mem(queue_size, &ret, 0);
 	*/
+
+	/* Firmware must fit in 4194304 bytes */
+	reg = BCWC_ISP_REG_READ(IRQ_FW_HEAP_SIZE);
+	if (reg > 0x400000) {
+		dev_info(&dev_priv->pdev->dev,
+			 "Firmware request size too big (%u bytes)\n",
+			 reg);
+		return -ENOMEM;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "Firmware request size: %u\n", reg);
+
+	return 0;
 }
 
 static int bcwc_hw_irq_enable(struct bcwc_private *dev_priv)
@@ -348,5 +361,7 @@ static int bcwc_hw_power_off(struct bcwc_private *dev_priv)
 
 int bcwc_hw_init(struct bcwc_private *dev_priv)
 {
+	// bcwc_hw_isp_init(dev_priv);
+
 	return 0;
 }

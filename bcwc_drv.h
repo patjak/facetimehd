@@ -15,9 +15,9 @@
 #include <linux/pci.h>
 #include "bcwc_reg.h"
 
-#define BCWC_PCI_DEV_IO  0
-#define BCWC_PCI_DEV_MEM 2
-#define BCWC_PCI_LINK_IO 4
+#define BCWC_PCI_S2_IO  0
+#define BCWC_PCI_S2_MEM 2
+#define BCWC_PCI_ISP_IO 4
 
 struct bcwc_reg {
 	u32 offset;
@@ -29,10 +29,10 @@ struct bcwc_private {
 	unsigned int dma_mask;
 
 	/* Mapped PCI resources */
-	void *link_io;
-	u32 link_io_len;
-	void *dev_io;
-	u32 dev_io_len;
+	void *s2_io;
+	u32 s2_io_len;
+	void *isp_io;
+	u32 isp_io_len;
 
 	struct work_struct irq_work;
 

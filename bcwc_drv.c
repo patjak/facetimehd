@@ -25,30 +25,37 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 	int ret;
 
 	/* Reserve resources */
-	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_LINK_IO, "Link IO");
+	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_S2_IO, "S2 IO");
 	if (ret) {
-		dev_err(&dev_priv->pdev->dev, "Failed to request Link IO\n");
+		dev_err(&dev_priv->pdev->dev, "Failed to request S2 IO\n");
 		return ret;
 	}
 
-	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_DEV_IO, "Device IO");
+	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_ISP_IO, "ISP IO");
 	if (ret) {
-		dev_err(&dev_priv->pdev->dev, "Failed to request Device IO\n");
+		dev_err(&dev_priv->pdev->dev, "Failed to request ISP IO\n");
 		return ret;
 	}
 
-	/* Link IO */
-	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_LINK_IO);
-	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_LINK_IO);
-	dev_priv->link_io = ioremap_nocache(start, len);
-	dev_priv->link_io_len = len;
+	/* S2 IO */
+	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_S2_IO);
+	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_S2_IO);
+	dev_priv->s2_io = ioremap_nocache(start, len);
+	dev_priv->s2_io_len = len;
 
-	/* Device IO */
-	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_DEV_IO);
-	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_DEV_IO);
-	dev_priv->dev_io = ioremap_nocache(start, len);
-	dev_priv->dev_io_len = len;
+	/* ISP IO */
+	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_ISP_IO);
+	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_ISP_IO);
+	dev_priv->isp_io = ioremap_nocache(start, len);
+	dev_priv->isp_io_len = len;
 
+	dev_info(&dev_priv->pdev->dev,
+		 "Allocated S2 regs (BAR %d). %u bytes at 0x%p",
+		 BCWC_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
+
+	dev_info(&dev_priv->pdev->dev,
+		 "Allocated ISP regs (BAR %d). %u bytes at 0x%p",
+		 BCWC_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
 	return 0;
 }
 
@@ -174,13 +181,13 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 		bcwc_irq_disable(dev_priv);
 		pci_disable_msi(pdev);
 
-		if (dev_priv->link_io)
-			iounmap(dev_priv->link_io);
-		if (dev_priv->dev_io)
-			iounmap(dev_priv->dev_io);
+		if (dev_priv->s2_io)
+			iounmap(dev_priv->s2_io);
+		if (dev_priv->isp_io)
+			iounmap(dev_priv->isp_io);
 
-		pci_release_region(pdev, BCWC_PCI_DEV_IO);
-		pci_release_region(pdev, BCWC_PCI_LINK_IO);
+		pci_release_region(pdev, BCWC_PCI_S2_IO);
+		pci_release_region(pdev, BCWC_PCI_ISP_IO);
 	}
 
 	pci_disable_device(pdev);

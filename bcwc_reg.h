@@ -41,7 +41,7 @@
 #define IRQ_IPC_NUM_CHAN	0xc3000
 #define IRQ_IPC_QUEUE_SIZE	0xc3004
 #define IRQ_REG_08		0xc3008
-#define IRQ_REG_0C		0xc300c
+#define IRQ_FW_HEAP_SIZE	0xc300c
 #define IRQ_REG_10		0xc3010
 #define IRQ_REG_14		0xc3014
 #define IRQ_REG_18		0xc3018
