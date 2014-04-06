@@ -13,29 +13,44 @@
 #ifndef _BCWC_REG_H
 #define _BCWC_REG_H
 
-/* On iomem with pointer at 0x0fd0 */
-#define DDR_PHY_2C	0x2c
-#define DDR_PHY_9C	0x9c
+/* S2 IO reg */
 
 #define S2_PCIE_LINK_D000	0xd000
 #define S2_PCIE_LINK_D120	0xd120
 #define S2_PCIE_LINK_D124	0xd124
+#define S2_PCIE_LINK_D128	0xd128
+#define S2_PCIE_LINK_D12C	0xd12c
+
+/* These are written to 0x203 before DDR soc init */
+#define S2_DDR_REG_1100		0x1100
+#define S2_DDR_REG_1104		0x1104
+#define S2_DDR_REG_1108		0x1108
+#define S2_DDR_REG_110c		0x110c
+#define S2_DDR_REG_1110		0x1110
+#define S2_DDR_REG_1114		0x1114
+#define S2_DDR_REG_1118		0x1118
+#define S2_DDR_REG_111C		0x111c
 
 #define DDR_PHY_REG_BASE	0x2800
 #define DDR_PHY_NUM_REGS	127 /* Found in AppleCamIn::Start() */
 
 /* On iomem with pointer at ...fill me in... */
 #define S2_PLL_STATUS_04	0x04
-#define S2_PLL_STATUS_REFCLK	(1 << 3) /* 1 = 25MHz, 0 = 24MHz */
+#define S2_PLL_REFCLK		(1 << 3) /* 1 = 25MHz, 0 = 24MHz */
 
 #define S2_PLL_STATUS_0C	0x0c	/* Register is called CMU_R_PLL_STS_MEMADDR */
 #define S2_PLL_STATUS_LOCKED	(1 << 7) /* 1 = PLL locked, 0 = PLL not locked */
 
-#define S2_PLL_STATUS_A8	0xa8	/* Bit 0 is PLL bypass mode (1 = bypass, 0 = non-bypass mode */
+#define S2_PLL_STATUS_A8	0xa8
+#define S2_PLL_BYPASS		(1 << 0) /* 1 = bypass, 0 = non-bypass */
 
-#define S2_PLL_CTRL_20		0x20	/* S2 PLL CLK REG 1 */
-#define S2_PLL_CTRL_24		0x24	/* S2 PLL CLK REG 2 */
-#define S2_PLL_CTRL_510		0x510	/* S2 PLL CLK REG 4 */
+#define S2_PLL_CTRL_14		0x0014
+#define S2_PLL_CTRL_20		0x0020
+#define S2_PLL_CTRL_24		0x0024
+#define S2_PLL_CTRL_2C		0x002c
+#define S2_PLL_CTRL_9C		0x009c
+#define S2_PLL_CTRL_100		0x0100
+#define S2_PLL_CTRL_510		0x0510
 
 /* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
 #define IRQ_IPC_NUM_CHAN	0xc3000
