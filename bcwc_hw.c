@@ -14,7 +14,7 @@
 #include "bcwc_hw.h"
 
 /* Used after most PCI Link IO writes */
-inline void bcwc_hw_pci_post(struct bcwc_private *dev_priv)
+static inline void bcwc_hw_pci_post(struct bcwc_private *dev_priv)
 {
 	pci_write_config_dword(dev_priv->pdev, 0, 0x12345678);
 }
@@ -32,7 +32,7 @@ static int bcwc_hw_s2_pll_reset(struct bcwc_private *dev_priv)
 	BCWC_S2_REG_WRITE(0x0, S2_PLL_CTRL_2C);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_S2_REG_WRITE(0xBCBC1500, S2_PLL_CTRL_100);
+	BCWC_S2_REG_WRITE(0xbcbc1500, S2_PLL_CTRL_100);
 	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x0, S2_PLL_CTRL_14);
@@ -73,15 +73,22 @@ static int bcwc_hw_s2_init_pcie_link(struct bcwc_private *dev_priv)
 		return -EIO;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "S2 PCIe link init succeded\n");
+	/* PLL is powered down */
+	dev_info(&dev_priv->pdev->dev, "S2 PCIe link init succeeded\n");
 
-	BCWC_S2_REG_WRITE(0xf108, S2_PCIE_LINK_D128);
+	BCWC_S2_REG_WRITE(0x1f08, S2_PCIE_LINK_D128);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x80008610, S2_PCIE_LINK_D12C);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x1608, S2_PCIE_LINK_D128);
 	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x8000fc00, S2_PCIE_LINK_D12C);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_S2_REG_WRITE(0xf108, S2_PCIE_LINK_D128);
+	BCWC_S2_REG_WRITE(0x1f08, S2_PCIE_LINK_D128);
 	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x80008610, S2_PCIE_LINK_D12C);
@@ -177,14 +184,15 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 		reg = BCWC_S2_REG_READ(S2_PLL_STATUS_0C);
 		udelay(10);
 		retries++;
-	} while ((reg & 0x80) == 0 && retries <= 10000);
+	} while ((reg & 0x8000) == 0 && retries <= 10000);
 
 	if (retries > 10000) {
 		dev_info(&dev_priv->pdev->dev, "Failed to lock PLL: 0x%x\n",
 			 reg);
 		return -EINVAL;
 	} else {
-		dev_info(&dev_priv->pdev->dev, "PLL is locked\n");
+		dev_info(&dev_priv->pdev->dev, "PLL is locked after %d us\n",
+			 (retries * 10));
 	}
 
 	reg = BCWC_S2_REG_READ(S2_PLL_STATUS_A8);
@@ -211,7 +219,7 @@ static int bcwc_hw_s2_preinit_ddr_controller_soc(struct bcwc_private *dev_priv)
 	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1108);
 	bcwc_hw_pci_post(dev_priv);
-	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_110c);
+	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_110C);
 	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1110);
 	bcwc_hw_pci_post(dev_priv);

@@ -25,7 +25,7 @@
 #define S2_DDR_REG_1100		0x1100
 #define S2_DDR_REG_1104		0x1104
 #define S2_DDR_REG_1108		0x1108
-#define S2_DDR_REG_110c		0x110c
+#define S2_DDR_REG_110C		0x110c
 #define S2_DDR_REG_1110		0x1110
 #define S2_DDR_REG_1114		0x1114
 #define S2_DDR_REG_1118		0x1118
@@ -34,12 +34,11 @@
 #define DDR_PHY_REG_BASE	0x2800
 #define DDR_PHY_NUM_REGS	127 /* Found in AppleCamIn::Start() */
 
-/* On iomem with pointer at ...fill me in... */
 #define S2_PLL_STATUS_04	0x04
 #define S2_PLL_REFCLK		(1 << 3) /* 1 = 25MHz, 0 = 24MHz */
 
 #define S2_PLL_STATUS_0C	0x0c	/* Register is called CMU_R_PLL_STS_MEMADDR */
-#define S2_PLL_STATUS_LOCKED	(1 << 7) /* 1 = PLL locked, 0 = PLL not locked */
+#define S2_PLL_STATUS_LOCKED	(1 << 15) /* 1 = PLL locked, 0 = PLL not locked */
 
 #define S2_PLL_STATUS_A8	0xa8
 #define S2_PLL_BYPASS		(1 << 0) /* 1 = bypass, 0 = non-bypass */
