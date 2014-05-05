@@ -254,7 +254,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 {
 	u32 cmd;
 	u32 reg;
-	int ret;
+	int ret, i;
 
 	/* Read PCI config command register */
 	ret = pci_read_config_dword(dev_priv->pdev, 4, &cmd);
@@ -282,6 +282,77 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	bcwc_hw_s2_pll_init(dev_priv, 450);
 
 	bcwc_hw_ddr_phy_soft_reset(dev_priv);
+
+	/* Not sure what this is yet (perhaps safe/slow DDR PLL settings) */
+	BCWC_S2_REG_WRITE(0x2, S2_2BA4);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x2, S2_2BA8);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Disable the hardware frequency change function */
+	BCWC_S2_REG_WRITE(0x3f4, S2_20F8);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Setup the PLL */
+	BCWC_S2_REG_WRITE(0x40, S2_2434);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x10000000, S2_2438);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Wait for DDR PLL to lock */
+	for (i = 0; i <= 10000; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR_PLL_STATUS_2444);
+		if (reg & S2_DDR_PLL_STATUS_2444_LOCKED)
+			break;
+		udelay(10);
+	}
+
+	if (i > 10000) {
+		dev_err(&dev_priv->pdev->dev,
+			"Failed to lock DDR PHY PLL in stage 1\n");
+		return -EIO;
+	}
+
+	BCWC_S2_REG_WRITE(0x1f37205, S2_2430);
+	bcwc_hw_pci_post(dev_priv);
+
+	for (i = 0; i <= 10000; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR_PLL_STATUS_241C);
+		if (reg & S2_DDR_PLL_STATUS_241C_LOCKED)
+			break;
+		udelay(10);
+	}
+
+	if (i > 10000) {
+		dev_err(&dev_priv->pdev->dev,
+			"Failed to lock DDR PHY PLL in stage 2\n");
+		return -EIO;
+	}
+
+	udelay(10000);
+
+	BCWC_S2_REG_WRITE(0x0c10, S2_281C);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x0010, S2_2814);
+	bcwc_hw_pci_post(dev_priv);
+
+	for (i = 0; i <= 10000; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR_PLL_STATUS_2810);
+		if (reg & S2_DDR_PLL_STATUS_2810_LOCKED)
+			break;
+		udelay(10);
+	}
+
+	if (i > 10000) {
+		dev_err(&dev_priv->pdev->dev,
+			"Failed to lock DDR PHY PLL in stage 3\n");
+		return -EIO;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "DDR PHY PLL locked on safe settings\n");
 
 	/* FIXME: Unfinished */
 

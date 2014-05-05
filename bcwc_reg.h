@@ -14,7 +14,6 @@
 #define _BCWC_REG_H
 
 /* S2 IO reg */
-
 #define S2_PCIE_LINK_D000	0xd000
 #define S2_PCIE_LINK_D120	0xd120
 #define S2_PCIE_LINK_D124	0xd124
@@ -30,9 +29,6 @@
 #define S2_DDR_REG_1114		0x1114
 #define S2_DDR_REG_1118		0x1118
 #define S2_DDR_REG_111C		0x111c
-
-#define DDR_PHY_REG_BASE	0x2800
-#define DDR_PHY_NUM_REGS	127 /* Found in AppleCamIn::Start() */
 
 #define S2_PLL_STATUS_04	0x04
 #define S2_PLL_REFCLK		(1 << 3) /* 1 = 25MHz, 0 = 24MHz */
@@ -50,6 +46,29 @@
 #define S2_PLL_CTRL_9C		0x009c
 #define S2_PLL_CTRL_100		0x0100
 #define S2_PLL_CTRL_510		0x0510
+
+/* Probably DDR PHY PLL registers */
+#define S2_20F8				0x20f8
+#define S2_2430				0x2430
+#define S2_2434				0x2434
+#define S2_2438				0x2438
+
+#define S2_DDR_PLL_STATUS_241C		0x241c
+#define S2_DDR_PLL_STATUS_241C_LOCKED	0x0400
+
+#define S2_DDR_PLL_STATUS_2444		0x2444
+#define S2_DDR_PLL_STATUS_2444_LOCKED	0x2000
+
+#define DDR_PHY_REG_BASE		0x2800
+#define DDR_PHY_NUM_REGS		127 /* Found in AppleCamIn::Start() */
+
+#define S2_DDR_PLL_STATUS_2810		0x2810
+#define S2_DDR_PLL_STATUS_2810_LOCKED	0x1
+#define S2_2814				0x2814
+#define S2_281C				0x281c
+
+#define S2_2BA4				0x2ba4
+#define S2_2BA8				0x2ba8
 
 /* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
 #define IRQ_IPC_NUM_CHAN	0xc3000
