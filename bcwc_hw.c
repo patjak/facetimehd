@@ -233,6 +233,23 @@ static int bcwc_hw_s2_preinit_ddr_controller_soc(struct bcwc_private *dev_priv)
 	return 0;
 }
 
+static int bcwc_hw_ddr_phy_soft_reset(struct bcwc_private *dev_priv)
+{
+	/* Clear status bits? */
+	BCWC_S2_REG_WRITE(0x281, S2_PLL_STATUS_A8);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0xfffff, S2_PLL_CTRL_9C);
+	bcwc_hw_pci_post(dev_priv);
+
+	udelay(10000);
+
+	BCWC_S2_REG_WRITE(0xffbff, S2_PLL_CTRL_9C);
+	bcwc_hw_pci_post(dev_priv);
+
+	return 0;
+}
+
 static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 {
 	u32 cmd;
@@ -264,7 +281,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	/* Default to 450 MHz DDR speed for now */
 	bcwc_hw_s2_pll_init(dev_priv, 450);
 
-	/* DDR PHY soft reset */
+	bcwc_hw_ddr_phy_soft_reset(dev_priv);
 
 	/* FIXME: Unfinished */
 
