@@ -16,6 +16,7 @@
 
 #define BCWC_S2_REG_READ(offset) _BCWC_S2_REG_READ(dev_priv, (offset))
 #define BCWC_S2_REG_WRITE(val, offset) _BCWC_S2_REG_WRITE(dev_priv, (val), (offset))
+
 #define BCWC_ISP_REG_READ(offset) _BCWC_ISP_REG_READ(dev_priv, (offset))
 #define BCWC_ISP_REG_WRITE(val, offset) _BCWC_ISP_REG_WRITE(dev_priv, (val), (offset))
 

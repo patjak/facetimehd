@@ -253,8 +253,12 @@ static int bcwc_hw_ddr_phy_soft_reset(struct bcwc_private *dev_priv)
 static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 {
 	u32 cmd;
+	u32 val;
 	u32 reg;
 	int ret, i;
+
+	/* Set DDR speed (450 MHz for now) */
+	dev_priv->ddr_speed = 450;
 
 	/* Read PCI config command register */
 	ret = pci_read_config_dword(dev_priv->pdev, 4, &cmd);
@@ -333,10 +337,10 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	udelay(10000);
 
-	BCWC_S2_REG_WRITE(0x0c10, S2_281C);
+	BCWC_S2_REG_WRITE(0x0c10, S2_DDR_281C);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_S2_REG_WRITE(0x0010, S2_2814);
+	BCWC_S2_REG_WRITE(0x0010, S2_DDR_2814);
 	bcwc_hw_pci_post(dev_priv);
 
 	for (i = 0; i <= 10000; i++) {
@@ -353,6 +357,108 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	dev_info(&dev_priv->pdev->dev, "DDR PHY PLL locked on safe settings\n");
+
+	/* Default is DDR model 4 */
+	if (dev_priv->ddr_model == 2)
+		val = 0x42500c2;
+	else
+		val = 0x46a00c2;
+
+	BCWC_S2_REG_WRITE(0x10737545, S2_DDR_20A0);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x12643173, S2_DDR_20A4);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0xff3f, S2_DDR_20A8);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(val, S2_DDR_20B0);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x101f, S2_DDR_2118);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x1c0, S2_DDR_2820);
+	bcwc_hw_pci_post(dev_priv);
+
+	if (dev_priv->ddr_model == 2)
+		val = 0x2155558;
+	else
+		val = 0x2159518;
+
+	BCWC_S2_REG_WRITE(val, S2_DDR_28B0);
+	bcwc_hw_pci_post(dev_priv);
+
+	if (dev_priv->ddr_speed == 450)
+		val = 0x108307;
+	else
+		val = 0x108286;
+
+	BCWC_S2_REG_WRITE(val, S2_DDR_28B4);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x2159559, S2_DDR_28B0);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Polling for STRAP valid */
+	for (i = 0; i < 10000; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR_STATUS_28B8);
+		if (reg & 0x1)
+			break;
+		udelay(10);
+	}
+
+	if (i >= 10000) {
+		dev_err(&dev_priv->pdev->dev,
+			"Timeout waiting for STRAP valid\n");
+		return -ENODEV;
+	} else {
+		dev_info(&dev_priv->pdev->dev, "STRAP valid\n");
+	}
+
+	/* Manual DDR40 PHY init */
+	if (dev_priv->ddr_speed != 450) {
+		dev_warn(&dev_priv->pdev->dev,
+			 "DDR frequency is %u (should be 450 MHz)",
+			 dev_priv->ddr_speed);
+	}
+
+	dev_info(&dev_priv->pdev->dev,
+		 "Configuring DDR PLLs for %u MHz\n", dev_priv->ddr_speed);
+
+	if ((dev_priv->ddr_speed * 2) < 500)
+		val = 0x2040;
+	else
+		val = 0x810;
+
+	/* Start programming the DDR PLL */
+	reg = BCWC_S2_REG_READ(S2_DDR_281C);
+	reg &= 0xffffc700;
+	val |= reg;
+
+	BCWC_S2_REG_WRITE(val, S2_DDR_281C);
+	bcwc_hw_pci_post(dev_priv);
+
+	reg = BCWC_S2_REG_READ(S2_DDR_2814);
+	reg &= 0xfffffffd;
+	BCWC_S2_REG_WRITE(reg, S2_DDR_2814);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Start polling for the lock */
+	for (i = 0; i < 100; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR_PLL_STATUS_2810);
+		if (reg & S2_DDR_PLL_STATUS_2810_LOCKED)
+			break;
+		udelay(1);
+	}
+
+	if (i >= 100) {
+		dev_err(&dev_priv->pdev->dev, "Failed to lock the DDR PLL\n");
+		return -ENODEV;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "DDR PLL is locked\n");
 
 	/* FIXME: Unfinished */
 

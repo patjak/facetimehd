@@ -48,7 +48,13 @@
 #define S2_PLL_CTRL_510		0x0510
 
 /* Probably DDR PHY PLL registers */
+#define S2_DDR_20A0			0x20a0
+#define S2_DDR_20A4			0x20a4
+#define S2_DDR_20A8			0x20a8
+#define S2_DDR_20B0			0x20b0
+
 #define S2_20F8				0x20f8
+#define S2_DDR_2118			0x2118
 #define S2_2430				0x2430
 #define S2_2434				0x2434
 #define S2_2438				0x2438
@@ -64,8 +70,12 @@
 
 #define S2_DDR_PLL_STATUS_2810		0x2810
 #define S2_DDR_PLL_STATUS_2810_LOCKED	0x1
-#define S2_2814				0x2814
-#define S2_281C				0x281c
+#define S2_DDR_2814			0x2814
+#define S2_DDR_281C			0x281c
+#define S2_DDR_2820			0x2820
+#define S2_DDR_28B0			0x28b0
+#define S2_DDR_28B4			0x28b4
+#define S2_DDR_STATUS_28B8		0x28b8
 
 #define S2_2BA4				0x2ba4
 #define S2_2BA8				0x2ba8

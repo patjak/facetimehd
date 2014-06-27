@@ -38,6 +38,8 @@ struct bcwc_private {
 
 	/* Hardware info */
 	u32 core_clk;
+	u32 ddr_model;
+	u32 ddr_speed;
 
 	/* DDR_PHY saved registers. Offsets need to be initialized somewhere */
 	u32 ddr_phy_num_regs;

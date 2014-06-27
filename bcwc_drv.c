@@ -162,6 +162,8 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	pci_set_master(pdev);
 	pci_set_drvdata(pdev, dev_priv);
 
+	dev_priv->ddr_model = 4;
+
 	bcwc_hw_init(dev_priv);
 
 	return 0;
