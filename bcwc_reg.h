@@ -68,14 +68,15 @@
 #define DDR_PHY_REG_BASE		0x2800
 #define DDR_PHY_NUM_REGS		127 /* Found in AppleCamIn::Start() */
 
-#define S2_DDR_PLL_STATUS_2810		0x2810
-#define S2_DDR_PLL_STATUS_2810_LOCKED	0x1
-#define S2_DDR_2814			0x2814
-#define S2_DDR_281C			0x281c
-#define S2_DDR_2820			0x2820
-#define S2_DDR_28B0			0x28b0
-#define S2_DDR_28B4			0x28b4
-#define S2_DDR_STATUS_28B8		0x28b8
+/* DDR40 */
+#define S2_DDR40_PHY_PLL_STATUS		0x2810
+#define S2_DDR40_PHY_PLL_STATUS_LOCKED	(1 << 0)
+#define S2_DDR40_PHY_PLL_CFG		0x2814
+#define S2_DDR40_PHY_PLL_DIV		0x281c
+#define S2_DDR40_AUX_CTL		0x2820
+#define S2_DDR40_STRAP_CTL		0x28b0
+#define S2_DDR40_STRAP_CTL_2		0x28b4
+#define S2_DDR40_STRAP_STATUS		0x28b8
 
 #define S2_2BA4				0x2ba4
 #define S2_2BA8				0x2ba8

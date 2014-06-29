@@ -177,7 +177,7 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 	bcwc_hw_pci_post(dev_priv);
 	bcwc_hw_s2_pll_reset(dev_priv);
 
-	dev_info(&dev_priv->pdev->dev, "Waiting for PLL to lock for %d MHz\n",
+	dev_info(&dev_priv->pdev->dev, "Waiting for S2 PLL to lock at %d MHz\n",
 		 ddr_speed);
 
 	do {
@@ -187,11 +187,11 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 	} while ((reg & 0x8000) == 0 && retries <= 10000);
 
 	if (retries > 10000) {
-		dev_info(&dev_priv->pdev->dev, "Failed to lock PLL: 0x%x\n",
+		dev_info(&dev_priv->pdev->dev, "Failed to lock S2 PLL: 0x%x\n",
 			 reg);
 		return -EINVAL;
 	} else {
-		dev_info(&dev_priv->pdev->dev, "PLL is locked after %d us\n",
+		dev_info(&dev_priv->pdev->dev, "S2 PLL is locked after %d us\n",
 			 (retries * 10));
 	}
 
@@ -202,9 +202,9 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 
 	reg = BCWC_S2_REG_READ(S2_PLL_STATUS_A8);
 	if (reg & 0x1) {
-		dev_info(&dev_priv->pdev->dev, "PLL is in bypass mode\n");
+		dev_info(&dev_priv->pdev->dev, "S2 PLL is in bypass mode\n");
 	} else {
-		dev_info(&dev_priv->pdev->dev, "PLL is in non-bypass mode\n");
+		dev_info(&dev_priv->pdev->dev, "S2 PLL is in non-bypass mode\n");
 	}
 
 	return 0;
@@ -337,15 +337,15 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	udelay(10000);
 
-	BCWC_S2_REG_WRITE(0x0c10, S2_DDR_281C);
+	BCWC_S2_REG_WRITE(0x0c10, S2_DDR40_PHY_PLL_DIV);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_S2_REG_WRITE(0x0010, S2_DDR_2814);
+	BCWC_S2_REG_WRITE(0x0010, S2_DDR40_PHY_PLL_CFG);
 	bcwc_hw_pci_post(dev_priv);
 
 	for (i = 0; i <= 10000; i++) {
-		reg = BCWC_S2_REG_READ(S2_DDR_PLL_STATUS_2810);
-		if (reg & S2_DDR_PLL_STATUS_2810_LOCKED)
+		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_PLL_STATUS);
+		if (reg & S2_DDR40_PHY_PLL_STATUS_LOCKED)
 			break;
 		udelay(10);
 	}
@@ -356,7 +356,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		return -EIO;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "DDR PHY PLL locked on safe settings\n");
+	dev_info(&dev_priv->pdev->dev, "DDR40 PHY PLL locked on safe settings\n");
 
 	/* Default is DDR model 4 */
 	if (dev_priv->ddr_model == 2)
@@ -379,7 +379,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	BCWC_S2_REG_WRITE(0x101f, S2_DDR_2118);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_S2_REG_WRITE(0x1c0, S2_DDR_2820);
+	BCWC_S2_REG_WRITE(0x1c0, S2_DDR40_AUX_CTL);
 	bcwc_hw_pci_post(dev_priv);
 
 	if (dev_priv->ddr_model == 2)
@@ -387,7 +387,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	else
 		val = 0x2159518;
 
-	BCWC_S2_REG_WRITE(val, S2_DDR_28B0);
+	BCWC_S2_REG_WRITE(val, S2_DDR40_STRAP_CTL);
 	bcwc_hw_pci_post(dev_priv);
 
 	if (dev_priv->ddr_speed == 450)
@@ -395,15 +395,16 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	else
 		val = 0x108286;
 
-	BCWC_S2_REG_WRITE(val, S2_DDR_28B4);
+	BCWC_S2_REG_WRITE(val, S2_DDR40_STRAP_CTL_2);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_S2_REG_WRITE(0x2159559, S2_DDR_28B0);
+	/* Strap control */
+	BCWC_S2_REG_WRITE(0x2159559, S2_DDR40_STRAP_CTL);
 	bcwc_hw_pci_post(dev_priv);
 
 	/* Polling for STRAP valid */
 	for (i = 0; i < 10000; i++) {
-		reg = BCWC_S2_REG_READ(S2_DDR_STATUS_28B8);
+		reg = BCWC_S2_REG_READ(S2_DDR40_STRAP_STATUS);
 		if (reg & 0x1)
 			break;
 		udelay(10);
@@ -433,22 +434,23 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		val = 0x810;
 
 	/* Start programming the DDR PLL */
-	reg = BCWC_S2_REG_READ(S2_DDR_281C);
+
+	reg = BCWC_S2_REG_READ(S2_DDR40_PHY_PLL_DIV);
 	reg &= 0xffffc700;
 	val |= reg;
 
-	BCWC_S2_REG_WRITE(val, S2_DDR_281C);
+	BCWC_S2_REG_WRITE(val, S2_DDR40_PHY_PLL_DIV);
 	bcwc_hw_pci_post(dev_priv);
 
-	reg = BCWC_S2_REG_READ(S2_DDR_2814);
+	reg = BCWC_S2_REG_READ(S2_DDR40_PHY_PLL_CFG);
 	reg &= 0xfffffffd;
-	BCWC_S2_REG_WRITE(reg, S2_DDR_2814);
+	BCWC_S2_REG_WRITE(reg, S2_DDR40_PHY_PLL_CFG);
 	bcwc_hw_pci_post(dev_priv);
 
 	/* Start polling for the lock */
 	for (i = 0; i < 100; i++) {
-		reg = BCWC_S2_REG_READ(S2_DDR_PLL_STATUS_2810);
-		if (reg & S2_DDR_PLL_STATUS_2810_LOCKED)
+		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_PLL_STATUS);
+		if (reg & S2_DDR40_PHY_PLL_STATUS_LOCKED)
 			break;
 		udelay(1);
 	}
@@ -458,7 +460,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		return -ENODEV;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "DDR PLL is locked\n");
+	dev_info(&dev_priv->pdev->dev, "DDR40 PLL is locked after %d us\n", i);
 
 	/* FIXME: Unfinished */
 
