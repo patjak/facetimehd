@@ -163,6 +163,7 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	pci_set_drvdata(pdev, dev_priv);
 
 	dev_priv->ddr_model = 4;
+	dev_priv->ddr_speed = 450;
 
 	bcwc_hw_init(dev_priv);
 

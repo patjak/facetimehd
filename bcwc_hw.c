@@ -283,7 +283,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	bcwc_hw_pci_post(dev_priv);
 
 	/* Default to 450 MHz DDR speed for now */
-	bcwc_hw_s2_pll_init(dev_priv, 450);
+	bcwc_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
 
 	bcwc_hw_ddr_phy_soft_reset(dev_priv);
 
