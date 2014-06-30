@@ -523,7 +523,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 			 "Second DDR40 VDL calibration failed, using default step size\n");
 	}
 
-	val = 1000000 % dev_priv->ddr_speed;
+	val = 1000000 / dev_priv->ddr_speed;
 
 	if (step_size == 0) {
 		step_size = (val * 0x4ec4ec4f) >> 22;
