@@ -255,6 +255,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	u32 cmd;
 	u32 val;
 	u32 reg;
+	u32 step_size, vdl_fine, vdl_coarse;
 	int ret, i;
 
 	/* Set DDR speed (450 MHz for now) */
@@ -356,7 +357,8 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		return -EIO;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "DDR40 PHY PLL locked on safe settings\n");
+	dev_info(&dev_priv->pdev->dev,
+		 "DDR40 PHY PLL locked on safe settings\n");
 
 	/* Default is DDR model 4 */
 	if (dev_priv->ddr_model == 2)
@@ -461,6 +463,103 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	dev_info(&dev_priv->pdev->dev, "DDR40 PLL is locked after %d us\n", i);
+
+	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x103, S2_DDR40_PHY_VDL_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Poll for VDL calibration */
+	for (i = 0; i < 100; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
+		if (reg & 0x1)
+			break;
+		udelay(1);
+	}
+
+	if (reg & 0x1) {
+		dev_info(&dev_priv->pdev->dev,
+			 "First DDR40 VDL calibration completed after %d us",
+			 i);
+
+		if (!(reg & 0x2)) {
+			dev_info(&dev_priv->pdev->dev,
+				 "...but failed to lock\n");
+		}
+
+	} else {
+		dev_err(&dev_priv->pdev->dev,
+			"First DDR40 VDL calibration failed\n");
+	}
+
+	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	for (i = 0; i < 1000; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
+		if (reg & 0x1)
+			break;
+		udelay(1);
+	}
+
+	step_size = 0;
+
+	if (reg & 0x1) {
+		dev_info(&dev_priv->pdev->dev,
+			 "Second DDR40 VDL calibration completed after %d us\n",
+			 i);
+
+		if (!(reg & 0x2)) {
+			step_size = (reg >> 2) & 0x3ff;
+			dev_info(&dev_priv->pdev->dev, "Using step size %u\n",
+				 step_size);
+		}
+	} else {
+		dev_info(&dev_priv->pdev->dev,
+			 "Second DDR40 VDL calibration failed, using default step size\n");
+	}
+
+	val = 1000000 % dev_priv->ddr_speed;
+
+	if (step_size == 0) {
+		step_size = (val * 0x4ec4ec4f) >> 22;
+		dev_info(&dev_priv->pdev->dev, "Using default step size (%u)\n",
+			 step_size);
+	}
+
+	dev_priv->vdl_step_size = step_size;
+
+	vdl_fine = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_CHAN_STATUS);
+	if (!(vdl_fine & 2)) {
+		vdl_fine = (vdl_fine >> 8) & 0x3f;
+		vdl_fine |= 0x10100;
+
+		BCWC_S2_REG_WRITE(vdl_fine, S2_DDR40_PHY_VDL_OVR_FINE);
+		bcwc_hw_pci_post(dev_priv);
+
+		vdl_coarse = 0x10000;
+
+		step_size >>= 4;
+		step_size += step_size * 2;
+
+		if (step_size > 10) {
+			step_size = (step_size + 118) >> 1;
+			step_size &= 0x3f;
+			step_size |= 0x10000;
+			vdl_coarse = step_size;
+		}
+
+		BCWC_S2_REG_WRITE(vdl_coarse, S2_DDR40_PHY_VDL_OVR_COARSE);
+		bcwc_hw_pci_post(dev_priv);
+
+		dev_info(&dev_priv->pdev->dev,
+			 "VDL set to: coarse=0x%x, fine=0x%x\n",
+			 vdl_coarse, vdl_fine);
+	}
 
 	/* FIXME: Unfinished */
 
