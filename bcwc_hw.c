@@ -256,6 +256,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	u32 val;
 	u32 reg;
 	u32 step_size, vdl_fine, vdl_coarse;
+	u32 vtt_cons, vtt_ovr;
 	int ret, i;
 
 	/* Set DDR speed (450 MHz for now) */
@@ -464,6 +465,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	dev_info(&dev_priv->pdev->dev, "DDR40 PLL is locked after %d us\n", i);
 
+	/* Configure DDR40 VDL */
 	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
 	bcwc_hw_pci_post(dev_priv);
 
@@ -560,6 +562,54 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 			 "VDL set to: coarse=0x%x, fine=0x%x\n",
 			 vdl_coarse, vdl_fine);
 	}
+
+	/* Configure Virtual VTT connections and override */
+
+	vtt_cons = 0x1cf7fff;
+	BCWC_S2_REG_WRITE(vtt_cons, S2_DDR40_PHY_VTT_CONNECTIONS);
+	bcwc_hw_pci_post(dev_priv);
+
+	vtt_ovr = 0x77fff;
+	BCWC_S2_REG_WRITE(vtt_ovr, S2_DDR40_PHY_VTT_OVERRIDE);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x4, S2_DDR40_PHY_VTT_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	dev_info(&dev_priv->pdev->dev, "Virtual VTT enabled");
+
+	/* Process, Voltage and Temperature compensation */
+	BCWC_S2_REG_WRITE(0xc0fff, S2_DDR40_PHY_ZQ_PVT_COMP_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x2, S2_DDR40_PHY_DRV_PAD_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x2, S2_2BA4);
+	bcwc_hw_pci_post(dev_priv);
+
+	val = 1000000 / dev_priv->ddr_speed;
+	reg = 4;
+
+	if (val >= 400) {
+		if (val > 900)
+			reg |= 0xff;
+		reg += 5;
+	}
+
+	BCWC_S2_REG_WRITE(reg, S2_2B60);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x2, S2_2B64);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x3, S2_2BAC);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0xff0fffff, S2_2BA0);
+	bcwc_hw_pci_post(dev_priv);
+
+	udelay(500);
 
 	/* FIXME: Unfinished */
 

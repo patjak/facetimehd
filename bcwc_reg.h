@@ -74,17 +74,32 @@
 #define S2_DDR40_PHY_PLL_CFG		0x2814
 #define S2_DDR40_PHY_PLL_DIV		0x281c
 #define S2_DDR40_AUX_CTL		0x2820
+
 #define S2_DDR40_PHY_VDL_OVR_COARSE	0x2830
 #define S2_DDR40_PHY_VDL_OVR_FINE	0x2834
+
+#define S2_DDR40_PHY_ZQ_PVT_COMP_CTL	0x283c
+#define S2_DDR40_PHY_DRV_PAD_CTL	0x2840
+
 #define S2_DDR40_PHY_VDL_CTL		0x2848
 #define S2_DDR40_PHY_VDL_STATUS		0x284c
 #define S2_DDR40_PHY_VDL_CHAN_STATUS	0x2854
+
+#define S2_DDR40_PHY_VTT_CTL		0x285c
+#define S2_DDR40_PHY_VTT_STATUS		0x2860
+#define S2_DDR40_PHY_VTT_CONNECTIONS	0x2864
+#define S2_DDR40_PHY_VTT_OVERRIDE	0x2868
+
 #define S2_DDR40_STRAP_CTL		0x28b0
 #define S2_DDR40_STRAP_CTL_2		0x28b4
 #define S2_DDR40_STRAP_STATUS		0x28b8
 
+#define S2_2B60				0x2b60
+#define S2_2B64				0x2b64
 #define S2_2BA4				0x2ba4
 #define S2_2BA8				0x2ba8
+#define S2_2BA0				0x2ba0
+#define S2_2BAC				0x2bac
 
 /* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
 #define IRQ_IPC_NUM_CHAN	0xc3000
