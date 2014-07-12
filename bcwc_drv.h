@@ -44,7 +44,7 @@ struct bcwc_private {
 
 	/* DDR_PHY saved registers. Offsets need to be initialized somewhere */
 	u32 ddr_phy_num_regs;
-	struct bcwc_reg ddr_reg_map[DDR_PHY_NUM_REGS];
+	struct bcwc_reg ddr_phy_reg_map[DDR_PHY_NUM_REGS];
 };
 
 #endif
