@@ -606,7 +606,8 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	BCWC_S2_REG_WRITE(0x3, S2_2BAC);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_S2_REG_WRITE(0xff0fffff, S2_2BA0);
+	reg = BCWC_S2_REG_READ(S2_2BA0);
+	BCWC_S2_REG_WRITE(reg & 0xff0fffff, S2_2BA0);
 	bcwc_hw_pci_post(dev_priv);
 
 	udelay(500);
