@@ -612,7 +612,64 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	udelay(500);
 
-	/* FIXME: Unfinished */
+	BCWC_S2_REG_WRITE(0, S2_DDR_2004);
+	bcwc_hw_pci_post(dev_priv);
+
+	udelay(10000);
+
+	BCWC_S2_REG_WRITE(0xab0a, S2_DDR_2014);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Polling for BUSY */
+	for (i = 0; i < 10000; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR_STATUS_2018);
+		if (!(reg & S2_DDR_STATUS_BUSY))
+			break;
+		udelay(10);
+	}
+
+	if (i >= 10000) {
+		dev_info(&dev_priv->pdev->dev,
+			 "S2_DDR_STATUS_2018 still busy after %d us\n", i);
+		return -ENODEV;
+	}
+
+	udelay(10000);
+
+	BCWC_S2_REG_WRITE(0, S2_3204);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Read DRAM mem address (FIXME: Need to mask a few bits here) */
+	reg = BCWC_S2_REG_READ(S2_DDR40_STRAP_STATUS);
+	dev_info(&dev_priv->pdev->dev,
+		 "S2 DRAM memory address: 0x%08x\n", reg);
+
+	switch (dev_priv->ddr_model) {
+	case 4:
+		val = 0x1fffffff;
+		break;
+	case 2:
+		val = 0x0fffffff;
+		break;
+	default:
+		val = dev_priv->ddr_model;
+	}
+
+	BCWC_S2_REG_WRITE(val, S2_3208);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x1040, S2_3200);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* FIXME: implement
+	 * bcwc_hw_rewrite_mode_regs(dev_priv);
+	 */
+
+	BCWC_S2_REG_WRITE(0x20000, S2_DDR_2014);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(1, S2_DDR_2008);
+	bcwc_hw_pci_post(dev_priv);
 
 	return 0;
 }

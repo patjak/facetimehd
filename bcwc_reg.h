@@ -48,6 +48,12 @@
 #define S2_PLL_CTRL_510		0x0510
 
 /* Probably DDR PHY PLL registers */
+#define S2_DDR_2004			0x2004
+#define S2_DDR_2008			0x2008
+#define S2_DDR_2014			0x2014
+#define S2_DDR_STATUS_2018		0x2018
+#define S2_DDR_STATUS_BUSY		(1 << 0)
+
 #define S2_DDR_20A0			0x20a0
 #define S2_DDR_20A4			0x20a4
 #define S2_DDR_20A8			0x20a8
@@ -100,6 +106,10 @@
 #define S2_2BA8				0x2ba8
 #define S2_2BA0				0x2ba0
 #define S2_2BAC				0x2bac
+
+#define S2_3200				0x3200
+#define S2_3204				0x3204
+#define S2_3208				0x3208
 
 /* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
 #define IRQ_IPC_NUM_CHAN	0xc3000
