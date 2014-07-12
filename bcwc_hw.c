@@ -250,6 +250,73 @@ static int bcwc_hw_ddr_phy_soft_reset(struct bcwc_private *dev_priv)
 	return 0;
 }
 
+static inline int bcwc_hw_ddr_status_busy(struct bcwc_private *dev_priv,
+					  int retries, int delay)
+{
+	int reg, i;
+
+	for (i = 0; i < retries; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR_STATUS_2018);
+		if (!(reg & S2_DDR_STATUS_BUSY))
+			break;
+
+		if (delay > 0)
+			udelay(delay);
+	}
+
+	if (i >= retries) {
+		dev_err(&dev_priv->pdev->dev,
+			"S2_DDR_STATUS_2018 busy: retries=%d, udelay=%d, reg=0x%08x\n",
+			retries, delay, reg);
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
+static int bcwc_hw_ddr_rewrite_mode_regs(struct bcwc_private *dev_priv)
+{
+	int ret, val;
+
+	BCWC_S2_REG_WRITE(0x02000802, S2_DDR_2014);
+	bcwc_hw_pci_post(dev_priv);
+
+	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
+	if (ret != 0)
+		return ret;
+
+	BCWC_S2_REG_WRITE(0x3, S2_DDR_2014);
+	bcwc_hw_pci_post(dev_priv);
+
+	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
+	if (ret != 0)
+		return ret;
+
+	BCWC_S2_REG_WRITE(0x1, S2_DDR_2014);
+	bcwc_hw_pci_post(dev_priv);
+
+	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
+	if (ret != 0)
+		return ret;
+
+	if (dev_priv->ddr_speed == 450)
+		val = 0x16003000;
+	else
+		val = 0x16002000;
+
+	BCWC_S2_REG_WRITE(val, S2_DDR_2014);
+	bcwc_hw_pci_post(dev_priv);
+
+	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
+	if (ret != 0)
+		return ret;
+
+	dev_info(&dev_priv->pdev->dev,
+		 "Rewrite DDR mode registers succeeded\n");
+
+	return 0;
+}
+
 static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 {
 	u32 cmd;
@@ -621,18 +688,9 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	bcwc_hw_pci_post(dev_priv);
 
 	/* Polling for BUSY */
-	for (i = 0; i < 10000; i++) {
-		reg = BCWC_S2_REG_READ(S2_DDR_STATUS_2018);
-		if (!(reg & S2_DDR_STATUS_BUSY))
-			break;
-		udelay(10);
-	}
-
-	if (i >= 10000) {
-		dev_info(&dev_priv->pdev->dev,
-			 "S2_DDR_STATUS_2018 still busy after %d us\n", i);
-		return -ENODEV;
-	}
+	ret = bcwc_hw_ddr_status_busy(dev_priv, 10000, 10);
+	if (ret != 0)
+		return -EBUSY;
 
 	udelay(10000);
 
@@ -661,9 +719,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	BCWC_S2_REG_WRITE(0x1040, S2_3200);
 	bcwc_hw_pci_post(dev_priv);
 
-	/* FIXME: implement
-	 * bcwc_hw_rewrite_mode_regs(dev_priv);
-	 */
+	bcwc_hw_ddr_rewrite_mode_regs(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x20000, S2_DDR_2014);
 	bcwc_hw_pci_post(dev_priv);
