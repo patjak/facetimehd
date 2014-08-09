@@ -31,6 +31,10 @@ struct bcwc_private {
 	/* Mapped PCI resources */
 	void *s2_io;
 	u32 s2_io_len;
+
+	void *s2_mem;
+	u32 s2_mem_len;
+
 	void *isp_io;
 	u32 isp_io_len;
 

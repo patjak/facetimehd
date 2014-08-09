@@ -31,6 +31,12 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 		return ret;
 	}
 
+	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_S2_MEM, "S2 MEM");
+	if (ret) {
+		dev_err(&dev_priv->pdev->dev, "Failed to request S2 MEM\n");
+		return ret;
+	}
+
 	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_ISP_IO, "ISP IO");
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev, "Failed to request ISP IO\n");
@@ -43,6 +49,12 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 	dev_priv->s2_io = ioremap_nocache(start, len);
 	dev_priv->s2_io_len = len;
 
+	/* S2 MEM */
+	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_S2_MEM);
+	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_S2_MEM);
+	dev_priv->s2_mem = ioremap_nocache(start, len);
+	dev_priv->s2_mem_len = len;
+
 	/* ISP IO */
 	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_ISP_IO);
 	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_ISP_IO);
@@ -52,6 +64,10 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 	dev_info(&dev_priv->pdev->dev,
 		 "Allocated S2 regs (BAR %d). %u bytes at 0x%p",
 		 BCWC_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
+
+	dev_info(&dev_priv->pdev->dev,
+		 "Allocated S2 mem (BAR %d). %u bytes at 0x%p",
+		 BCWC_PCI_S2_MEM, dev_priv->s2_mem_len, dev_priv->s2_mem);
 
 	dev_info(&dev_priv->pdev->dev,
 		 "Allocated ISP regs (BAR %d). %u bytes at 0x%p",
