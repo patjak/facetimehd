@@ -213,10 +213,13 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 
 		if (dev_priv->s2_io)
 			iounmap(dev_priv->s2_io);
+		if (dev_priv->s2_mem)
+			iounmap(dev_priv->s2_mem);
 		if (dev_priv->isp_io)
 			iounmap(dev_priv->isp_io);
 
 		pci_release_region(pdev, BCWC_PCI_S2_IO);
+		pci_release_region(pdev, BCWC_PCI_S2_MEM);
 		pci_release_region(pdev, BCWC_PCI_ISP_IO);
 	}
 
