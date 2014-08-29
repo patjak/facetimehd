@@ -17,6 +17,7 @@
  *
  */
 
+#include <linux/random.h>
 #include <linux/delay.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
@@ -758,7 +759,83 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	return 0;
 }
 
-static int bcwc_hw_save_ddr_phy_regs(struct bcwc_private *dev_priv)
+/* Memory test pattern inspired by ramtest in CoreBoot */
+static inline void bcwc_hw_mem_pattern(u32 index, u32 *addr, u32 *val)
+{
+	int a, b;
+
+	a = (index >> 8) + 1;
+	b = (index >> 4) & 0xf;
+	*addr = index & 0xf;
+	*addr |= a << (4 * b);
+	*addr &= 0x0fffffff;
+	*val = 0x01010101 << (a & 7);
+
+	if (a & 8)
+		*val = ~(*val);
+}
+
+int bcwc_hw_verify_mem_full(struct bcwc_private *dev_priv, u32 base)
+{
+	struct rnd_state state;
+	u32 val, val_read, addr;
+	int fails = 0;
+	int num = 1024 * 128;
+	int i;
+
+	prandom_seed_state(&state, 0x12345678);
+
+	for (i = 0; i < num; i++) {
+		val = prandom_u32_state(&state);
+		addr = prandom_u32_state(&state);
+		addr &= 0xfffffff;
+
+		BCWC_S2_MEM_WRITE(val, addr);
+		bcwc_hw_pci_post(dev_priv);
+	}
+
+	prandom_seed_state(&state, 0x12345678);
+
+	for (i = 0; i < num; i++) {
+		val = prandom_u32_state(&state);
+		addr = prandom_u32_state(&state);
+		addr &= 0xfffffff;
+
+		val_read = BCWC_S2_MEM_READ(addr);
+
+		if (val_read != val)
+			fails++;
+	}
+
+	return fails;
+}
+
+int bcwc_hw_verify_mem(struct bcwc_private *dev_priv, u32 base)
+{
+	u32 i, addr, val, val_read;
+	int fails = 0;
+
+	for (i = 0; i < 0x400; i += 4) {
+		bcwc_hw_mem_pattern(i, &addr, &val);
+		BCWC_S2_MEM_WRITE(val, base + addr);
+		bcwc_hw_pci_post(dev_priv);
+	}
+
+	for (i = 0; i < 0x400; i +=4) {
+		bcwc_hw_mem_pattern(i, &addr, &val);
+		val_read = BCWC_S2_MEM_READ(base + addr);
+
+		if (val_read != val)
+			fails++;
+	}
+
+	if (fails > 0)
+		return -EIO;
+
+	return 0;
+}
+
+static int bcwc_hw_ddr_phy_save_regs(struct bcwc_private *dev_priv)
 {
 	u32 reg, offset;
 	int i;
