@@ -693,6 +693,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		reg += 5;
 	}
 
+	/* DDR read FIFO delay? */
 	BCWC_S2_REG_WRITE(reg, S2_2B60);
 	bcwc_hw_pci_post(dev_priv);
 
@@ -831,6 +832,93 @@ int bcwc_hw_verify_mem(struct bcwc_private *dev_priv, u32 base)
 
 	if (fails > 0)
 		return -EIO;
+
+	return 0;
+}
+
+/* FIXME: Make some more sense out of this */
+static int bcwc_hw_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
+{
+
+	return 0;
+}
+
+static int bcwc_hw_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int bcwc_hw_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int bcwc_hw_ddr_calibrate_wr_dq(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int bcwc_hw_ddr_calibrate_wr_dm(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int bcwc_hw_ddr_calibrate_addr(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int bcwc_hw_ddr_calibrate(struct bcwc_private *dev_priv)
+{
+	u32 reg;
+	int ret, i;
+
+	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
+	bcwc_hw_pci_post(dev_priv);
+
+	for (i = 0 ; i <= 50; i++) {
+		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
+		if (reg & 0x1)
+			break;
+		/* We don't handle errors here, maybe we should */
+	}
+
+	ret = bcwc_hw_ddr_calibrate_rd_data_dly_fifo(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_hw_ddr_calibrate_re_byte_fifo(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_hw_ddr_calibrate_rd_dqs(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_hw_ddr_calibrate_wr_dq(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_hw_ddr_calibrate_wr_dm(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_hw_ddr_calibrate_addr(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_hw_verify_mem_full(dev_priv, 0);
+	if (ret) {
+		dev_err(&dev_priv->pdev->dev,
+			"Full memory verification failed! (%d)\n", ret);
+		return -EIO;
+	} else {
+		dev_info(&dev_priv->pdev->dev,
+			 "Full memory verification succeeded! (%d)\n", ret);
+	}
 
 	return 0;
 }
@@ -1012,6 +1100,7 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 	for (i = 0; i < DDR_PHY_NUM_REGS; i++)
 		dev_priv->ddr_phy_reg_map[i].offset = ddr_phy_reg_map[i];
 
+	bcwc_hw_ddr_calibrate(dev_priv);
 out:
 	return ret;
 }
