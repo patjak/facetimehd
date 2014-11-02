@@ -100,7 +100,9 @@
 #define S2_DDR40_STRAP_CTL_2		0x28b4
 #define S2_DDR40_STRAP_STATUS		0x28b8
 
+/* Probably DDR read FIFO delay */
 #define S2_2B60				0x2b60
+
 #define S2_2B64				0x2b64
 #define S2_2BA4				0x2ba4
 #define S2_2BA8				0x2ba8
