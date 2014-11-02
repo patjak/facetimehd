@@ -985,6 +985,197 @@ out:
 	return ret;
 }
 
+static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
+				u32 base, u32 *var_68, u32 *var_6c, u32 *var_70)
+{
+	u32 vdl_bits, vdl_status;
+	int i;
+
+	u32 var_2c, var_44, var_48;
+	u32 si, a, c, r13, r14, r15;
+
+	u32 offset_2 = base + 0x200; /* stored in var_60 */
+	u32 offset_3 = base + 0x274; /* stored in var_50 */
+	u32 offset_4 = base + 0x314; /* stored in var_58 */
+	u32 offset_5 = base + 0x394; /* stored in var_40 */
+	u32 offset_6 = base + 0x390; /* stored in var_38 */
+
+
+	vdl_status = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
+	vdl_bits = (vdl_status >> 4) & 0xff;
+
+	BCWC_S2_REG_WRITE(0x30000, offset_2);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x30100, offset_3);
+	bcwc_hw_pci_post(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x30100, offset_4);
+	bcwc_hw_pci_post(dev_priv);
+
+	/* Still don't know why we do this */
+	bcwc_hw_verify_mem(dev_priv, 0);
+
+	BCWC_S2_REG_WRITE(1, offset_5);
+	bcwc_hw_pci_post(dev_priv);
+
+	var_48 = 0;
+	var_2c = 0;
+	r15 = 0;
+
+	a = 0;
+	var_44 = 0;
+
+	for (i = 10000; i >= 0 && a == 0; i--) {
+		bcwc_hw_verify_mem(dev_priv, 0);
+
+		r13 = BCWC_S2_REG_READ(offset_6);
+
+		BCWC_S2_REG_WRITE(1, offset_5);
+		bcwc_hw_pci_post(dev_priv);
+
+		if ((r13 & 0xf) == 0) {
+			if (r15 == 0)
+				r15 = 1;
+			else
+				a = 1;
+		}
+
+		if ((r13 & 0xf0) == 0) {
+			if (var_2c == 0)
+				var_2c = 1;
+			else
+				a = 1;
+		}
+
+		if (var_48 > 0x3e) {
+			r13 = ((var_44 + 1) & 0x3f) | 0x30100;
+
+			BCWC_S2_REG_WRITE(r13, offset_3);
+			bcwc_hw_pci_post(dev_priv);
+
+			BCWC_S2_REG_WRITE(r13, offset_4);
+			bcwc_hw_pci_post(dev_priv);
+
+			if (r13 >= 0x41) {
+				dev_err(&dev_priv->pdev->dev,
+					"First RDEN byte timeout\n");
+				return -EIO;
+			}
+		} else {
+			var_48++;
+			BCWC_S2_REG_WRITE((var_48 & 0x3f) | 0x30000, offset_2);
+			bcwc_hw_pci_post(dev_priv);
+		}
+	}
+
+	if (i <= 0) {
+		dev_err(&dev_priv->pdev->dev, "WL FIFO timeout\n");
+		return -EIO;
+	}
+
+	var_48 = BCWC_S2_REG_READ(offset_2);
+	si = 0;
+
+	if (r15 == 0) {
+		r15 = BCWC_S2_REG_READ(offset_3) & 0x3f;
+		a = var_44 + 1;
+
+		for (i = 1000; i >= 0; i--) {
+
+			if (a >= 65) {
+				dev_err(&dev_priv->pdev->dev,
+					"RDEN byte1 TO timeout\n");
+				return -EIO;
+			}
+
+			var_44 = a;
+			BCWC_S2_REG_WRITE((a & 0x3f) | 0x30100, offset_4);
+			bcwc_hw_pci_post(dev_priv);
+
+			bcwc_hw_verify_mem(dev_priv, 0);
+
+			r13 = BCWC_S2_REG_READ(offset_6);
+			BCWC_S2_REG_WRITE(0x1, offset_5);
+			bcwc_hw_pci_post(dev_priv);
+
+			if (!(r13 & 0xf0))
+				break;
+		}
+
+		if (i <= 0) {
+			dev_err(&dev_priv->pdev->dev, "RDEN byte1 timeout\n");
+			return -EIO;
+		}
+
+		si = BCWC_S2_REG_READ(offset_4) & 0x3f;
+	} else {
+		r15 = 0;
+	}
+
+	if (var_2c == 1) {
+		var_2c = BCWC_S2_REG_READ(offset_4) & 0x3f;
+		r14 = var_44 + 1;
+
+		for (i = 10000; i > 0; i--) {
+			if (r14 >= 65) {
+				dev_err(&dev_priv->pdev->dev,
+					"RDEN byte0 TO timeout\n");
+				return -EIO;
+			}
+
+			r14 = (r14 & 0x3f) | 0x30100;
+			BCWC_S2_REG_WRITE(r14, offset_3);
+			bcwc_hw_pci_post(dev_priv);
+
+			bcwc_hw_verify_mem(dev_priv, 0);
+
+			r13 = BCWC_S2_REG_READ(offset_6);
+			BCWC_S2_REG_WRITE(1, offset_5);
+			bcwc_hw_pci_post(dev_priv);
+
+			if (i > 0)
+				r14++;
+
+			if (!(r13 && 0x3f))
+				break;
+		}
+
+		if (i <= 0) {
+			dev_err(&dev_priv->pdev->dev,
+				"Second RDEN byte timeout\n");
+			return -EIO;
+		}
+
+		r15 = BCWC_S2_REG_READ(offset_3) & 0x3f;
+		si = var_2c;
+	}
+
+	c = (var_48 & 0x3f) + vdl_bits;
+	*var_70 = c;
+
+	if (c > 63) {
+		*var_70 = 63;
+		a = r15 + (c - 63);
+
+		if (a >= 64)
+			a = 63;
+
+		c = si + (c - 63);
+
+		if (c >= 64)
+			c = 63;
+
+		*var_68 = a;
+		*var_6c = c;
+	} else {
+		*var_68 = r15;
+		*var_6c = si;
+	}
+
+	return 0;
+}
+
 static int bcwc_hw_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 {
 	return 0;
