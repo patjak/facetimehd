@@ -17,4 +17,4 @@
  *
  */
 
-int bcwc_hw_ddr_calibrate(struct bcwc_private *dev_priv);
+int bcwc_ddr_calibrate(struct bcwc_private *dev_priv);

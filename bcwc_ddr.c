@@ -22,7 +22,7 @@
 #include "bcwc_hw.h"
 
 /* Memory test pattern inspired by ramtest in CoreBoot */
-static inline void bcwc_hw_mem_pattern(u32 index, u32 *addr, u32 *val)
+static inline void bcwc_ddr_mem_pattern(u32 index, u32 *addr, u32 *val)
 {
 	int a, b;
 
@@ -37,7 +37,7 @@ static inline void bcwc_hw_mem_pattern(u32 index, u32 *addr, u32 *val)
 		*val = ~(*val);
 }
 
-int bcwc_hw_verify_mem_full(struct bcwc_private *dev_priv, u32 base)
+int bcwc_ddr_verify_mem_full(struct bcwc_private *dev_priv, u32 base)
 {
 	struct rnd_state state;
 	u32 val, val_read, addr;
@@ -72,19 +72,19 @@ int bcwc_hw_verify_mem_full(struct bcwc_private *dev_priv, u32 base)
 	return fails;
 }
 
-int bcwc_hw_verify_mem(struct bcwc_private *dev_priv, u32 base)
+int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
 {
 	u32 i, addr, val, val_read;
 	int fails = 0;
 
 	for (i = 0; i < 0x400; i += 4) {
-		bcwc_hw_mem_pattern(i, &addr, &val);
+		bcwc_ddr_mem_pattern(i, &addr, &val);
 		BCWC_S2_MEM_WRITE(val, base + addr);
 		bcwc_hw_pci_post(dev_priv);
 	}
 
 	for (i = 0; i < 0x400; i +=4) {
-		bcwc_hw_mem_pattern(i, &addr, &val);
+		bcwc_ddr_mem_pattern(i, &addr, &val);
 		val_read = BCWC_S2_MEM_READ(base + addr);
 
 		if (val_read != val)
@@ -99,7 +99,7 @@ int bcwc_hw_verify_mem(struct bcwc_private *dev_priv, u32 base)
 
 
 /* FIXME: Make some more sense out of this */
-static int bcwc_hw_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
+static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 {
 	u32 base = 0x2800;
 	u32 offset_1 = base + 0x200;
@@ -147,7 +147,7 @@ static int bcwc_hw_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		 * OSX doesn't check any return values from it's verification so
 		 * perhaps controller can detect this itself and set some regs.
 		 */
-		bcwc_hw_verify_mem(dev_priv, 0);
+		bcwc_ddr_verify_mem(dev_priv, 0);
 
 		BCWC_S2_REG_WRITE(1, offset_6);
 		bcwc_hw_pci_post(dev_priv);
@@ -247,7 +247,7 @@ out:
 	return ret;
 }
 
-static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
+static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 				u32 base, u32 *var_68, u32 *var_6c, u32 *var_70)
 {
 	u32 vdl_bits, vdl_status;
@@ -276,7 +276,7 @@ static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	bcwc_hw_pci_post(dev_priv);
 
 	/* Still don't know why we do this */
-	bcwc_hw_verify_mem(dev_priv, 0);
+	bcwc_ddr_verify_mem(dev_priv, 0);
 
 	BCWC_S2_REG_WRITE(1, offset_5);
 	bcwc_hw_pci_post(dev_priv);
@@ -289,7 +289,7 @@ static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	var_44 = 0;
 
 	for (i = 10000; i >= 0 && a == 0; i--) {
-		bcwc_hw_verify_mem(dev_priv, 0);
+		bcwc_ddr_verify_mem(dev_priv, 0);
 
 		r13 = BCWC_S2_REG_READ(offset_6);
 
@@ -355,7 +355,7 @@ static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 			BCWC_S2_REG_WRITE((a & 0x3f) | 0x30100, offset_4);
 			bcwc_hw_pci_post(dev_priv);
 
-			bcwc_hw_verify_mem(dev_priv, 0);
+			bcwc_ddr_verify_mem(dev_priv, 0);
 
 			r13 = BCWC_S2_REG_READ(offset_6);
 			BCWC_S2_REG_WRITE(0x1, offset_5);
@@ -390,7 +390,7 @@ static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 			BCWC_S2_REG_WRITE(r14, offset_3);
 			bcwc_hw_pci_post(dev_priv);
 
-			bcwc_hw_verify_mem(dev_priv, 0);
+			bcwc_ddr_verify_mem(dev_priv, 0);
 
 			r13 = BCWC_S2_REG_READ(offset_6);
 			BCWC_S2_REG_WRITE(1, offset_5);
@@ -438,7 +438,7 @@ static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	return 0;
 }
 
-static int bcwc_hw_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
+static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 {
 	u32 base = 0x2800;
 	u32 var_28 = 0;
@@ -451,8 +451,8 @@ static int bcwc_hw_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 	u32 offset_3 = base + 0x314;
 
 	/* FIXME: Check that _40 and _3c aren't mixed up */
-	ret = bcwc_hw_ddr_calibrate_one_re_fifo(dev_priv, base, &var_40,
-						&var_3c, &var_28);
+	ret = bcwc_ddr_calibrate_one_re_fifo(dev_priv, base, &var_40, &var_3c,
+					     &var_28);
 	if (ret)
 		return ret;
 
@@ -475,27 +475,27 @@ static int bcwc_hw_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 	return 0;
 }
 
-static int bcwc_hw_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv)
+static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv)
 {
 	return 0;
 }
 
-static int bcwc_hw_ddr_calibrate_wr_dq(struct bcwc_private *dev_priv)
+static int bcwc_ddr_calibrate_wr_dq(struct bcwc_private *dev_priv)
 {
 	return 0;
 }
 
-static int bcwc_hw_ddr_calibrate_wr_dm(struct bcwc_private *dev_priv)
+static int bcwc_ddr_calibrate_wr_dm(struct bcwc_private *dev_priv)
 {
 	return 0;
 }
 
-static int bcwc_hw_ddr_calibrate_addr(struct bcwc_private *dev_priv)
+static int bcwc_ddr_calibrate_addr(struct bcwc_private *dev_priv)
 {
 	return 0;
 }
 
-int bcwc_hw_ddr_calibrate(struct bcwc_private *dev_priv)
+int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
 {
 	u32 reg;
 	int ret, i;
@@ -513,31 +513,31 @@ int bcwc_hw_ddr_calibrate(struct bcwc_private *dev_priv)
 		/* We don't handle errors here, maybe we should */
 	}
 
-	ret = bcwc_hw_ddr_calibrate_rd_data_dly_fifo(dev_priv);
+	ret = bcwc_ddr_calibrate_rd_data_dly_fifo(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_hw_ddr_calibrate_re_byte_fifo(dev_priv);
+	ret = bcwc_ddr_calibrate_re_byte_fifo(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_hw_ddr_calibrate_rd_dqs(dev_priv);
+	ret = bcwc_ddr_calibrate_rd_dqs(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_hw_ddr_calibrate_wr_dq(dev_priv);
+	ret = bcwc_ddr_calibrate_wr_dq(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_hw_ddr_calibrate_wr_dm(dev_priv);
+	ret = bcwc_ddr_calibrate_wr_dm(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_hw_ddr_calibrate_addr(dev_priv);
+	ret = bcwc_ddr_calibrate_addr(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_hw_verify_mem_full(dev_priv, 0);
+	ret = bcwc_ddr_verify_mem_full(dev_priv, 0);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
 			"Full memory verification failed! (%d)\n", ret);
@@ -549,5 +549,3 @@ int bcwc_hw_ddr_calibrate(struct bcwc_private *dev_priv)
 
 	return 0;
 }
-
-

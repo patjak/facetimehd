@@ -931,7 +931,7 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 	for (i = 0; i < DDR_PHY_NUM_REGS; i++)
 		dev_priv->ddr_phy_reg_map[i].offset = ddr_phy_reg_map[i];
 
-	bcwc_hw_ddr_calibrate(dev_priv);
+	bcwc_ddr_calibrate(dev_priv);
 out:
 	return ret;
 }
