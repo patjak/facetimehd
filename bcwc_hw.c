@@ -1178,6 +1178,38 @@ static int bcwc_hw_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 
 static int bcwc_hw_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 {
+	u32 base = 0x2800;
+	u32 var_28 = 0;
+	u32 var_3c = 0;
+	u32 var_40 = 0;
+	int ret;
+
+	u32 offset_1 = base + 0x200;
+	u32 offset_2 = base + 0x274;
+	u32 offset_3 = base + 0x314;
+
+	/* FIXME: Check that _40 and _3c aren't mixed up */
+	ret = bcwc_hw_ddr_calibrate_one_re_fifo(dev_priv, base, &var_40,
+						&var_3c, &var_28);
+	if (ret)
+		return ret;
+
+	var_28 = (var_28 & 0x3f) | 0x30000;
+	BCWC_S2_REG_WRITE(var_28, offset_1);
+	bcwc_hw_pci_post(dev_priv);
+
+	var_40 = (var_40 & 0x3f) | 0x30100;
+	BCWC_S2_REG_WRITE(var_40, offset_2);
+	bcwc_hw_pci_post(dev_priv);
+
+	var_3c = (var_3c & 0x3f) | 0x30100;
+	BCWC_S2_REG_WRITE(var_3c, offset_3);
+	bcwc_hw_pci_post(dev_priv);
+
+	dev_info(&dev_priv->pdev->dev,
+		 "RE BYTE FIFO success: 0x%x, 0x%x, 0x%x\n",
+		 var_40, var_3c, var_28);
+
 	return 0;
 }
 
