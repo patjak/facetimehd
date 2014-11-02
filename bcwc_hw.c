@@ -50,21 +50,13 @@ static int bcwc_hw_set_core_clk(struct bcwc_private *dev_priv)
 static int bcwc_hw_s2_pll_reset(struct bcwc_private *dev_priv)
 {
 	BCWC_S2_REG_WRITE(0x40, S2_PLL_CTRL_2C);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x0, S2_PLL_CTRL_2C);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0xbcbc1500, S2_PLL_CTRL_100);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x0, S2_PLL_CTRL_14);
-	bcwc_hw_pci_post(dev_priv);
 
 	udelay(10000);
 
 	BCWC_S2_REG_WRITE(0x3, S2_PLL_CTRL_14);
-	bcwc_hw_pci_post(dev_priv);
 
 	dev_info(&dev_priv->pdev->dev, "PLL reset finished\n");
 
@@ -77,16 +69,10 @@ static int bcwc_hw_s2_init_pcie_link(struct bcwc_private *dev_priv)
 
 	reg = BCWC_S2_REG_READ(S2_PCIE_LINK_D000);
 	BCWC_S2_REG_WRITE(reg | 0x10, S2_PCIE_LINK_D000);
-	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x1804, S2_PCIE_LINK_D120);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0xac5800, S2_PCIE_LINK_D124);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x1804, S2_PCIE_LINK_D120);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Check if PLL is powered down when S2 PCIe link is in L1 state */
 	reg = BCWC_S2_REG_READ(S2_PCIE_LINK_D124);
@@ -100,28 +86,13 @@ static int bcwc_hw_s2_init_pcie_link(struct bcwc_private *dev_priv)
 	dev_info(&dev_priv->pdev->dev, "S2 PCIe link init succeeded\n");
 
 	BCWC_S2_REG_WRITE(0x1f08, S2_PCIE_LINK_D128);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x80008610, S2_PCIE_LINK_D12C);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x1608, S2_PCIE_LINK_D128);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x8000fc00, S2_PCIE_LINK_D12C);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x1f08, S2_PCIE_LINK_D128);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x80008610, S2_PCIE_LINK_D12C);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x1708, S2_PCIE_LINK_D128);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x800005bf, S2_PCIE_LINK_D12C);
-	bcwc_hw_pci_post(dev_priv);
 
 	return 0;
 }
@@ -143,36 +114,30 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 		if (ref_clk_25) {
 			/* Ref clk 25 */
 			BCWC_S2_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x19280804, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
 			BCWC_S2_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x14280603, S2_PLL_CTRL_24);
 		}
 	} else if (ddr_speed == 300) {
 		if (ref_clk_25) {
 			/* Ref clk 25 */
 			BCWC_S2_REG_WRITE(0x00480078, S2_PLL_CTRL_510);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x19280c06, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
 			BCWC_S2_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x14280804, S2_PLL_CTRL_24);
 		}
 	} else if (ddr_speed == 200) {
 		if (ref_clk_25) {
 			/* Ref clk 25 */
 			BCWC_S2_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x19281008, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
 			BCWC_S2_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x14280c06, S2_PLL_CTRL_24);
 		}
 	} else {
@@ -186,18 +151,15 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 		if (ref_clk_25) {
 			/* Ref clk 25 */
 			BCWC_S2_REG_WRITE(0x0048007d, S2_PLL_CTRL_510);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x19280904, S2_PLL_CTRL_24);
 		} else {
 			/* Ref clk 24 */
 			BCWC_S2_REG_WRITE(0x04b00000, S2_PLL_CTRL_20);
-			bcwc_hw_pci_post(dev_priv);
 			BCWC_S2_REG_WRITE(0x14280904, S2_PLL_CTRL_24);
 
 		}
 	}
 
-	bcwc_hw_pci_post(dev_priv);
 	bcwc_hw_s2_pll_reset(dev_priv);
 
 	dev_info(&dev_priv->pdev->dev, "Waiting for S2 PLL to lock at %d MHz\n",
@@ -220,7 +182,6 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 
 	reg = BCWC_S2_REG_READ(S2_PLL_STATUS_A8);
 	BCWC_S2_REG_WRITE(reg | S2_PLL_BYPASS, S2_PLL_STATUS_A8);
-	bcwc_hw_pci_post(dev_priv);
 	udelay(10000);
 
 	reg = BCWC_S2_REG_READ(S2_PLL_STATUS_A8);
@@ -237,21 +198,13 @@ static int bcwc_hw_s2_preinit_ddr_controller_soc(struct bcwc_private *dev_priv)
 {
 	/* Wingardium leviosa */
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1100);
-	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1104);
-	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1108);
-	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_110C);
-	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1110);
-	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1114);
-	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_1118);
-	bcwc_hw_pci_post(dev_priv);
 	BCWC_S2_REG_WRITE(0x203, S2_DDR_REG_111C);
-	bcwc_hw_pci_post(dev_priv);
 
 	return 0;
 }
@@ -260,15 +213,12 @@ static int bcwc_hw_ddr_phy_soft_reset(struct bcwc_private *dev_priv)
 {
 	/* Clear status bits? */
 	BCWC_S2_REG_WRITE(0x281, S2_PLL_STATUS_A8);
-	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_S2_REG_WRITE(0xfffff, S2_PLL_CTRL_9C);
-	bcwc_hw_pci_post(dev_priv);
 
 	udelay(10000);
 
 	BCWC_S2_REG_WRITE(0xffbff, S2_PLL_CTRL_9C);
-	bcwc_hw_pci_post(dev_priv);
 
 	return 0;
 }
@@ -302,21 +252,18 @@ static int bcwc_hw_ddr_rewrite_mode_regs(struct bcwc_private *dev_priv)
 	int ret, val;
 
 	BCWC_S2_REG_WRITE(0x02000802, S2_DDR_2014);
-	bcwc_hw_pci_post(dev_priv);
 
 	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
 	if (ret != 0)
 		return ret;
 
 	BCWC_S2_REG_WRITE(0x3, S2_DDR_2014);
-	bcwc_hw_pci_post(dev_priv);
 
 	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
 	if (ret != 0)
 		return ret;
 
 	BCWC_S2_REG_WRITE(0x1, S2_DDR_2014);
-	bcwc_hw_pci_post(dev_priv);
 
 	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
 	if (ret != 0)
@@ -328,7 +275,6 @@ static int bcwc_hw_ddr_rewrite_mode_regs(struct bcwc_private *dev_priv)
 		val = 0x16002000;
 
 	BCWC_S2_REG_WRITE(val, S2_DDR_2014);
-	bcwc_hw_pci_post(dev_priv);
 
 	ret = bcwc_hw_ddr_status_busy(dev_priv, 500, 5);
 	if (ret != 0)
@@ -367,12 +313,8 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	reg = BCWC_S2_REG_READ(S2_PLL_CTRL_9C);
 	reg &= 0xfffffcff;
-
 	BCWC_S2_REG_WRITE(reg, S2_PLL_CTRL_9C);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(reg | 0x300, S2_PLL_CTRL_9C);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Default to 450 MHz DDR speed for now */
 	bcwc_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
@@ -381,21 +323,15 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	/* Not sure what this is yet (perhaps safe/slow DDR PLL settings) */
 	BCWC_S2_REG_WRITE(0x2, S2_2BA4);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x2, S2_2BA8);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Disable the hardware frequency change function */
 	BCWC_S2_REG_WRITE(0x3f4, S2_20F8);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Setup the PLL */
 	BCWC_S2_REG_WRITE(0x40, S2_2434);
-	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x10000000, S2_2438);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Wait for DDR PLL to lock */
 	for (i = 0; i <= 10000; i++) {
@@ -412,7 +348,6 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	BCWC_S2_REG_WRITE(0x1f37205, S2_2430);
-	bcwc_hw_pci_post(dev_priv);
 
 	for (i = 0; i <= 10000; i++) {
 		reg = BCWC_S2_REG_READ(S2_DDR_PLL_STATUS_241C);
@@ -430,10 +365,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	udelay(10000);
 
 	BCWC_S2_REG_WRITE(0x0c10, S2_DDR40_PHY_PLL_DIV);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x0010, S2_DDR40_PHY_PLL_CFG);
-	bcwc_hw_pci_post(dev_priv);
 
 	for (i = 0; i <= 10000; i++) {
 		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_PLL_STATUS);
@@ -458,22 +390,11 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		val = 0x46a00c2;
 
 	BCWC_S2_REG_WRITE(0x10737545, S2_DDR_20A0);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x12643173, S2_DDR_20A4);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0xff3f, S2_DDR_20A8);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(val, S2_DDR_20B0);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x101f, S2_DDR_2118);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x1c0, S2_DDR40_AUX_CTL);
-	bcwc_hw_pci_post(dev_priv);
 
 	if (dev_priv->ddr_model == 2)
 		val = 0x2155558;
@@ -481,7 +402,6 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		val = 0x2159518;
 
 	BCWC_S2_REG_WRITE(val, S2_DDR40_STRAP_CTL);
-	bcwc_hw_pci_post(dev_priv);
 
 	if (dev_priv->ddr_speed == 450)
 		val = 0x108307;
@@ -489,11 +409,9 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		val = 0x108286;
 
 	BCWC_S2_REG_WRITE(val, S2_DDR40_STRAP_CTL_2);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Strap control */
 	BCWC_S2_REG_WRITE(0x2159559, S2_DDR40_STRAP_CTL);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Polling for STRAP valid */
 	for (i = 0; i < 10000; i++) {
@@ -533,12 +451,10 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	val |= reg;
 
 	BCWC_S2_REG_WRITE(val, S2_DDR40_PHY_PLL_DIV);
-	bcwc_hw_pci_post(dev_priv);
 
 	reg = BCWC_S2_REG_READ(S2_DDR40_PHY_PLL_CFG);
 	reg &= 0xfffffffd;
 	BCWC_S2_REG_WRITE(reg, S2_DDR40_PHY_PLL_CFG);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Start polling for the lock */
 	for (i = 0; i < 100; i++) {
@@ -557,10 +473,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	/* Configure DDR40 VDL */
 	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x103, S2_DDR40_PHY_VDL_CTL);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Poll for VDL calibration */
 	for (i = 0; i < 100; i++) {
@@ -586,10 +499,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
-	bcwc_hw_pci_post(dev_priv);
 
 	for (i = 0; i < 1000; i++) {
 		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
@@ -631,7 +541,6 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		vdl_fine |= 0x10100;
 
 		BCWC_S2_REG_WRITE(vdl_fine, S2_DDR40_PHY_VDL_OVR_FINE);
-		bcwc_hw_pci_post(dev_priv);
 
 		vdl_coarse = 0x10000;
 
@@ -646,7 +555,6 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		}
 
 		BCWC_S2_REG_WRITE(vdl_coarse, S2_DDR40_PHY_VDL_OVR_COARSE);
-		bcwc_hw_pci_post(dev_priv);
 
 		dev_info(&dev_priv->pdev->dev,
 			 "VDL set to: coarse=0x%x, fine=0x%x\n",
@@ -657,26 +565,18 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	vtt_cons = 0x1cf7fff;
 	BCWC_S2_REG_WRITE(vtt_cons, S2_DDR40_PHY_VTT_CONNECTIONS);
-	bcwc_hw_pci_post(dev_priv);
 
 	vtt_ovr = 0x77fff;
 	BCWC_S2_REG_WRITE(vtt_ovr, S2_DDR40_PHY_VTT_OVERRIDE);
-	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x4, S2_DDR40_PHY_VTT_CTL);
-	bcwc_hw_pci_post(dev_priv);
 
 	dev_info(&dev_priv->pdev->dev, "Virtual VTT enabled");
 
 	/* Process, Voltage and Temperature compensation */
 	BCWC_S2_REG_WRITE(0xc0fff, S2_DDR40_PHY_ZQ_PVT_COMP_CTL);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x2, S2_DDR40_PHY_DRV_PAD_CTL);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x2, S2_2BA4);
-	bcwc_hw_pci_post(dev_priv);
 
 	val = 1000000 / dev_priv->ddr_speed;
 	reg = 4;
@@ -689,27 +589,17 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	/* DDR read FIFO delay? */
 	BCWC_S2_REG_WRITE(reg, S2_2B60);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x2, S2_2B64);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x3, S2_2BAC);
-	bcwc_hw_pci_post(dev_priv);
 
 	reg = BCWC_S2_REG_READ(S2_2BA0);
 	BCWC_S2_REG_WRITE(reg & 0xff0fffff, S2_2BA0);
-	bcwc_hw_pci_post(dev_priv);
-
 	udelay(500);
 
 	BCWC_S2_REG_WRITE(0, S2_DDR_2004);
-	bcwc_hw_pci_post(dev_priv);
-
 	udelay(10000);
 
 	BCWC_S2_REG_WRITE(0xab0a, S2_DDR_2014);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Polling for BUSY */
 	ret = bcwc_hw_ddr_status_busy(dev_priv, 10000, 10);
@@ -719,7 +609,6 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	udelay(10000);
 
 	BCWC_S2_REG_WRITE(0, S2_3204);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Read DRAM mem address (FIXME: Need to mask a few bits here) */
 	reg = BCWC_S2_REG_READ(S2_DDR40_STRAP_STATUS);
@@ -738,18 +627,12 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	BCWC_S2_REG_WRITE(val, S2_3208);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x1040, S2_3200);
-	bcwc_hw_pci_post(dev_priv);
 
 	bcwc_hw_ddr_rewrite_mode_regs(dev_priv);
 
 	BCWC_S2_REG_WRITE(0x20000, S2_DDR_2014);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(1, S2_DDR_2008);
-	bcwc_hw_pci_post(dev_priv);
 
 	return 0;
 }

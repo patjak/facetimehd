@@ -53,7 +53,6 @@ int bcwc_ddr_verify_mem_full(struct bcwc_private *dev_priv, u32 base)
 		addr &= 0xfffffff;
 
 		BCWC_S2_MEM_WRITE(val, addr);
-		bcwc_hw_pci_post(dev_priv);
 	}
 
 	prandom_seed_state(&state, 0x12345678);
@@ -80,7 +79,6 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
 	for (i = 0; i < 0x400; i += 4) {
 		bcwc_ddr_mem_pattern(i, &addr, &val);
 		BCWC_S2_MEM_WRITE(val, base + addr);
-		bcwc_hw_pci_post(dev_priv);
 	}
 
 	for (i = 0; i < 0x400; i +=4) {
@@ -121,13 +119,8 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 	reg_saved_3 = BCWC_S2_REG_READ(offset_3);
 
 	BCWC_S2_REG_WRITE(0x30000, offset_1);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x30100, offset_2);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x30100, offset_3);
-	bcwc_hw_pci_post(dev_priv);
 
 	fifo_delay = 1;
 	a = 1000;
@@ -140,7 +133,6 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		var_38 = a;
 
 		BCWC_S2_REG_WRITE((fifo_delay & 0x7), delay_reg);
-		bcwc_hw_pci_post(dev_priv);
 
 		/*
 		 * How do we know if verification was successful?
@@ -150,7 +142,6 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		bcwc_ddr_verify_mem(dev_priv, 0);
 
 		BCWC_S2_REG_WRITE(1, offset_6);
-		bcwc_hw_pci_post(dev_priv);
 
 		r8 = (b >= 57) ? b : (b + 7);
 
@@ -193,13 +184,8 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		}
 
 		BCWC_S2_REG_WRITE((r8 & 0x3f) | 0x30000, offset_1);
-		bcwc_hw_pci_post(dev_priv);
-
 		BCWC_S2_REG_WRITE((b & 0x3f) | 0x30100, offset_2);
-		bcwc_hw_pci_post(dev_priv);
-
 		BCWC_S2_REG_WRITE((b & 0x3f) | 0x30100, offset_3);
-		bcwc_hw_pci_post(dev_priv);
 
 		if (var_38 == 0)
 			break;
@@ -219,13 +205,8 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 	dev_info(&dev_priv->pdev->dev, "rd_data_dly_fifo succeeded\n");
 
 	BCWC_S2_REG_WRITE(reg_saved_1, offset_1);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(reg_saved_2, offset_2);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(reg_saved_3, offset_3);
-	bcwc_hw_pci_post(dev_priv);
 
 	if (var_30 > var_2c)
 		var_2c = var_30;
@@ -240,7 +221,6 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		var_30++;
 
 	BCWC_S2_REG_WRITE(var_30, delay_reg);
-	bcwc_hw_pci_post(dev_priv);
 
 	ret = 0;
 out:
@@ -267,19 +247,13 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	vdl_bits = (vdl_status >> 4) & 0xff;
 
 	BCWC_S2_REG_WRITE(0x30000, offset_2);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x30100, offset_3);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x30100, offset_4);
-	bcwc_hw_pci_post(dev_priv);
 
 	/* Still don't know why we do this */
 	bcwc_ddr_verify_mem(dev_priv, 0);
 
 	BCWC_S2_REG_WRITE(1, offset_5);
-	bcwc_hw_pci_post(dev_priv);
 
 	var_48 = 0;
 	var_2c = 0;
@@ -294,7 +268,6 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 		r13 = BCWC_S2_REG_READ(offset_6);
 
 		BCWC_S2_REG_WRITE(1, offset_5);
-		bcwc_hw_pci_post(dev_priv);
 
 		if ((r13 & 0xf) == 0) {
 			if (r15 == 0)
@@ -314,10 +287,7 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 			r13 = ((var_44 + 1) & 0x3f) | 0x30100;
 
 			BCWC_S2_REG_WRITE(r13, offset_3);
-			bcwc_hw_pci_post(dev_priv);
-
 			BCWC_S2_REG_WRITE(r13, offset_4);
-			bcwc_hw_pci_post(dev_priv);
 
 			if (r13 >= 0x41) {
 				dev_err(&dev_priv->pdev->dev,
@@ -327,7 +297,6 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 		} else {
 			var_48++;
 			BCWC_S2_REG_WRITE((var_48 & 0x3f) | 0x30000, offset_2);
-			bcwc_hw_pci_post(dev_priv);
 		}
 	}
 
@@ -353,13 +322,11 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 
 			var_44 = a;
 			BCWC_S2_REG_WRITE((a & 0x3f) | 0x30100, offset_4);
-			bcwc_hw_pci_post(dev_priv);
 
 			bcwc_ddr_verify_mem(dev_priv, 0);
 
 			r13 = BCWC_S2_REG_READ(offset_6);
 			BCWC_S2_REG_WRITE(0x1, offset_5);
-			bcwc_hw_pci_post(dev_priv);
 
 			if (!(r13 & 0xf0))
 				break;
@@ -388,13 +355,11 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 
 			r14 = (r14 & 0x3f) | 0x30100;
 			BCWC_S2_REG_WRITE(r14, offset_3);
-			bcwc_hw_pci_post(dev_priv);
 
 			bcwc_ddr_verify_mem(dev_priv, 0);
 
 			r13 = BCWC_S2_REG_READ(offset_6);
 			BCWC_S2_REG_WRITE(1, offset_5);
-			bcwc_hw_pci_post(dev_priv);
 
 			if (i > 0)
 				r14++;
@@ -458,15 +423,12 @@ static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 
 	var_28 = (var_28 & 0x3f) | 0x30000;
 	BCWC_S2_REG_WRITE(var_28, offset_1);
-	bcwc_hw_pci_post(dev_priv);
 
 	var_40 = (var_40 & 0x3f) | 0x30100;
 	BCWC_S2_REG_WRITE(var_40, offset_2);
-	bcwc_hw_pci_post(dev_priv);
 
 	var_3c = (var_3c & 0x3f) | 0x30100;
 	BCWC_S2_REG_WRITE(var_3c, offset_3);
-	bcwc_hw_pci_post(dev_priv);
 
 	dev_info(&dev_priv->pdev->dev,
 		 "RE BYTE FIFO success: 0x%x, 0x%x, 0x%x\n",
@@ -501,10 +463,7 @@ int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
 	int ret, i;
 
 	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
-	bcwc_hw_pci_post(dev_priv);
 
 	for (i = 0 ; i <= 50; i++) {
 		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);

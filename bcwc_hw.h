@@ -60,6 +60,7 @@ static inline void _BCWC_S2_REG_WRITE(struct bcwc_private *dev_priv, u32 val,
 
 	// dev_info(&dev_priv->pdev->dev, "S2 IO write at %u\n", offset);
 	iowrite32(val, dev_priv->s2_io + offset);
+	bcwc_hw_pci_post(dev_priv);
 }
 
 static inline u32 _BCWC_S2_MEM_READ(struct bcwc_private *dev_priv, u32 offset)
