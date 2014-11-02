@@ -22,6 +22,12 @@
 
 #include <linux/pci.h>
 
+/* Used after most PCI Link IO writes */
+static inline void bcwc_hw_pci_post(struct bcwc_private *dev_priv)
+{
+	pci_write_config_dword(dev_priv->pdev, 0, 0x12345678);
+}
+
 #define BCWC_S2_REG_READ(offset) _BCWC_S2_REG_READ(dev_priv, (offset))
 #define BCWC_S2_REG_WRITE(val, offset) _BCWC_S2_REG_WRITE(dev_priv, (val), (offset))
 
