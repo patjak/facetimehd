@@ -99,29 +99,32 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
 /* FIXME: Make some more sense out of this */
 static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 {
-	u32 rden_byte, rden_byte0, rden_byte1;
+	u32 rden_byte_save, rden_byte0_save, rden_byte1_save;
+	u32 rden_byte; /* Value for RDEN BYTE */
+	u32 rden_byte01; /* Value for RDEN BYTE0 and BYTE1 */
 
-	u32 a, b, c, d, r8, r12, r14, r15;
-	u32 var_2c, var_30, fifo_delay;
+	u32 a, c, d, r15;
+	u32 var_2c, var_30, fifo_delay, status;
 
 	int ret, i;
 
 	/* Save current register values */
-	rden_byte = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE);
-	rden_byte0 = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0);
-	rden_byte1 = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1);
+	rden_byte_save = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE);
+	rden_byte0_save = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0);
+	rden_byte1_save = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1);
 
 	BCWC_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
 	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
 	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE1);
 
 	fifo_delay = 1;
-	r15 = 0;
-	b = 0;
+	rden_byte01 = 0;
 	var_30 = 0;
 	var_2c = 0;
 
 	for (i = 1000; i > 0; i--) {
+		r15 = rden_byte01;
+
 		BCWC_S2_REG_WRITE((fifo_delay & 0x7),
 				  S2_DDR40_RD_DATA_DLY_FIFO);
 
@@ -134,30 +137,30 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 
 		BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
 
-		r8 = (b >= 57) ? b : (b + 7);
+		rden_byte = (rden_byte01 >= 57) ? rden_byte01 :
+						  (rden_byte01 + 7);
 
 		a = r15 + 7;
-		b = a;
-		if (b < 57)
-			b = r15;
+		rden_byte01 = a;
+		if (rden_byte01 < 57)
+			rden_byte01 = r15;
 
-		if (b > 63) {
+		if (rden_byte01 > 63) {
 			a = 1;
-			b = 0;
-			r8 = 0;
+			rden_byte01 = 0;
+			rden_byte = 0;
 		}
 
 		c = i - 1;
+		status = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
 
-		r14 = (BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS) & 0xf) | var_2c;
-		if (r14 == 0)
+		if (((status & 0xf) | var_2c) == 0)
 			var_2c = fifo_delay;
 
 		if (var_2c == 0)
 			c = 1;
 
-		r12 = (BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS) & 0xf0) | var_30;
-		if (r12 == 0)
+		if (((status & 0xf0) | var_30) == 0)
 			var_30 = fifo_delay;
 
 		if (var_30 == 0)
@@ -176,13 +179,15 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 			r15 = 1;
 		}
 
-		BCWC_S2_REG_WRITE((r8 & 0x3f) | 0x30000, S2_DDR40_RDEN_BYTE);
-		BCWC_S2_REG_WRITE((b & 0x3f) | 0x30100, S2_DDR40_RDEN_BYTE0);
-		BCWC_S2_REG_WRITE((b & 0x3f) | 0x30100, S2_DDR40_RDEN_BYTE1);
+		BCWC_S2_REG_WRITE((rden_byte & 0x3f) | 0x30000,
+				  S2_DDR40_RDEN_BYTE);
+		BCWC_S2_REG_WRITE((rden_byte01 & 0x3f) | 0x30100,
+				  S2_DDR40_RDEN_BYTE0);
+		BCWC_S2_REG_WRITE((rden_byte01 & 0x3f) | 0x30100,
+				  S2_DDR40_RDEN_BYTE1);
 
 		if (r15 != 0)
 			break;
-		r15 = b;
 	}
 
 	if (i == 0) {
@@ -193,9 +198,10 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 
 	dev_info(&dev_priv->pdev->dev, "rd_data_dly_fifo succeeded\n");
 
-	BCWC_S2_REG_WRITE(rden_byte, S2_DDR40_RDEN_BYTE);
-	BCWC_S2_REG_WRITE(rden_byte0, S2_DDR40_RDEN_BYTE0);
-	BCWC_S2_REG_WRITE(rden_byte1, S2_DDR40_RDEN_BYTE1);
+	/* Restore read enable bytes */
+	BCWC_S2_REG_WRITE(rden_byte_save, S2_DDR40_RDEN_BYTE);
+	BCWC_S2_REG_WRITE(rden_byte0_save, S2_DDR40_RDEN_BYTE0);
+	BCWC_S2_REG_WRITE(rden_byte1_save, S2_DDR40_RDEN_BYTE1);
 
 	if (var_30 > var_2c)
 		var_2c = var_30;
