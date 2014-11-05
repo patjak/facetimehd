@@ -75,6 +75,7 @@
 #define DDR_PHY_NUM_REGS		127 /* Found in AppleCamIn::Start() */
 
 /* DDR40 */
+#define S2_DDR40_PHY_BASE		0x2800
 #define S2_DDR40_PHY_PLL_STATUS		0x2810
 #define S2_DDR40_PHY_PLL_STATUS_LOCKED	(1 << 0)
 #define S2_DDR40_PHY_PLL_CFG		0x2814
@@ -100,10 +101,14 @@
 #define S2_DDR40_STRAP_CTL_2		0x28b4
 #define S2_DDR40_STRAP_STATUS		0x28b8
 
-/* Probably DDR read FIFO delay */
-#define S2_2B60				0x2b60
+#define S2_DDR40_RDEN_BYTE		0x2a00
+#define S2_DDR40_RDEN_BYTE0		0x2a74
+#define S2_DDR40_RDEN_BYTE1		0x2b14
+#define S2_DDR40_RD_DATA_DLY_FIFO	0x2b60
 
-#define S2_2B64				0x2b64
+#define S2_DDR40_2B64			0x2b64
+#define S2_DDR40_2B90			0x2b90
+#define S2_DDR40_2B94			0x2b94
 #define S2_2BA4				0x2ba4
 #define S2_2BA8				0x2ba8
 #define S2_2BA0				0x2ba0

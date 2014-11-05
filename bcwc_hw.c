@@ -588,8 +588,8 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	/* DDR read FIFO delay? */
-	BCWC_S2_REG_WRITE(reg, S2_2B60);
-	BCWC_S2_REG_WRITE(0x2, S2_2B64);
+	BCWC_S2_REG_WRITE(reg, S2_DDR40_RD_DATA_DLY_FIFO);
+	BCWC_S2_REG_WRITE(0x2, S2_DDR40_2B64);
 	BCWC_S2_REG_WRITE(0x3, S2_2BAC);
 
 	reg = BCWC_S2_REG_READ(S2_2BA0);
