@@ -99,9 +99,6 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
 /* FIXME: Make some more sense out of this */
 static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 {
-	u32 base = 0x2800;
-	u32 offset_5	= base + 0x390;
-	u32 offset_6	= base + 0x394;
 	u32 rden_byte, rden_byte0, rden_byte1;
 
 	u32 a, b, c, d, r8, r12, r14, r15;
@@ -135,7 +132,7 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		 */
 		bcwc_ddr_verify_mem(dev_priv, 0);
 
-		BCWC_S2_REG_WRITE(1, offset_6);
+		BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
 
 		r8 = (b >= 57) ? b : (b + 7);
 
@@ -152,15 +149,17 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 
 		c = i - 1;
 
-		r14 = (BCWC_S2_REG_READ(offset_5) & 0xf) | var_2c;
+		r14 = (BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS) & 0xf) | var_2c;
 		if (r14 == 0)
 			var_2c = fifo_delay;
+
 		if (var_2c == 0)
 			c = 1;
 
-		r12 = (BCWC_S2_REG_READ(offset_5) & 0xf0) | var_30;
+		r12 = (BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS) & 0xf0) | var_30;
 		if (r12 == 0)
 			var_30 = fifo_delay;
+
 		if (var_30 == 0)
 			d = 1;
 
@@ -226,9 +225,6 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	u32 var_2c, var_44, var_48;
 	u32 si, a, c, r13, r14, r15;
 
-	u32 offset_5 = S2_DDR40_2B94; /* stored in var_40 */
-	u32 offset_6 = S2_DDR40_2B90; /* stored in var_38 */
-
 	vdl_status = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
 	vdl_bits = (vdl_status >> 4) & 0xff;
 
@@ -239,7 +235,7 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	/* Still don't know why we do this */
 	bcwc_ddr_verify_mem(dev_priv, 0);
 
-	BCWC_S2_REG_WRITE(1, offset_5);
+	BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
 
 	var_48 = 0;
 	var_2c = 0;
@@ -251,9 +247,9 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	for (i = 10000; i >= 0 && a == 0; i--) {
 		bcwc_ddr_verify_mem(dev_priv, 0);
 
-		r13 = BCWC_S2_REG_READ(offset_6);
+		r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
 
-		BCWC_S2_REG_WRITE(1, offset_5);
+		BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
 
 		if ((r13 & 0xf) == 0) {
 			if (r15 == 0)
@@ -313,8 +309,8 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 
 			bcwc_ddr_verify_mem(dev_priv, 0);
 
-			r13 = BCWC_S2_REG_READ(offset_6);
-			BCWC_S2_REG_WRITE(0x1, offset_5);
+			r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
+			BCWC_S2_REG_WRITE(0x1, S2_DDR40_TIMING_CTL);
 
 			if (!(r13 & 0xf0))
 				break;
@@ -346,8 +342,8 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 
 			bcwc_ddr_verify_mem(dev_priv, 0);
 
-			r13 = BCWC_S2_REG_READ(offset_6);
-			BCWC_S2_REG_WRITE(1, offset_5);
+			r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
+			BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
 
 			if (i > 0)
 				r14++;

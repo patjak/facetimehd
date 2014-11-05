@@ -107,8 +107,8 @@
 #define S2_DDR40_RD_DATA_DLY_FIFO	0x2b60
 
 #define S2_DDR40_2B64			0x2b64
-#define S2_DDR40_2B90			0x2b90
-#define S2_DDR40_2B94			0x2b94
+#define S2_DDR40_TIMING_STATUS		0x2b90
+#define S2_DDR40_TIMING_CTL		0x2b94
 #define S2_2BA4				0x2ba4
 #define S2_2BA8				0x2ba8
 #define S2_2BA0				0x2ba0
