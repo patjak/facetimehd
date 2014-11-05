@@ -109,9 +109,9 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 	u32 reg_saved_1, reg_saved_2, reg_saved_3;
 
 	u32 a, b, c, d, r8, r12, r14, r15;
-	u32 var_2c, var_30, fifo_delay, var_38;
+	u32 var_2c, var_30, fifo_delay;
 
-	int ret;
+	int ret, i;
 
 	/* Save current register values */
 	reg_saved_1 = BCWC_S2_REG_READ(offset_1);
@@ -123,15 +123,12 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 	BCWC_S2_REG_WRITE(0x30100, offset_3);
 
 	fifo_delay = 1;
-	a = 1000;
 	r15 = 0;
 	b = 0;
 	var_30 = 0;
 	var_2c = 0;
 
-	do {
-		var_38 = a;
-
+	for (i = 1000; i > 0; i--) {
 		BCWC_S2_REG_WRITE((fifo_delay & 0x7), delay_reg);
 
 		/*
@@ -156,7 +153,7 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 			r8 = 0;
 		}
 
-		c = var_38 - 1;
+		c = i - 1;
 
 		r14 = (BCWC_S2_REG_READ(offset_5) & 0xf) | var_2c;
 		if (r14 == 0)
@@ -187,16 +184,12 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		BCWC_S2_REG_WRITE((b & 0x3f) | 0x30100, offset_2);
 		BCWC_S2_REG_WRITE((b & 0x3f) | 0x30100, offset_3);
 
-		if (var_38 == 0)
-			break;
-
-		a = var_38 - 1;
 		if (r15 != 0)
 			break;
 		r15 = b;
-	} while(1);
+	}
 
-	if (var_38 == 0) {
+	if (i == 0) {
 		dev_err(&dev_priv->pdev->dev, "rd_data_dly_fifo timed out\n\n");
 		ret = -EIO;
 		goto out;
