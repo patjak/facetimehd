@@ -420,8 +420,39 @@ static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 	return 0;
 }
 
+static int bcwc_ddr_generic_rd_dqs(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int bcwc_ddr_calibrate_create_result(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
 static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv)
 {
+	int ret;
+
+	ret = bcwc_ddr_generic_rd_dqs(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_ddr_wr_dqs_setting(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_ddr_calibrate_create_result(dev_priv);
+	if (ret)
+		return ret;
+
+	/* FIXME: Continue here... */
+
 	return 0;
 }
 
