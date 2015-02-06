@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
   if (!(ip = fopen(argv[1], "rb"))) {
     printf("Error: Cannot open %s!", argv[1]);
     ret = -1;
-    goto end_fp;
+    goto end;
   }
 
   fseek(ip, 0, SEEK_END);
@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
   if (!(op = fopen(argv[2], "wb"))) {
     printf("Error: Cannot open %s!", argv[2]);
     ret = -1;
-    goto end;
+    goto end_inflate;
   }
 
   if (fwrite(buf_out, sizeof(*buf_out), OUT_BYTES / sizeof(*buf_out), op) != OUT_BYTES / sizeof(*buf_out)) {
@@ -95,8 +95,6 @@ end_out:
 
 end_in:
   free(buf_in);
-
-end_fp:
   fclose(ip);
 
 end:
