@@ -420,9 +420,73 @@ static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 	return 0;
 }
 
+/* Set default/generic read data strobe */
 static int bcwc_ddr_generic_rd_dqs(struct bcwc_private *dev_priv)
 {
-	return 0;
+	u32 retries, locked, reg_val, tmp, offset;
+	u32 bytes[S2_DDR40_NUM_BYTE_LANES];
+	int i, j, ret;
+
+	/* Save the current byte lanes */
+	for (i = 0; i < S2_DDR40_NUM_BYTE_LANES; i++) {
+		tmp = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0 +
+				       (i * S2_DDR40_BYTE_LANE_SIZE));
+		bytes[i] = tmp & 0x3f;
+	}
+
+	/* Clear all byte lanes */
+	for (i = 0; i < S2_DDR40_NUM_BYTE_LANES; i++) {
+		for (j = 0; j < 8; j++) {
+			offset = S2_DDR40_2A38 + (i * 0xa0) + (j * 8);
+
+			BCWC_S2_REG_WRITE(0x30000, offset - 4);
+			BCWC_S2_REG_WRITE(0x30000, offset);
+		}
+	}
+
+	reg_val = (BCWC_S2_REG_READ(S2_DDR40_2850) >> 20) & 0x3f;
+
+	locked = 0;
+	retries = 1000;
+
+	while (retries > 0 && !locked) {
+		ret = bcwc_ddr_verify_mem(dev_priv, 0);
+		if (!ret)
+			break;
+
+		retries--;
+
+		reg_val++;
+		tmp = (reg_val & 0x3f) | 0x30100;
+
+		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2A08);
+		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2A0C);
+		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AA8);
+		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AAC);
+
+		locked = reg_val > 0x3e;
+		offset = S2_DDR40_RDEN_BYTE0;
+
+		/* Write byte lane settings */
+		for (i = 0; i < 2; i++) {
+			bytes[i]++;
+			BCWC_S2_REG_WRITE((bytes[i] & 0x3f) | 0x30100, offset);
+
+			if (bytes[i] > 0x3e)
+				locked = 1;
+
+			offset += 0xa0;
+		}
+	}
+
+	if (retries == 0) {
+		dev_err(&dev_priv->pdev->dev, "Generic RD DQS timeout\n");
+		ret = -EIO;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "Generic RD DQS succeeded\n");
+
+	return ret;
 }
 
 static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv)
