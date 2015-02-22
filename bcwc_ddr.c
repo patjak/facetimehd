@@ -421,7 +421,7 @@ static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 }
 
 /* Set default/generic read data strobe */
-static int bcwc_ddr_generic_rd_dqs(struct bcwc_private *dev_priv)
+static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv)
 {
 	u32 retries, locked, reg_val, tmp, offset;
 	u32 bytes[S2_DDR40_NUM_BYTE_LANES];
@@ -480,7 +480,7 @@ static int bcwc_ddr_generic_rd_dqs(struct bcwc_private *dev_priv)
 	}
 
 	if (retries == 0) {
-		dev_err(&dev_priv->pdev->dev, "Generic RD DQS timeout\n");
+		dev_err(&dev_priv->pdev->dev, "Generic shmoo RD DQS timeout\n");
 		ret = -EIO;
 	}
 
@@ -503,7 +503,7 @@ static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv)
 {
 	int ret;
 
-	ret = bcwc_ddr_generic_rd_dqs(dev_priv);
+	ret = bcwc_ddr_generic_shmoo_rd_dqs(dev_priv);
 	if (ret)
 		return ret;
 
