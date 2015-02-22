@@ -499,7 +499,8 @@ static int bcwc_ddr_calibrate_create_result(struct bcwc_private *dev_priv)
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv)
+static int bcwc_ddr_generic_shmoo_calibrate_rd_dqs(
+						struct bcwc_private *dev_priv)
 {
 	int ret;
 
@@ -558,7 +559,7 @@ int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_calibrate_rd_dqs(dev_priv);
+	ret = bcwc_ddr_generic_shmoo_calibrate_rd_dqs(dev_priv);
 	if (ret)
 		return ret;
 
