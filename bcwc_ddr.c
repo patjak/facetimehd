@@ -444,7 +444,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv)
 		}
 	}
 
-	reg_val = (BCWC_S2_REG_READ(S2_DDR40_2850) >> 20) & 0x3f;
+	reg_val = (BCWC_S2_REG_READ(S2_DDR40_PHY_DQ_CALIB_STATUS) >> 20) & 0x3f;
 
 	locked = 0;
 	retries = 1000;
