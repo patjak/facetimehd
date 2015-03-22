@@ -102,12 +102,15 @@
 #define S2_DDR40_STRAP_CTL_2		0x28b4
 #define S2_DDR40_STRAP_STATUS		0x28b8
 
-#define S2_DDR40_NUM_BYTE_LANES		2
+/* FIXME: Come up with a better name */
 #define S2_DDR40_BYTE_LANE_SIZE		0xa0
+#define S2_DDR40_NUM_BYTE_LANES		2
+
 
 #define S2_DDR40_RDEN_BYTE		0x2a00
 #define S2_DDR40_2A08			0x2a08
 #define S2_DDR40_2A0C			0x2a0c
+#define S2_DDR40_2A34			0x2a34
 #define S2_DDR40_2A38			0x2a38
 #define S2_DDR40_RDEN_BYTE0		0x2a74
 #define S2_DDR40_2AA8			0x2aa8
