@@ -89,10 +89,7 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
 			fails++;
 	}
 
-	if (fails > 0)
-		return -EIO;
-
-	return 0;
+	return fails;
 }
 
 
