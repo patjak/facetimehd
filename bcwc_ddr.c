@@ -489,7 +489,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 
 	dev_info(&dev_priv->pdev->dev, "Generic RD DQS succeeded\n");
 
-	return ret;
+	return 0;
 }
 
 static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv)
