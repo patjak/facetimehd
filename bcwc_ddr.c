@@ -627,17 +627,17 @@ static int bcwc_ddr_generic_shmoo_calibrate_rd_dqs(
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_wr_dq(struct bcwc_private *dev_priv)
+static int bcwc_ddr_generic_shmoo_calibrate_wr_dq(struct bcwc_private *dev_priv)
 {
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_wr_dm(struct bcwc_private *dev_priv)
+static int bcwc_ddr_generic_shmoo_calibrate_wr_dm(struct bcwc_private *dev_priv)
 {
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_addr(struct bcwc_private *dev_priv)
+static int bcwc_ddr_generic_shmoo_calibrate_addr(struct bcwc_private *dev_priv)
 {
 	return 0;
 }
@@ -669,15 +669,15 @@ int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_calibrate_wr_dq(dev_priv);
+	ret = bcwc_ddr_generic_shmoo_calibrate_wr_dq(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_calibrate_wr_dm(dev_priv);
+	ret = bcwc_ddr_generic_shmoo_calibrate_wr_dm(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_calibrate_addr(dev_priv);
+	ret = bcwc_ddr_generic_shmoo_calibrate_addr(dev_priv);
 	if (ret)
 		return ret;
 
