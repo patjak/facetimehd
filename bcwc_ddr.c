@@ -492,8 +492,112 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 	return 0;
 }
 
-static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv)
+static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv,
+				     u32 *fails, u32 *settings)
 {
+	return 0;
+}
+
+static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int arg_8,
+				   u32 *fails, u32 *settings)
+{
+	u32 var_58, var_2c, var_30, var_34, var_48, var_5c;
+	u32 a, b, c, d, r12, r13, r15;
+
+	var_5c = S2_DDR40_PHY_BASE;
+	var_58 = S2_DDR40_2A38;
+	a = arg_8;
+	c = a & 0x2;
+	var_2c = c;
+	a = a & 1;
+	var_30 = a;
+
+	for (a = 0; a < 0x40; a++) {
+		var_48 = a;
+		b = a;
+		b = b | 0x30000;
+		r12 = var_58;
+
+		for (a = 0; a < 2; a++) {
+			var_34 = a;
+			r13 = 8;
+			r15 = r12;
+
+			for (r13 = 8; r13 > 0; r13--) {
+				if (!var_30)
+					BCWC_S2_REG_WRITE(b, r15 - 4);
+
+				if (!var_2c)
+					BCWC_S2_REG_WRITE(b, r15);
+
+				r15 += 8;
+			}
+
+			r12 += 0xa0;
+			a = var_34;
+		}
+
+		fails[var_48] = bcwc_ddr_verify_mem(dev_priv, 0);
+		a = var_48;
+	}
+
+	b = 1;
+	r13 = 0;
+	a = arg_8;
+	r12 = r13;
+	if (a != 3) {
+		r12 = (a == 1) ? 1 : 0;
+		b = 2;
+	}
+
+	var_48 = r12;
+
+	bcwc_ddr_calibrate_rd_dqs(dev_priv, fails, settings);
+
+	a = var_5c;
+	c = S2_DDR40_2A34 + r12 * 4;
+	a = b * 4;
+	var_2c = a;
+	d = r13;
+
+	for (d = r13; d < 2; d++) {
+		var_34 = d;
+		var_30 = c;
+		r15 = c;
+
+		while (r12 < 0x10) {
+			a = r13;
+			c = settings[a * 4];
+
+			if (c == 0 || c >= 0x3f) {
+				dev_err(&dev_priv->pdev->dev,
+					"Bad VDL. New step %d = 0x%x\n",
+					r13, c);
+				return -EINVAL;
+			}
+
+			d = r15;
+			c = (c & 0x3f) | 0x30000;
+			BCWC_S2_REG_WRITE(c, r15);
+			if (arg_8 == 3) {
+				a = r12;
+				a = a & 1;
+				r13 += a;
+			} else {
+				r13++;
+			}
+
+			r15 += var_2c;
+			r12 += b;
+		}
+
+		c = var_30;
+		c += S2_DDR40_BYTE_LANE_SIZE;
+		d = var_34;
+		a = 0;
+		r12 = var_48;
+	}
+
 	return 0;
 }
 
@@ -513,7 +617,7 @@ static int bcwc_ddr_generic_shmoo_calibrate_rd_dqs(
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_wr_dqs_setting(dev_priv);
+	ret = bcwc_ddr_wr_dqs_setting(dev_priv, 3, fails, settings);
 	if (ret)
 		return ret;
 
