@@ -421,7 +421,8 @@ static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 }
 
 /* Set default/generic read data strobe */
-static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv)
+static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
+					 u32 *fails)
 {
 	u32 retries, locked, reg_val, tmp, offset;
 	u32 bytes[S2_DDR40_NUM_BYTE_LANES];
@@ -452,7 +453,9 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv)
 	while (retries > 0 && !locked) {
 		ret = bcwc_ddr_verify_mem(dev_priv, 0);
 		if (!ret)
-			break;
+			break; /* Actually we should retry here */
+
+		fails[0] = ret; /* This is a bit odd */
 
 		retries--;
 
@@ -502,9 +505,11 @@ static int bcwc_ddr_calibrate_create_result(struct bcwc_private *dev_priv)
 static int bcwc_ddr_generic_shmoo_calibrate_rd_dqs(
 						struct bcwc_private *dev_priv)
 {
+	u32 settings[64]; /* Don't know the real size yet */
+	u32 fails[64]; /* Number of fails on a setting */
 	int ret;
 
-	ret = bcwc_ddr_generic_shmoo_rd_dqs(dev_priv);
+	ret = bcwc_ddr_generic_shmoo_rd_dqs(dev_priv, fails);
 	if (ret)
 		return ret;
 
