@@ -418,11 +418,11 @@ static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 
 /* Set default/generic read data strobe */
 static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
-					 u32 *fails)
+					 u32 *fail_bits)
 {
-	u32 retries, locked, reg_val, tmp, offset;
+	u32 retries, setting, tmp, offset;
 	u32 bytes[S2_DDR40_NUM_BYTE_LANES];
-	int i, j, ret;
+	int i, j, ret, fail;
 
 	/* Save the current byte lanes */
 	for (i = 0; i < S2_DDR40_NUM_BYTE_LANES; i++) {
@@ -441,40 +441,44 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 		}
 	}
 
-	reg_val = (BCWC_S2_REG_READ(S2_DDR40_PHY_DQ_CALIB_STATUS) >> 20) & 0x3f;
+	setting = (BCWC_S2_REG_READ(S2_DDR40_PHY_DQ_CALIB_STATUS) >> 20) & 0x3f;
 
-	locked = 0;
 	retries = 1000;
+	fail = 0;
 
-	while (retries > 0 && !locked) {
+	while (retries-- > 0 && !fail) {
 		ret = bcwc_ddr_verify_mem(dev_priv, 0);
-		if (!ret)
-			break; /* Actually we should retry here */
+		fail_bits[0] = ret;
 
-		fails[0] = ret; /* This is a bit odd */
+		if (ret == 0xffff) {
+			fail = 1;
+			break;
+		}
 
-		retries--;
+		setting++;
+		tmp = (setting & 63) | 0x30100;
 
-		reg_val++;
-		tmp = (reg_val & 0x3f) | 0x30100;
-
+		/* Byte 0 */
 		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2A08);
 		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2A0C);
+
+		/* Byte 1 */
 		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AA8);
 		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AAC);
 
-		locked = reg_val > 0x3e;
+		fail = setting > 62;
 		offset = S2_DDR40_RDEN_BYTE0;
 
 		/* Write byte lane settings */
 		for (i = 0; i < 2; i++) {
 			bytes[i]++;
+
+			if (bytes[i] > 62)
+				fail = 1;
+
 			BCWC_S2_REG_WRITE((bytes[i] & 0x3f) | 0x30100, offset);
 
-			if (bytes[i] > 0x3e)
-				locked = 1;
-
-			offset += 0xa0;
+			offset += 160;
 		}
 	}
 
@@ -483,8 +487,12 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 		ret = -EIO;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "Generic RD DQS succeeded\n");
+	if (fail)
+		dev_info(&dev_priv->pdev->dev, "Generic RD DQS failed\n");
+	else
+		dev_info(&dev_priv->pdev->dev, "Generic RD DQS succeeded\n");
 
+	/* It always fails, so just pass success */
 	return 0;
 }
 
