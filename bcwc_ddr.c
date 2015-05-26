@@ -74,7 +74,7 @@ int bcwc_ddr_verify_mem_full(struct bcwc_private *dev_priv, u32 base)
 int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
 {
 	u32 i, addr, val, val_read;
-	int fails = 0;
+	int failed_bits = 0;
 
 	for (i = 0; i < 0x400; i += 4) {
 		bcwc_ddr_mem_pattern(i, &addr, &val);
@@ -85,11 +85,10 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
 		bcwc_ddr_mem_pattern(i, &addr, &val);
 		val_read = BCWC_S2_MEM_READ(base + addr);
 
-		if (val_read != val)
-			fails++;
+		failed_bits |= val ^ val_read;
 	}
 
-	return fails;
+	return ((failed_bits & 0xffff) | ((failed_bits >> 16) & 0xffff));
 }
 
 
