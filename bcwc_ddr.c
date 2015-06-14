@@ -414,7 +414,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 		}
 
 		setting++;
-		tmp = (setting & 63) | 0x30100;
+		tmp = (setting & 0x3f) | 0x30100;
 
 		/* Byte 0 */
 		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2A08);
@@ -424,7 +424,9 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AA8);
 		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AAC);
 
-		fail = setting > 62;
+		if (setting > 62)
+			fail = 1;
+
 		offset = S2_DDR40_RDEN_BYTE0;
 
 		/* Write byte lane settings */
@@ -436,7 +438,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 
 			BCWC_S2_REG_WRITE((bytes[i] & 0x3f) | 0x30100, offset);
 
-			offset += 160;
+			offset += 0xa0;
 		}
 	}
 
