@@ -459,107 +459,185 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv,
 				     u32 *fails, u32 *settings)
 {
+	s32 pass_len[16];
+	u32 pass_start[16]; // u32 var_b0[16];
+	u32 pass_end[16]; // u32 var_f0[16];
+	int fail_sum, i, j, bit;
+	s32 setting;
+	printk(KERN_CONT "\n");
+
+	for (bit = 0; bit < 16; bit++) {
+		pass_start[bit] = 64;
+		pass_end[bit] = 64;
+
+		printk(KERN_CONT "%.2d: ", bit);
+
+		/* Start looking for start of pass */
+		for (i = 0; i < 63; i++) {
+			fail_sum = 0;
+
+			/* We check ahead the 6 next fail bits */
+			for (j = 0; (j < 6) && ((i + j) < 64); j++)
+				fail_sum += fails[i + j] & (1 << bit);
+
+			if (fail_sum) {
+				printk(KERN_CONT ".");
+			} else {
+				printk(KERN_CONT "O");
+
+				pass_start[bit] = i;
+				break;
+			}
+		}
+
+		/* Start looking for end of pass */
+		for (; i < 63; i++) {
+			if (fails[i] & (1 << bit)) {
+				if (pass_end[bit] == 64)
+					pass_end[bit] = i;
+
+				printk(KERN_CONT ".");
+			} else {
+				printk(KERN_CONT "O");
+			}
+		}
+
+		/* Calculate pass length */
+		pass_len[bit] = pass_end[bit] - pass_start[bit];
+
+		/* Calculate new setting */
+		setting = (pass_len[bit] / 2) + pass_start[bit];
+		if (setting < 0)
+			setting = 0;
+		else if (setting > 63)
+			setting = 63;
+		settings[bit] = setting;
+
+		printk(KERN_CONT " : start=%d end=%d len=%d new=%d\n", pass_start[bit],
+		       pass_end[bit], pass_len[bit], settings[bit]);
+	}
+
+	for (bit = 0; bit < 16; bit++) {
+
+	}
+
+	// Some global stuff that I need to figure out
+
 	return 0;
 }
 
-static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int arg_8,
-				   u32 *fails, u32 *settings)
+static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
+				   u32 *fail_bits, u32 *settings)
 {
 	u32 var_58, var_2c, var_30, var_34, var_48, var_5c;
 	u32 a, b, c, d, r12, r13, r15;
+	u32 setting, byte, bit, offset, tmp, start, inc, reg;
+	int i;
 
 	var_5c = S2_DDR40_PHY_BASE;
 	var_58 = S2_DDR40_2A38;
-	a = arg_8;
+	a = set_bits;
 	c = a & 0x2;
 	var_2c = c;
 	a = a & 1;
 	var_30 = a;
 
-	for (a = 0; a < 0x40; a++) {
-		var_48 = a;
-		b = a;
-		b = b | 0x30000;
-		r12 = var_58;
+	for (setting = 0; setting < 64; setting++) {
+		for (byte = 0; byte < 2; byte++) {
+			for (bit = 0; bit < 8; bit++) {
+				offset = S2_DDR40_2A38 + (byte * 0xa0) +
+					 (bit * 8);
+				tmp = setting | 0x30000;
 
-		for (a = 0; a < 2; a++) {
-			var_34 = a;
-			r13 = 8;
-			r15 = r12;
+				if (set_bits & 1)
+					BCWC_S2_REG_WRITE(tmp, offset - 4);
 
-			for (r13 = 8; r13 > 0; r13--) {
-				if (!var_30)
-					BCWC_S2_REG_WRITE(b, r15 - 4);
-
-				if (!var_2c)
-					BCWC_S2_REG_WRITE(b, r15);
-
-				r15 += 8;
+				if (set_bits & 2)
+					BCWC_S2_REG_WRITE(tmp, offset);
 			}
-
-			r12 += 0xa0;
-			a = var_34;
 		}
-
-		fails[var_48] = bcwc_ddr_verify_mem(dev_priv, 0);
-		a = var_48;
+		fail_bits[setting] = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 	}
 
 	b = 1;
 	r13 = 0;
-	a = arg_8;
+	a = set_bits;
 	r12 = r13;
-	if (a != 3) {
-		r12 = (a == 1) ? 1 : 0;
+/*
+	if (set_bits != 3) {
+		r12 = (a != 1) ? 1 : 0;
 		b = 2;
+	}
+*/
+
+	if (set_bits == 3) {
+		start = 0;
+		inc = 1;
+	} else if (set_bits == 2) {
+		start = 0;
+		inc = 2;
+	} else {
+		start = 1;
+		inc = 2;
 	}
 
 	var_48 = r12;
 
-	bcwc_ddr_calibrate_rd_dqs(dev_priv, fails, settings);
+	bcwc_ddr_calibrate_rd_dqs(dev_priv, fail_bits, settings);
 
 	a = var_5c;
-	c = S2_DDR40_2A34 + r12 * 4;
+	// c = S2_DDR40_2A34 + r12 * 4;
+	reg = S2_DDR40_2A34 + r12 * 4;
 	a = b * 4;
 	var_2c = a;
-	d = r13;
+	// d = r13;
 
-	for (d = r13; d < 2; d++) {
+	offset = 0;
+
+	for (d = 0; d < 2; d++) {
+		/*
 		var_34 = d;
 		var_30 = c;
 		r15 = c;
+		*/
 
-		while (r12 < 0x10) {
-			a = r13;
-			c = settings[a * 4];
+		// while (r12 < 0x10) {
+		for (i = start; i < 16; i += inc) {
+			//a = r13;
 
-			if (c == 0 || c >= 0x3f) {
+			if (settings[offset] == 0 || settings[offset] >= 63) {
 				dev_err(&dev_priv->pdev->dev,
-					"Bad VDL. New step %d = 0x%x\n",
-					r13, c);
+					"Bad VDL. Step %d = 0x%x\n",
+					offset, settings[offset]);
 				return -EINVAL;
 			}
 
-			d = r15;
-			c = (c & 0x3f) | 0x30000;
-			BCWC_S2_REG_WRITE(c, r15);
-			if (arg_8 == 3) {
-				a = r12;
-				a = a & 1;
-				r13 += a;
+			// d = r15;
+			// c = (c & 0x3f) | 0x30000;
+			tmp = (settings[offset] & 0x3f) | 0x30000;
+			BCWC_S2_REG_WRITE(tmp, reg);
+			if (set_bits == 3) {
+				if (i & 1)
+					offset++;
+				//a = r12;
+				//a = a & 1;
+				//r13 += a;
 			} else {
-				r13++;
+				// r13++;
+				offset++;
 			}
 
-			r15 += var_2c;
-			r12 += b;
+			//r15 += var_2c;
+			reg += inc;
 		}
 
+/*
 		c = var_30;
 		c += S2_DDR40_BYTE_LANE_SIZE;
 		d = var_34;
 		a = 0;
 		r12 = var_48;
+*/
 	}
 
 	return 0;
@@ -585,9 +663,20 @@ static int bcwc_ddr_generic_shmoo_calibrate_rd_dqs(
 	if (ret)
 		return ret;
 
+	ret = bcwc_ddr_wr_dqs_setting(dev_priv, 1, fails, settings);
+	if (ret)
+		return ret;
+
+
+	ret = bcwc_ddr_wr_dqs_setting(dev_priv, 2, fails, settings);
+	if (ret)
+		return ret;
+
+	/*
 	ret = bcwc_ddr_calibrate_create_result(dev_priv);
 	if (ret)
 		return ret;
+	*/
 
 	/* FIXME: Continue here... */
 
