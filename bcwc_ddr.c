@@ -21,76 +21,34 @@
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 
-/* Memory test pattern inspired by ramtest in CoreBoot */
-static inline void bcwc_ddr_mem_pattern(u32 index, u32 *addr, u32 *val)
+#define MEM_VERIFY_BASE		0x1000
+#define MEM_VERIFY_NUM		128
+#define MEM_VERIFY_NUM_FULL	(1 * 1024 * 1024)
+
+int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base, int count)
 {
-	int a, b;
-
-	a = (index >> 8) + 1;
-	b = (index >> 4) & 0xf;
-	*addr = index & 0xf;
-	*addr |= a << (4 * b);
-	*addr &= 0x0fffffff;
-	*val = 0x01010101 << (a & 7);
-
-	if (a & 8)
-		*val = ~(*val);
-}
-
-int bcwc_ddr_verify_mem_full(struct bcwc_private *dev_priv, u32 base)
-{
-	struct rnd_state state;
-	u32 val, val_read, addr;
-	int fails = 0;
-	int num = 1024 * 128;
-	int i;
-
-	prandom_seed_state(&state, 0x12345678);
-
-	for (i = 0; i < num; i++) {
-		val = prandom_u32_state(&state);
-		addr = prandom_u32_state(&state);
-		addr &= 0xfffffff;
-
-		BCWC_S2_MEM_WRITE(val, addr);
-	}
-
-	prandom_seed_state(&state, 0x12345678);
-
-	for (i = 0; i < num; i++) {
-		val = prandom_u32_state(&state);
-		addr = prandom_u32_state(&state);
-		addr &= 0xfffffff;
-
-		val_read = BCWC_S2_MEM_READ(addr);
-
-		if (val_read != val)
-			fails++;
-	}
-
-	return fails;
-}
-
-int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base)
-{
-	u32 i, addr, val, val_read;
+	u32 i, val, val_read;
 	int failed_bits = 0;
+	struct rnd_state state;
 
-	for (i = 0; i < 0x400; i += 4) {
-		bcwc_ddr_mem_pattern(i, &addr, &val);
-		BCWC_S2_MEM_WRITE(val, base + addr);
+	prandom_seed_state(&state, 0x12345678);
+
+	for (i = 0; i < count; i++) {
+		val = prandom_u32_state(&state);
+		BCWC_S2_MEM_WRITE(val, i * 4 + MEM_VERIFY_BASE);
 	}
 
-	for (i = 0; i < 0x400; i +=4) {
-		bcwc_ddr_mem_pattern(i, &addr, &val);
-		val_read = BCWC_S2_MEM_READ(base + addr);
+	prandom_seed_state(&state, 0x12345678);
+
+	for (i = 0; i < count; i++) {
+		val = prandom_u32_state(&state);
+		val_read = BCWC_S2_MEM_READ(i * 4 + MEM_VERIFY_BASE);
 
 		failed_bits |= val ^ val_read;
 	}
 
 	return ((failed_bits & 0xffff) | ((failed_bits >> 16) & 0xffff));
 }
-
 
 /* FIXME: Make some more sense out of this */
 static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
@@ -129,7 +87,7 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		 * OSX doesn't check any return values from it's verification so
 		 * perhaps controller can detect this itself and set some regs.
 		 */
-		bcwc_ddr_verify_mem(dev_priv, 0);
+		bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
 		BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
 
@@ -235,7 +193,7 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE1);
 
 	/* Still don't know why we do this */
-	bcwc_ddr_verify_mem(dev_priv, 0);
+	bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
 	BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
 
@@ -247,7 +205,7 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	var_44 = 0;
 
 	for (i = 10000; i >= 0 && a == 0; i--) {
-		bcwc_ddr_verify_mem(dev_priv, 0);
+		bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
 		r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
 
@@ -309,7 +267,7 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 			BCWC_S2_REG_WRITE((a & 0x3f) | 0x30100,
 					  S2_DDR40_RDEN_BYTE1);
 
-			bcwc_ddr_verify_mem(dev_priv, 0);
+			bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
 			r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
 			BCWC_S2_REG_WRITE(0x1, S2_DDR40_TIMING_CTL);
@@ -342,7 +300,7 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 			r14 = (r14 & 0x3f) | 0x30100;
 			BCWC_S2_REG_WRITE(r14, S2_DDR40_RDEN_BYTE0);
 
-			bcwc_ddr_verify_mem(dev_priv, 0);
+			bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
 			r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
 			BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
@@ -447,7 +405,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 	fail = 0;
 
 	while (retries-- > 0 && !fail) {
-		ret = bcwc_ddr_verify_mem(dev_priv, 0);
+		ret = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 		fail_bits[0] = ret;
 
 		if (ret == 0xffff) {
@@ -688,7 +646,7 @@ int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_verify_mem_full(dev_priv, 0);
+	ret = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM_FULL);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
 			"Full memory verification failed! (%d)\n", ret);
