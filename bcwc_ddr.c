@@ -156,169 +156,154 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 			u32 *rden_byte, u32 *rden_byte0, u32 *rden_byte1)
 {
-	u32 vdl_bits, vdl_status;
-	int i;
+	u32 fifo_status[2];
+	u32 wl_start;
+	u32 bl_pass[2] = {0, 0};
+	u32 bl_start[2] = {0, 0};
+	u32 word_setting, byte_setting, passed, delta;
+	u32 tmp;
 
-	u32 var_2c, var_44, var_48;
-	u32 si, a, c, r13, r14, r15;
+	delta = ((BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS) & 0xffc) >> 2) / 4;
 
-	vdl_status = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
-	vdl_bits = (vdl_status >> 4) & 0xff;
-
+	/* Start with word and byte setting at 0 */
 	BCWC_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
 	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
-	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE1);
+	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
 
-	/* Still don't know why we do this */
 	bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-	BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
+	BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
-	var_48 = 0;
-	var_2c = 0;
-	r15 = 0;
+	word_setting = 0;
+	byte_setting = 0;
+	passed = 0;
 
-	a = 0;
-	var_44 = 0;
-
-	for (i = 10000; i >= 0 && a == 0; i--) {
+	while (passed == 0) {
 		bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-		r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
+		fifo_status[0] =
+			BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
+		fifo_status[1] =
+			(BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
+			 0xf0) >> 4;
 
-		BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
+		BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
-		if ((r13 & 0xf) == 0) {
-			if (r15 == 0)
-				r15 = 1;
+		if (fifo_status[0] == 0) {
+			if (bl_pass[0] == 0)
+				bl_pass[0] = 1;
 			else
-				a = 1;
+				passed = 1;
 		}
 
-		if ((r13 & 0xf0) == 0) {
-			if (var_2c == 0)
-				var_2c = 1;
+		if (fifo_status[1] == 0) {
+			if (bl_pass[1] == 0)
+				bl_pass[1] = 1;
 			else
-				a = 1;
+				passed = 1;
 		}
 
-		if (var_48 > 0x3e) {
-			r13 = ((var_44 + 1) & 0x3f) | 0x30100;
+		/* Still not passed */
+		if (passed == 0) {
+			if (word_setting < 63) {
+				word_setting++;
+				BCWC_S2_REG_WRITE(0x30000 | (word_setting & 0x3f),
+						  S2_DDR40_RDEN_BYTE);
+			} else {
+				byte_setting++;
+				BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
+						  S2_DDR40_RDEN_BYTE0);
+				BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
+						  S2_DDR40_RDEN_BYTE1);
 
-			BCWC_S2_REG_WRITE(r13, S2_DDR40_RDEN_BYTE0);
-			BCWC_S2_REG_WRITE(r13, S2_DDR40_RDEN_BYTE1);
-
-			if (r13 >= 0x41) {
-				dev_err(&dev_priv->pdev->dev,
-					"First RDEN byte timeout\n");
-				return -EIO;
+				if (word_setting > 64) {
+					dev_err(&dev_priv->pdev->dev,
+						"RDEN byte timeout\n");
+					return -EIO;
+				}
 			}
-		} else {
-			var_48++;
-			BCWC_S2_REG_WRITE((var_48 & 0x3f) | 0x30000,
-					  S2_DDR40_RDEN_BYTE);
 		}
 	}
 
-	if (i <= 0) {
-		dev_err(&dev_priv->pdev->dev, "WL FIFO timeout\n");
-		return -EIO;
-	}
+	wl_start = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE) & 0x3f;
 
-	var_48 = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE);
-	si = 0;
+	if (bl_pass[0] == 1) {
+		bl_start[0] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
+		passed = 0;
 
-	if (r15 == 0) {
-		r15 = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
-		a = var_44 + 1;
-
-		for (i = 1000; i >= 0; i--) {
-
-			if (a >= 65) {
+		while (passed == 0) {
+			byte_setting++;
+			if (byte_setting > 64) {
 				dev_err(&dev_priv->pdev->dev,
-					"RDEN byte1 TO timeout\n");
+					"RDEN BYTE1 timeout\n");
 				return -EIO;
 			}
 
-			var_44 = a;
-			BCWC_S2_REG_WRITE((a & 0x3f) | 0x30100,
+			BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
 					  S2_DDR40_RDEN_BYTE1);
 
 			bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-			r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
-			BCWC_S2_REG_WRITE(0x1, S2_DDR40_TIMING_CTL);
+			fifo_status[0] = BCWC_S2_REG_READ(
+					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
+			fifo_status[1] =
+				(BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
+				 0xf0) >> 4;
+			BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
-			if (!(r13 & 0xf0))
-				break;
+			if (fifo_status[1] == 0)
+				passed = 1;
 		}
 
-		if (i <= 0) {
-			dev_err(&dev_priv->pdev->dev, "RDEN byte1 timeout\n");
-			return -EIO;
-		}
-
-		si = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
-	} else {
-		r15 = 0;
+		bl_start[1] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
 	}
+	if (bl_pass[1] == 1) {
+		bl_start[1] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
+		passed = 0;
 
-	if (var_2c == 1) {
-		var_2c = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
-		r14 = var_44 + 1;
-
-		for (i = 10000; i > 0; i--) {
-			if (r14 >= 65) {
+		while (passed == 0) {
+			byte_setting++;
+			if (byte_setting > 64) {
 				dev_err(&dev_priv->pdev->dev,
-					"RDEN byte0 TO timeout\n");
+					"RDEN BYTE0 timeout\n");
 				return -EIO;
 			}
 
-			r14 = (r14 & 0x3f) | 0x30100;
-			BCWC_S2_REG_WRITE(r14, S2_DDR40_RDEN_BYTE0);
+			BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
+					  S2_DDR40_RDEN_BYTE0);
 
 			bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-			r13 = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
-			BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
+			fifo_status[0] = BCWC_S2_REG_READ(
+					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
+			fifo_status[1] = BCWC_S2_REG_READ(
+					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf0;
+			BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
-			if (i > 0)
-				r14++;
-
-			if (!(r13 && 0x3f))
-				break;
+			if (fifo_status[0] == 0)
+				passed = 1;
 		}
 
-		if (i <= 0) {
-			dev_err(&dev_priv->pdev->dev,
-				"Second RDEN byte timeout\n");
-			return -EIO;
-		}
-
-		r15 = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
-		si = var_2c;
+		bl_start[0] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
 	}
 
-	c = (var_48 & 0x3f) + vdl_bits;
-	*rden_byte = c;
+	*rden_byte = wl_start + delta;
 
-	if (c > 63) {
+	if (*rden_byte > 63) {
+		tmp = *rden_byte - 63;
 		*rden_byte = 63;
-		a = r15 + (c - 63);
-
-		if (a >= 64)
-			a = 63;
-
-		c = si + (c - 63);
-
-		if (c >= 64)
-			c = 63;
-
-		*rden_byte0 = a;
-		*rden_byte1 = c;
+		*rden_byte0 = bl_start[0] + tmp;
+		*rden_byte1 = bl_start[1] + tmp;
 	} else {
-		*rden_byte0 = r15;
-		*rden_byte1 = si;
+		*rden_byte0 = bl_start[0];
+		*rden_byte1 = bl_start[1];
+	}
+
+	if (*rden_byte0 > 63) {
+		*rden_byte0 = 63;
+	}
+	if (*rden_byte1 > 63) {
+		*rden_byte1 = 63;
 	}
 
 	return 0;
