@@ -103,12 +103,13 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 	u32 reg;
 	int retries = 0;
 
-	ref_clk_25 = BCWC_S2_REG_READ(S2_PLL_STATUS_04) & S2_PLL_REFCLK;
+	reg = BCWC_S2_REG_READ(S2_PLL_REFCLK);
+	ref_clk_25 = reg & S2_PLL_REFCLK_25MHZ ? 1 : 0;
 
 	if (ref_clk_25)
-		dev_info(&dev_priv->pdev->dev, "Refclk: 25MHz\n");
+		dev_info(&dev_priv->pdev->dev, "Refclk: 25MHz (0x%x)\n", reg);
 	else
-		dev_info(&dev_priv->pdev->dev, "Refclk: 24MHz\n");
+		dev_info(&dev_priv->pdev->dev, "Refclk: 24MHz (0x%x\n", reg);
 
 	if (ddr_speed == 400) {
 		if (ref_clk_25) {
@@ -145,8 +146,8 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 			dev_err(&dev_priv->pdev->dev,
 				"Unsupported DDR speed %uMHz, using 450MHz\n",
 				ddr_speed);
+			ddr_speed = 450;
 		}
-		ddr_speed = 450;
 
 		if (ref_clk_25) {
 			/* Ref clk 25 */
@@ -166,10 +167,10 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 		 ddr_speed);
 
 	do {
-		reg = BCWC_S2_REG_READ(S2_PLL_STATUS_0C);
+		reg = BCWC_S2_REG_READ(S2_PLL_CMU_STATUS);
 		udelay(10);
 		retries++;
-	} while ((reg & 0x8000) == 0 && retries <= 10000);
+	} while (((reg & 0xff00) & S2_PLL_CMU_STATUS_LOCKED) && retries <= 10000);
 
 	if (retries > 10000) {
 		dev_info(&dev_priv->pdev->dev, "Failed to lock S2 PLL: 0x%x\n",
@@ -185,11 +186,10 @@ static int bcwc_hw_s2_pll_init(struct bcwc_private *dev_priv, u32 ddr_speed)
 	udelay(10000);
 
 	reg = BCWC_S2_REG_READ(S2_PLL_STATUS_A8);
-	if (reg & 0x1) {
+	if (reg & S2_PLL_BYPASS)
 		dev_info(&dev_priv->pdev->dev, "S2 PLL is in bypass mode\n");
-	} else {
+	else
 		dev_info(&dev_priv->pdev->dev, "S2 PLL is in non-bypass mode\n");
-	}
 
 	return 0;
 }
@@ -295,9 +295,6 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	u32 vtt_cons, vtt_ovr;
 	int ret, i;
 
-	/* Set DDR speed (450 MHz for now) */
-	dev_priv->ddr_speed = 450;
-
 	/* Read PCI config command register */
 	ret = pci_read_config_dword(dev_priv->pdev, 4, &cmd);
 	if (ret) {
@@ -312,26 +309,24 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	reg = BCWC_S2_REG_READ(S2_PLL_CTRL_9C);
-	reg &= 0xfffffcff;
-	BCWC_S2_REG_WRITE(reg, S2_PLL_CTRL_9C);
+	BCWC_S2_REG_WRITE(reg & 0xfffffcff, S2_PLL_CTRL_9C);
 	BCWC_S2_REG_WRITE(reg | 0x300, S2_PLL_CTRL_9C);
 
-	/* Default to 450 MHz DDR speed for now */
 	bcwc_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
 
 	bcwc_hw_ddr_phy_soft_reset(dev_priv);
 
-	/* Not sure what this is yet (perhaps safe/slow DDR PLL settings) */
-	BCWC_S2_REG_WRITE(0x2, S2_2BA4);
-	BCWC_S2_REG_WRITE(0x2, S2_2BA8);
+	BCWC_S2_REG_WRITE(0x2, S2_DDR40_WL_DRV_PAD_CTL);
+	BCWC_S2_REG_WRITE(0x2, S2_DDR40_WL_CLK_PAD_DISABLE);
 
 	/* Disable the hardware frequency change function */
 	BCWC_S2_REG_WRITE(0x3f4, S2_20F8);
 
 	/* Setup the PLL */
 	BCWC_S2_REG_WRITE(0x40, S2_2434);
-
 	BCWC_S2_REG_WRITE(0x10000000, S2_2438);
+	BCWC_S2_REG_WRITE(0x4, S2_2424);
+	BCWC_S2_REG_WRITE(0x1f37291, S2_2430);
 
 	/* Wait for DDR PLL to lock */
 	for (i = 0; i <= 10000; i++) {
@@ -364,6 +359,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 
 	udelay(10000);
 
+	/* WL */
 	BCWC_S2_REG_WRITE(0x0c10, S2_DDR40_PHY_PLL_DIV);
 	BCWC_S2_REG_WRITE(0x0010, S2_DDR40_PHY_PLL_CFG);
 
@@ -384,22 +380,32 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		 "DDR40 PHY PLL locked on safe settings\n");
 
 	/* Default is DDR model 4 */
-	if (dev_priv->ddr_model == 2)
-		val = 0x42500c2;
-	else
+	switch (dev_priv->ddr_model) {
+	case 4:
 		val = 0x46a00c2;
+		break;
+	case 2:
+		val = 0x42500c2;
+		break;
+	default:
+		val = 0;
+	}
 
 	BCWC_S2_REG_WRITE(0x10737545, S2_DDR_20A0);
 	BCWC_S2_REG_WRITE(0x12643173, S2_DDR_20A4);
 	BCWC_S2_REG_WRITE(0xff3f, S2_DDR_20A8);
 	BCWC_S2_REG_WRITE(val, S2_DDR_20B0);
 	BCWC_S2_REG_WRITE(0x101f, S2_DDR_2118);
-	BCWC_S2_REG_WRITE(0x1c0, S2_DDR40_AUX_CTL);
+	BCWC_S2_REG_WRITE(0x1c0, S2_DDR40_PHY_AUX_CTL);
 
-	if (dev_priv->ddr_model == 2)
-		val = 0x2155558;
-	else
+	switch (dev_priv->ddr_model) {
+	case 4:
 		val = 0x2159518;
+		break;
+	case 2:
+		val = 0x2155558;
+		break;
+	}
 
 	BCWC_S2_REG_WRITE(val, S2_DDR40_STRAP_CTL);
 
@@ -488,7 +494,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 			 "First DDR40 VDL calibration completed after %d us",
 			 i);
 
-		if (!(reg & 0x2)) {
+		if ((reg & 0x2) == 0) {
 			dev_info(&dev_priv->pdev->dev,
 				 "...but failed to lock\n");
 		}
@@ -499,7 +505,8 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	}
 
 	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
-	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
+	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL); /* Needed? */
+	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL); /* calib steps */
 
 	for (i = 0; i < 1000; i++) {
 		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
@@ -508,26 +515,17 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		udelay(1);
 	}
 
-	step_size = 0;
+	dev_info(&dev_priv->pdev->dev,
+		 "Second DDR40 VDL calibration completed after %d us\n", i);
 
-	if (reg & 0x1) {
-		dev_info(&dev_priv->pdev->dev,
-			 "Second DDR40 VDL calibration completed after %d us\n",
-			 i);
-
-		if (!(reg & 0x2)) {
-			step_size = (reg >> 2) & 0x3ff;
-			dev_info(&dev_priv->pdev->dev, "Using step size %u\n",
-				 step_size);
-		}
+	if (reg & 0x2) {
+		step_size = (reg & S2_DDR40_PHY_VDL_STEP_MASK) >>
+			    S2_DDR40_PHY_VDL_STEP_SHIFT;
+		dev_info(&dev_priv->pdev->dev, "Using step size %u\n",
+			 step_size);
 	} else {
-		dev_info(&dev_priv->pdev->dev,
-			 "Second DDR40 VDL calibration failed, using default step size\n");
-	}
 
-	val = 1000000 / dev_priv->ddr_speed;
-
-	if (step_size == 0) {
+		val = 1000000 / dev_priv->ddr_speed;
 		step_size = (val * 0x4ec4ec4f) >> 22;
 		dev_info(&dev_priv->pdev->dev, "Using default step size (%u)\n",
 			 step_size);
@@ -536,7 +534,9 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	dev_priv->vdl_step_size = step_size;
 
 	vdl_fine = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_CHAN_STATUS);
-	if (!(vdl_fine & 2)) {
+
+	/* lock = 1 and byte_sel = 1 */
+	if ((vdl_fine & 2) == 0) {
 		vdl_fine = (vdl_fine >> 8) & 0x3f;
 		vdl_fine |= 0x10100;
 
@@ -576,24 +576,26 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 	/* Process, Voltage and Temperature compensation */
 	BCWC_S2_REG_WRITE(0xc0fff, S2_DDR40_PHY_ZQ_PVT_COMP_CTL);
 	BCWC_S2_REG_WRITE(0x2, S2_DDR40_PHY_DRV_PAD_CTL);
-	BCWC_S2_REG_WRITE(0x2, S2_2BA4);
+	BCWC_S2_REG_WRITE(0x2, S2_DDR40_WL_DRV_PAD_CTL);
 
 	val = 1000000 / dev_priv->ddr_speed;
 	reg = 4;
 
 	if (val >= 400) {
 		if (val > 900)
-			reg |= 0xff;
+			reg = 1;
+
 		reg += 5;
 	}
 
 	/* DDR read FIFO delay? */
-	BCWC_S2_REG_WRITE(reg, S2_DDR40_RD_DATA_DLY_FIFO);
-	BCWC_S2_REG_WRITE(0x2, S2_DDR40_2B64);
-	BCWC_S2_REG_WRITE(0x3, S2_2BAC);
+	BCWC_S2_REG_WRITE(reg, S2_DDR40_WL_RD_DATA_DLY);
+	BCWC_S2_REG_WRITE(0x2, S2_DDR40_WL_READ_CTL); /* le_adj, te_adj */
+	BCWC_S2_REG_WRITE(0x3, S2_DDR40_WL_WR_PREAMBLE_MODE); /* mode, long */
 
-	reg = BCWC_S2_REG_READ(S2_2BA0);
-	BCWC_S2_REG_WRITE(reg & 0xff0fffff, S2_2BA0);
+	/* dq_oeb, dq_reb, dq_iddq, dq_rxenb */
+	reg = BCWC_S2_REG_READ(S2_DDR40_WL_IDLE_PAD_CTL);
+	BCWC_S2_REG_WRITE(reg & 0xff0fffff, S2_DDR40_WL_IDLE_PAD_CTL);
 	udelay(500);
 
 	BCWC_S2_REG_WRITE(0, S2_DDR_2004);
@@ -623,6 +625,7 @@ static int bcwc_hw_s2_init_ddr_controller_soc(struct bcwc_private *dev_priv)
 		val = 0x0fffffff;
 		break;
 	default:
+		/* Probably just invalid model */
 		val = dev_priv->ddr_model;
 	}
 
