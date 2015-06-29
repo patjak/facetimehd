@@ -13,7 +13,7 @@
 #ifndef _BCWC_REG_H
 #define _BCWC_REG_H
 
-/* S2 IO reg */
+/* PCIE link regs */
 #define S2_PCIE_LINK_D000	0xd000
 #define S2_PCIE_LINK_D120	0xd120
 #define S2_PCIE_LINK_D124	0xd124
@@ -30,11 +30,11 @@
 #define S2_DDR_REG_1118		0x1118
 #define S2_DDR_REG_111C		0x111c
 
-#define S2_PLL_STATUS_04	0x04
-#define S2_PLL_REFCLK		(1 << 3) /* 1 = 25MHz, 0 = 24MHz */
+#define S2_PLL_REFCLK		0x04
+#define S2_PLL_REFCLK_25MHZ	(1 << 3) /* 1 = 25MHz, 0 = 24MHz */
 
-#define S2_PLL_STATUS_0C	0x0c	/* Register is called CMU_R_PLL_STS_MEMADDR */
-#define S2_PLL_STATUS_LOCKED	(1 << 15) /* 1 = PLL locked, 0 = PLL not locked */
+#define S2_PLL_CMU_STATUS	0x0c	/* Register is called CMU_R_PLL_STS_MEMADDR */
+#define S2_PLL_CMU_STATUS_LOCKED (1 << 15) /* 1 = PLL locked, 0 = PLL not locked */
 
 #define S2_PLL_STATUS_A8	0xa8
 #define S2_PLL_BYPASS		(1 << 0) /* 1 = bypass, 0 = non-bypass */
@@ -61,15 +61,19 @@
 
 #define S2_20F8				0x20f8
 #define S2_DDR_2118			0x2118
+
+#define S2_2424				0x2424
 #define S2_2430				0x2430
 #define S2_2434				0x2434
 #define S2_2438				0x2438
 
+/* PLL for stage 2 */
 #define S2_DDR_PLL_STATUS_241C		0x241c
-#define S2_DDR_PLL_STATUS_241C_LOCKED	0x0400
+#define S2_DDR_PLL_STATUS_241C_LOCKED	(1 << 10)
 
+/* PLL for stage 1 */
 #define S2_DDR_PLL_STATUS_2444		0x2444
-#define S2_DDR_PLL_STATUS_2444_LOCKED	0x2000
+#define S2_DDR_PLL_STATUS_2444_LOCKED	(1 << 13)
 
 #define DDR_PHY_REG_BASE		0x2800
 #define DDR_PHY_NUM_REGS		127 /* Found in AppleCamIn::Start() */
@@ -80,7 +84,7 @@
 #define S2_DDR40_PHY_PLL_STATUS_LOCKED	(1 << 0)
 #define S2_DDR40_PHY_PLL_CFG		0x2814
 #define S2_DDR40_PHY_PLL_DIV		0x281c
-#define S2_DDR40_AUX_CTL		0x2820
+#define S2_DDR40_PHY_AUX_CTL		0x2820
 
 #define S2_DDR40_PHY_VDL_OVR_COARSE	0x2830
 #define S2_DDR40_PHY_VDL_OVR_FINE	0x2834
@@ -89,7 +93,11 @@
 #define S2_DDR40_PHY_DRV_PAD_CTL	0x2840
 
 #define S2_DDR40_PHY_VDL_CTL		0x2848
+
 #define S2_DDR40_PHY_VDL_STATUS		0x284c
+#define S2_DDR40_PHY_VDL_STEP_MASK	0x0ffc
+#define S2_DDR40_PHY_VDL_STEP_SHIFT	2
+
 #define S2_DDR40_PHY_DQ_CALIB_STATUS	0x2850
 #define S2_DDR40_PHY_VDL_CHAN_STATUS	0x2854
 
@@ -106,7 +114,6 @@
 #define S2_DDR40_BYTE_LANE_SIZE		0xa0
 #define S2_DDR40_NUM_BYTE_LANES		2
 
-
 #define S2_DDR40_RDEN_BYTE		0x2a00
 #define S2_DDR40_2A08			0x2a08
 #define S2_DDR40_2A0C			0x2a0c
@@ -116,15 +123,14 @@
 #define S2_DDR40_2AA8			0x2aa8
 #define S2_DDR40_2AAC			0x2aac
 #define S2_DDR40_RDEN_BYTE1		0x2b14
-#define S2_DDR40_RD_DATA_DLY_FIFO	0x2b60
-
-#define S2_DDR40_2B64			0x2b64
-#define S2_DDR40_TIMING_STATUS		0x2b90
-#define S2_DDR40_TIMING_CTL		0x2b94
-#define S2_2BA4				0x2ba4
-#define S2_2BA8				0x2ba8
-#define S2_2BA0				0x2ba0
-#define S2_2BAC				0x2bac
+#define S2_DDR40_WL_RD_DATA_DLY		0x2b60
+#define S2_DDR40_WL_READ_CTL		0x2b64
+#define S2_DDR40_WL_READ_FIFO_STATUS	0x2b90
+#define S2_DDR40_WL_READ_FIFO_CLEAR	0x2b94
+#define S2_DDR40_WL_DRV_PAD_CTL		0x2ba4
+#define S2_DDR40_WL_CLK_PAD_DISABLE	0x2ba8
+#define S2_DDR40_WL_IDLE_PAD_CTL	0x2ba0
+#define S2_DDR40_WL_WR_PREAMBLE_MODE	0x2bac
 
 #define S2_3200				0x3200
 #define S2_3204				0x3204
