@@ -50,130 +50,107 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base, int count)
 	return ((failed_bits & 0xffff) | ((failed_bits >> 16) & 0xffff));
 }
 
-/* FIXME: Make some more sense out of this */
 static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 {
-	u32 rden_byte_save, rden_byte0_save, rden_byte1_save;
-	u32 rden_byte; /* Value for RDEN BYTE */
-	u32 rden_byte01; /* Value for RDEN BYTE0 and BYTE1 */
+	u32 fifo_status[2];
+	u32 rden_bytes[3];
+	u32 rden_wl_setting, rden_bl_setting, setting, tmp;
+	u32 byte0_pass, byte1_pass;
+	int passed;
 
-	u32 a, c, d, r15;
-	u32 var_2c, var_30, fifo_delay, status;
-
-	int ret, i;
-
-	/* Save current register values */
-	rden_byte_save = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE);
-	rden_byte0_save = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0);
-	rden_byte1_save = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1);
+	rden_bytes[0] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE);
+	rden_bytes[1] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0);
+	rden_bytes[2] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1);
 
 	BCWC_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
 	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
 	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE1);
 
-	fifo_delay = 1;
-	rden_byte01 = 0;
-	var_30 = 0;
-	var_2c = 0;
+	passed = 0;
+	setting = 1;
+	byte0_pass = 0;
+	byte1_pass = 0;
+	rden_wl_setting = 0;
+	rden_bl_setting = 0;
 
-	for (i = 1000; i > 0; i--) {
-		r15 = rden_byte01;
+	while (passed == 0) {
+		BCWC_S2_REG_WRITE(setting & 0x7, S2_DDR40_WL_RD_DATA_DLY);
 
-		BCWC_S2_REG_WRITE((fifo_delay & 0x7),
-				  S2_DDR40_RD_DATA_DLY_FIFO);
-
-		/*
-		 * How do we know if verification was successful?
-		 * OSX doesn't check any return values from it's verification so
-		 * perhaps controller can detect this itself and set some regs.
-		 */
 		bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-		BCWC_S2_REG_WRITE(1, S2_DDR40_TIMING_CTL);
+		tmp = BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS);
+		fifo_status[0] = tmp & 0xf;
+		fifo_status[1] = (tmp & 0xf0) >> 4;
 
-		rden_byte = (rden_byte01 >= 57) ? rden_byte01 :
-						  (rden_byte01 + 7);
+		BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
-		a = r15 + 7;
-		rden_byte01 = a;
-		if (rden_byte01 < 57)
-			rden_byte01 = r15;
-
-		if (rden_byte01 > 63) {
-			a = 1;
-			rden_byte01 = 0;
-			rden_byte = 0;
+		if (fifo_status[0] == 0) {
+			if (byte0_pass == 0)
+				byte0_pass = setting;
 		}
 
-		c = i - 1;
-		status = BCWC_S2_REG_READ(S2_DDR40_TIMING_STATUS);
-
-		if (((status & 0xf) | var_2c) == 0)
-			var_2c = fifo_delay;
-
-		if (var_2c == 0)
-			c = 1;
-
-		if (((status & 0xf0) | var_30) == 0)
-			var_30 = fifo_delay;
-
-		if (var_30 == 0)
-			d = 1;
-
-		a += fifo_delay;
-		if (a < 8) {
-			r15 = (c | d) ^ 1;
-			fifo_delay = a;
-		} else {
-			if (var_30 == 0)
-				var_30 = 7;
-			if (var_2c == 0)
-				var_2c = 7;
-			fifo_delay = 7;
-			r15 = 1;
+		if (fifo_status[1] == 0) {
+			if (byte1_pass == 0)
+				byte1_pass = setting;
 		}
 
-		BCWC_S2_REG_WRITE((rden_byte & 0x3f) | 0x30000,
+		if (rden_wl_setting < 57)
+			rden_wl_setting += 7;
+		else
+			rden_bl_setting += 7;
+
+		if (rden_bl_setting > 63) {
+			setting++;
+			rden_wl_setting = 0;
+			rden_bl_setting = 0;
+		}
+
+		if (byte0_pass != 0 && byte1_pass != 0)
+			passed = 1;
+
+		/* Seems we default to setting=7 if no pass is found */
+		if (setting > 7) {
+			passed = 1;
+			setting = 7;
+
+			if (byte0_pass == 0)
+				byte0_pass = setting;
+
+			if (byte1_pass == 0)
+				byte1_pass = setting;
+		}
+
+		/* Write new setting */
+		BCWC_S2_REG_WRITE(rden_wl_setting | 0x30000,
 				  S2_DDR40_RDEN_BYTE);
-		BCWC_S2_REG_WRITE((rden_byte01 & 0x3f) | 0x30100,
+		BCWC_S2_REG_WRITE(rden_bl_setting | 0x30100,
 				  S2_DDR40_RDEN_BYTE0);
-		BCWC_S2_REG_WRITE((rden_byte01 & 0x3f) | 0x30100,
+		BCWC_S2_REG_WRITE(rden_bl_setting | 0x30100,
 				  S2_DDR40_RDEN_BYTE1);
-
-		if (r15 != 0)
-			break;
 	}
 
-	if (i == 0) {
-		dev_err(&dev_priv->pdev->dev, "rd_data_dly_fifo timed out\n\n");
-		ret = -EIO;
-		goto out;
-	}
+	setting = byte0_pass;
 
-	dev_info(&dev_priv->pdev->dev, "rd_data_dly_fifo succeeded\n");
+	if (byte1_pass > setting)
+		setting = byte1_pass;
 
-	/* Restore read enable bytes */
-	BCWC_S2_REG_WRITE(rden_byte_save, S2_DDR40_RDEN_BYTE);
-	BCWC_S2_REG_WRITE(rden_byte0_save, S2_DDR40_RDEN_BYTE0);
-	BCWC_S2_REG_WRITE(rden_byte1_save, S2_DDR40_RDEN_BYTE1);
+	setting++;
 
-	if (var_30 > var_2c)
-		var_2c = var_30;
+	if (setting > 7)
+		setting = 7;
 
-	var_2c++;
-	var_30 = 7;
+	/* Restore settings */
+	BCWC_S2_REG_WRITE(rden_bytes[0], S2_DDR40_RDEN_BYTE);
+	BCWC_S2_REG_WRITE(rden_bytes[1], S2_DDR40_RDEN_BYTE0);
+	BCWC_S2_REG_WRITE(rden_bytes[2], S2_DDR40_RDEN_BYTE1);
 
-	if (var_2c <= 7)
-		var_30 = var_2c;
+	if (setting < 7)
+		setting++;
 
-	if (var_30 < 7)
-		var_30++;
+	BCWC_S2_REG_WRITE(setting, S2_DDR40_WL_RD_DATA_DLY);
+	dev_info(&dev_priv->pdev->dev, "RD_DATA_DLY: 0x%x\n", setting);
 
-	BCWC_S2_REG_WRITE(var_30, S2_DDR40_RD_DATA_DLY_FIFO);
-
-	ret = 0;
-out:
-	return ret;
+	return 0;
 }
 
 static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
