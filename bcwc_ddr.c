@@ -491,8 +491,8 @@ static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv,
 static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 				   u32 *fail_bits, u32 *settings)
 {
-	u32 var_58, var_2c, var_30, var_34, var_48, var_5c;
-	u32 a, b, c, d, r12, r13, r15;
+	u32 var_58, var_2c, var_30, var_48, var_5c;
+	u32 a, b, c, d, r12, r13;
 	u32 setting, byte, bit, offset, tmp, start, inc, reg;
 	int i;
 
