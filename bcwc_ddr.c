@@ -491,18 +491,8 @@ static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv,
 static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 				   u32 *fail_bits, u32 *settings)
 {
-	u32 var_58, var_2c, var_30, var_48, var_5c;
-	u32 a, b, c, d, r12, r13;
-	u32 setting, byte, bit, offset, tmp, start, inc, reg;
+	u32 bl, setting, byte, bit, offset, tmp, start, inc, reg;
 	int i;
-
-	var_5c = S2_DDR40_PHY_BASE;
-	var_58 = S2_DDR40_2A38;
-	a = set_bits;
-	c = a & 0x2;
-	var_2c = c;
-	a = a & 1;
-	var_30 = a;
 
 	for (setting = 0; setting < 64; setting++) {
 		for (byte = 0; byte < 2; byte++) {
@@ -521,17 +511,6 @@ static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 		fail_bits[setting] = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 	}
 
-	b = 1;
-	r13 = 0;
-	a = set_bits;
-	r12 = r13;
-/*
-	if (set_bits != 3) {
-		r12 = (a != 1) ? 1 : 0;
-		b = 2;
-	}
-*/
-
 	if (set_bits == 3) {
 		start = 0;
 		inc = 1;
@@ -543,29 +522,14 @@ static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 		inc = 2;
 	}
 
-	var_48 = r12;
-
 	bcwc_ddr_calibrate_rd_dqs(dev_priv, fail_bits, settings);
-
-	a = var_5c;
-	// c = S2_DDR40_2A34 + r12 * 4;
-	reg = S2_DDR40_2A34 + r12 * 4;
-	a = b * 4;
-	var_2c = a;
-	// d = r13;
 
 	offset = 0;
 
-	for (d = 0; d < 2; d++) {
-		/*
-		var_34 = d;
-		var_30 = c;
-		r15 = c;
-		*/
+	for (bl = 0; bl < 2; bl++) {
+		reg = S2_DDR40_2A34 + bl * 0xa0;
 
-		// while (r12 < 0x10) {
 		for (i = start; i < 16; i += inc) {
-			//a = r13;
 
 			if (settings[offset] == 0 || settings[offset] >= 63) {
 				dev_err(&dev_priv->pdev->dev,
@@ -574,32 +538,17 @@ static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 				return -EINVAL;
 			}
 
-			// d = r15;
-			// c = (c & 0x3f) | 0x30000;
 			tmp = (settings[offset] & 0x3f) | 0x30000;
 			BCWC_S2_REG_WRITE(tmp, reg);
 			if (set_bits == 3) {
 				if (i & 1)
 					offset++;
-				//a = r12;
-				//a = a & 1;
-				//r13 += a;
 			} else {
-				// r13++;
 				offset++;
 			}
 
-			//r15 += var_2c;
 			reg += inc;
 		}
-
-/*
-		c = var_30;
-		c += S2_DDR40_BYTE_LANE_SIZE;
-		d = var_34;
-		a = 0;
-		r12 = var_48;
-*/
 	}
 
 	return 0;
