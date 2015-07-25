@@ -479,10 +479,6 @@ static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv,
 		       pass_end[bit], pass_len[bit], settings[bit]);
 	}
 
-	for (bit = 0; bit < 16; bit++) {
-
-	}
-
 	// Some global stuff that I need to figure out
 
 	return 0;
@@ -583,20 +579,45 @@ static int bcwc_ddr_generic_shmoo_calibrate_rd_dqs(
 	if (ret)
 		return ret;
 
-	/*
+	/* NOP for now */
 	ret = bcwc_ddr_calibrate_create_result(dev_priv);
 	if (ret)
 		return ret;
-	*/
 
-	/* FIXME: Continue here... */
+	return 0;
+}
 
+static int bcwc_ddr_calibrate_wr_dq(struct bcwc_private *dev_priv, u32 *fails,
+				    u32 *settings)
+{
 	return 0;
 }
 
 static int bcwc_ddr_generic_shmoo_calibrate_wr_dq(struct bcwc_private *dev_priv)
 {
-	return 0;
+	u32 fails[64];
+	u32 settings[64]; /* Size is actually 16? */
+	u32 setting, offset;
+	int bit, bl, ret = 0;
+
+	/* shmoo_wr_dq */
+	for (setting = 0; setting < 64; setting++) {
+		for (bl = 0; bl < 2; bl++) {
+			offset = S2_DDR40_2A10 + (bl * S2_DDR40_BYTE_LANE_SIZE);
+			for (bit = 0; bit < 8; bit++) {
+				BCWC_S2_REG_WRITE(setting | 0x30000,
+						  offset + (bit * 4));
+			}
+		}
+
+		fails[setting] = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+	}
+
+	fails[63] = 0xffff; /* Last setting is always a fail */
+
+	bcwc_ddr_calibrate_wr_dq(dev_priv, fails, settings);
+
+	return ret;
 }
 
 static int bcwc_ddr_generic_shmoo_calibrate_wr_dm(struct bcwc_private *dev_priv)
@@ -612,16 +633,15 @@ static int bcwc_ddr_generic_shmoo_calibrate_addr(struct bcwc_private *dev_priv)
 int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
 {
 	u32 reg;
-	int ret, i;
+	int ret;
 
 	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
 	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
 
-	for (i = 0 ; i <= 50; i++) {
+	while (1) {
 		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
 		if (reg & 0x1)
 			break;
-		/* We don't handle errors here, maybe we should */
 	}
 
 	ret = bcwc_ddr_calibrate_rd_data_dly_fifo(dev_priv);

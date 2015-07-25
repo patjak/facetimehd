@@ -117,6 +117,7 @@
 #define S2_DDR40_RDEN_BYTE		0x2a00
 #define S2_DDR40_2A08			0x2a08
 #define S2_DDR40_2A0C			0x2a0c
+#define S2_DDR40_2A10			0x2a10
 #define S2_DDR40_2A34			0x2a34
 #define S2_DDR40_2A38			0x2a38
 #define S2_DDR40_RDEN_BYTE0		0x2a74
