@@ -663,31 +663,31 @@ static int bcwc_hw_isp_init(struct bcwc_private *dev_priv)
 	u32 reg;
 	int i, retries;
 
-	BCWC_ISP_REG_WRITE(0, IRQ_IPC_NUM_CHAN);
+	BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0, IRQ_IPC_QUEUE_SIZE);
+	BCWC_ISP_REG_WRITE(0, ISP_IPC_QUEUE_SIZE);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0, IRQ_REG_08);
+	BCWC_ISP_REG_WRITE(0, ISP_REG_08);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0, IRQ_FW_HEAP_SIZE);
+	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0, IRQ_REG_10);
+	BCWC_ISP_REG_WRITE(0, ISP_REG_10);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0, IRQ_REG_14);
+	BCWC_ISP_REG_WRITE(0, ISP_REG_14);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0, IRQ_REG_18);
+	BCWC_ISP_REG_WRITE(0, ISP_REG_18);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0, IRQ_REG_1C);
+	BCWC_ISP_REG_WRITE(0, ISP_REG_1C);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0xffffffff, IRQ_REG_41024);
+	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
 	bcwc_hw_pci_post(dev_priv);
 
 	/*
@@ -700,15 +700,14 @@ static int bcwc_hw_isp_init(struct bcwc_private *dev_priv)
 	}
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE( 0x80000000, IRQ_REG_40008);
+	BCWC_ISP_REG_WRITE( 0x80000000, ISP_REG_40008);
 	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE(0x1, IRQ_REG_40004);
+	BCWC_ISP_REG_WRITE(0x1, ISP_REG_40004);
 	bcwc_hw_pci_post(dev_priv);
-
 
 	for (retries = 0; retries < 1000; retries++) {
-		reg = BCWC_ISP_REG_READ(IRQ_REG_40004);
+		reg = BCWC_ISP_REG_READ(ISP_REG_40004);
 		if ((reg & 0xff) == 0xf0)
 			break;
 		udelay(10);
@@ -719,10 +718,10 @@ static int bcwc_hw_isp_init(struct bcwc_private *dev_priv)
 		return -EIO;
 	}
 
-	BCWC_ISP_REG_WRITE(0xffffffff, IRQ_REG_41024);
+	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
 
-	num_channels = BCWC_ISP_REG_READ(IRQ_IPC_NUM_CHAN) + 1;
-	queue_size = BCWC_ISP_REG_READ(IRQ_IPC_QUEUE_SIZE);
+	num_channels = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN) + 1;
+	queue_size = BCWC_ISP_REG_READ(ISP_IPC_QUEUE_SIZE);
 
 	dev_info(&dev_priv->pdev->dev,
 		 "Number of IPC channels: %u, queue size: %u\n",
@@ -739,7 +738,7 @@ static int bcwc_hw_isp_init(struct bcwc_private *dev_priv)
 	*/
 
 	/* Firmware must fit in 4194304 bytes */
-	reg = BCWC_ISP_REG_READ(IRQ_FW_HEAP_SIZE);
+	reg = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
 	if (reg > 0x400000) {
 		dev_info(&dev_priv->pdev->dev,
 			 "Firmware request size too big (%u bytes)\n",
@@ -848,10 +847,6 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 	/* Save our working configuration */
 	bcwc_hw_ddr_phy_save_regs(dev_priv);
 
-	BCWC_S2_REG_WRITE(0x8, S2_D108);
-	BCWC_S2_REG_WRITE(0xc, S2_D104);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_40004);
 
 out:
 	return ret;
