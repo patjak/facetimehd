@@ -804,6 +804,7 @@ static int bcwc_hw_power_off(struct bcwc_private *dev_priv)
 
 int bcwc_hw_init(struct bcwc_private *dev_priv)
 {
+	u32 val;
 	int ret, i;
 
 	ret = bcwc_hw_s2_init_pcie_link(dev_priv);
@@ -817,7 +818,41 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 	for (i = 0; i < DDR_PHY_NUM_REGS; i++)
 		dev_priv->ddr_phy_reg_map[i].offset = ddr_phy_reg_map[i];
 
-	bcwc_ddr_calibrate(dev_priv);
+	dev_info(&dev_priv->pdev->dev,
+		 "Dumping DDR PHY reg map before shmoo\n");
+
+	for (i = 0; i < DDR_PHY_NUM_REGS; i++) {
+		if (!(i % 3) && i >  0)
+			printk("\n");
+
+		val = BCWC_S2_REG_READ(ddr_phy_reg_map[i]);
+		printk(KERN_CONT "0x%.3x = 0x%.8x\t",
+			 ddr_phy_reg_map[i], val);
+	}
+
+	ret = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM_FULL);
+	if (ret) {
+		dev_err(&dev_priv->pdev->dev,
+			"Full memory verification failed! (%d)\n", ret);
+		/*
+		 * Here we should do a shmoo calibration but it's not yet
+		 * fully implemented.
+		 */
+
+		/* bcwc_ddr_calibrate(dev_priv); */
+	} else {
+		dev_info(&dev_priv->pdev->dev,
+			 "Full memory verification succeeded! (%d)\n", ret);
+	}
+
+	/* Save our working configuration */
+	bcwc_hw_ddr_phy_save_regs(dev_priv);
+
+	BCWC_S2_REG_WRITE(0x8, S2_D108);
+	BCWC_S2_REG_WRITE(0xc, S2_D104);
+
+	BCWC_ISP_REG_WRITE(0, ISP_REG_40004);
+
 out:
 	return ret;
 }

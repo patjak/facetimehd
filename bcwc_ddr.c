@@ -20,10 +20,7 @@
 #include <linux/random.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
-
-#define MEM_VERIFY_BASE		0x1000
-#define MEM_VERIFY_NUM		128
-#define MEM_VERIFY_NUM_FULL	(1 * 1024 * 1024)
+#include "bcwc_ddr.h"
 
 int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base, int count)
 {
@@ -667,16 +664,6 @@ int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
 	ret = bcwc_ddr_generic_shmoo_calibrate_addr(dev_priv);
 	if (ret)
 		return ret;
-
-	ret = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM_FULL);
-	if (ret) {
-		dev_err(&dev_priv->pdev->dev,
-			"Full memory verification failed! (%d)\n", ret);
-		return -EIO;
-	} else {
-		dev_info(&dev_priv->pdev->dev,
-			 "Full memory verification succeeded! (%d)\n", ret);
-	}
 
 	return 0;
 }

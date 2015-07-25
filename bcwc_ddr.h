@@ -17,4 +17,14 @@
  *
  */
 
+#ifndef _BCWC_DDR_H
+#define _BCWC_DDR_H
+
+#define MEM_VERIFY_BASE		0x0 /* 0x1000000 */
+#define MEM_VERIFY_NUM		128
+#define MEM_VERIFY_NUM_FULL	(1 * 1024 * 1024)
+
 int bcwc_ddr_calibrate(struct bcwc_private *dev_priv);
+int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base, int count);
+
+#endif
