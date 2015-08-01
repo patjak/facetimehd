@@ -754,6 +754,12 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 	/* Save our working configuration */
 	bcwc_hw_ddr_phy_save_regs(dev_priv);
 
+	BCWC_S2_REG_WRITE(0x8, S2_D108);
+	BCWC_S2_REG_WRITE(0xc, S2_D104);
+
+	BCWC_ISP_REG_WRITE(0, ISP_REG_40004);
+
+	isp_init(dev_priv);
 
 out:
 	return ret;

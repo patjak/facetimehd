@@ -20,6 +20,10 @@
 #define S2_PCIE_LINK_D128	0xd128
 #define S2_PCIE_LINK_D12C	0xd12c
 
+/* Unknown */
+#define S2_D104			0xd104
+#define S2_D108			0xd108
+
 /* These are written to 0x203 before DDR soc init */
 #define S2_DDR_REG_1100		0x1100
 #define S2_DDR_REG_1104		0x1104

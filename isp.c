@@ -11,10 +11,56 @@
  */
 
 #include <linux/delay.h>
+#include <linux/acpi.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_reg.h"
 #include "isp.h"
+
+int isp_acpi_set_power(struct bcwc_private *dev_priv, int power)
+{
+	acpi_status status;
+	acpi_handle handle;
+	struct acpi_object_list arg_list;
+	struct acpi_buffer buffer = {ACPI_ALLOCATE_BUFFER, NULL};
+	union acpi_object args[1];
+	union acpi_object *result;
+	int ret = 0;
+
+	status = acpi_get_handle(NULL, "\\_SB.PCI0.RP02.CMRA.CMPE", &handle);
+	if (ACPI_FAILURE(status)) {
+		dev_err(&dev_priv->pdev->dev,
+			"Failed to get S2 CMPE ACPI handle\n");
+		ret = -ENODEV;
+		goto out;
+	}
+
+	args[0].type = ACPI_TYPE_INTEGER;
+	args[0].integer.value = power;
+
+	arg_list.count = 1;
+	arg_list.pointer = args;
+
+	status = acpi_evaluate_object(handle, NULL, &arg_list, &buffer);
+	if (ACPI_FAILURE(status)) {
+		dev_err(&dev_priv->pdev->dev,
+			"Failed to execute S2 CMPE ACPI method\n");
+		ret = -ENODEV;
+		goto out;
+	}
+
+	result = buffer.pointer;
+
+	if (result->type != ACPI_TYPE_INTEGER || result->integer.value != 0) {
+		dev_err(&dev_priv->pdev->dev,
+			"Invalid ACPI response (len: %Ld)\n", buffer.length);
+		ret = -EINVAL;
+	}
+
+out:
+	kfree(buffer.pointer);
+	return ret;
+}
 
 int isp_init(struct bcwc_private *dev_priv)
 {
