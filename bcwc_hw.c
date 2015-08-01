@@ -21,6 +21,7 @@
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_ddr.h"
+#include "isp.h"
 
 /* FIXME: Double check these */
 static u32 ddr_phy_reg_map[] = {
@@ -653,100 +654,6 @@ static int bcwc_hw_ddr_phy_save_regs(struct bcwc_private *dev_priv)
 		reg = BCWC_ISP_REG_READ(offset + DDR_PHY_REG_BASE);
 		dev_priv->ddr_phy_reg_map[i].value = reg;
 	}
-
-	return 0;
-}
-
-static int bcwc_hw_isp_init(struct bcwc_private *dev_priv)
-{
-	u32 num_channels, queue_size;
-	u32 reg;
-	int i, retries;
-
-	BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_IPC_QUEUE_SIZE);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_08);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_10);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_14);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_18);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_1C);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
-	bcwc_hw_pci_post(dev_priv);
-
-	/*
-	 * Probably the IPC queue
-	 * FIXME: Check if we can do 64bit writes on PCIe
-	 */
-	for (i = IRQ_REG_RANGE_START; i <= IRQ_REG_RANGE_END; i += 8) {
-		BCWC_ISP_REG_WRITE(0xffffff, i);
-		BCWC_ISP_REG_WRITE(0x000000, i + 4);
-	}
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE( 0x80000000, ISP_REG_40008);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0x1, ISP_REG_40004);
-	bcwc_hw_pci_post(dev_priv);
-
-	for (retries = 0; retries < 1000; retries++) {
-		reg = BCWC_ISP_REG_READ(ISP_REG_40004);
-		if ((reg & 0xff) == 0xf0)
-			break;
-		udelay(10);
-	}
-
-	if (retries >= 1000) {
-		dev_info(&dev_priv->pdev->dev, "Init failed! No wake signal\n");
-		return -EIO;
-	}
-
-	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
-
-	num_channels = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN) + 1;
-	queue_size = BCWC_ISP_REG_READ(ISP_IPC_QUEUE_SIZE);
-
-	dev_info(&dev_priv->pdev->dev,
-		 "Number of IPC channels: %u, queue size: %u\n",
-		 num_channels, queue_size);
-
-	if (num_channels > 32) {
-		dev_info(&dev_priv->pdev->dev, "Too many IPC channels: %u\n",
-			 num_channels);
-		return -EIO;
-	}
-
-	/*
-	bcwc_alloc_dev_mem(queue_size, &ret, 0);
-	*/
-
-	/* Firmware must fit in 4194304 bytes */
-	reg = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
-	if (reg > 0x400000) {
-		dev_info(&dev_priv->pdev->dev,
-			 "Firmware request size too big (%u bytes)\n",
-			 reg);
-		return -ENOMEM;
-	}
-
-	dev_info(&dev_priv->pdev->dev, "Firmware request size: %u\n", reg);
 
 	return 0;
 }

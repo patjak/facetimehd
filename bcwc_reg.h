@@ -140,18 +140,18 @@
 /* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
 #define ISP_IPC_NUM_CHAN	0xc3000
 #define ISP_IPC_QUEUE_SIZE	0xc3004
-#define ISP_REG_08		0xc3008
+#define ISP_REG_C3008		0xc3008
 #define ISP_FW_HEAP_SIZE	0xc300c
-#define ISP_REG_10		0xc3010
-#define ISP_REG_14		0xc3014
-#define ISP_REG_18		0xc3018
-#define ISP_REG_1C		0xc301c
+#define ISP_REG_C3010		0xc3010
+#define ISP_REG_C3014		0xc3014
+#define ISP_REG_C3018		0xc3018
+#define ISP_REG_C301C		0xc301c
 #define ISP_REG_40004		0x40004
 #define ISP_REG_40008		0x40008
 #define ISP_REG_41000		0x41000
 #define ISP_REG_41024		0x41024
 
-#define IRQ_REG_RANGE_START	0x0128
-#define IRQ_REG_RANGE_END	0x0220
+#define ISP_IPC_CHAN_START	0x0128
+#define ISP_IPC_CHAN_END	0x0220
 
 #endif
