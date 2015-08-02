@@ -12,6 +12,7 @@
 
 #include <linux/delay.h>
 #include <linux/acpi.h>
+#include <linux/firmware.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_reg.h"
@@ -62,11 +63,47 @@ out:
 	return ret;
 }
 
+static int isp_enable_sensor(struct bcwc_private *dev_priv)
+{
+	return 0;
+}
+
+static int isp_load_firmware(struct bcwc_private *dev_priv)
+{
+	const struct firmware *fw;
+	int ret = 0;
+
+	ret = request_firmware(&fw, "fthd.bin", &dev_priv->pdev->dev);
+
+	if (fw == NULL)
+		return ret;
+
+	memcpy(dev_priv->s2_mem, fw->data, fw->size);
+
+	dev_info(&dev_priv->pdev->dev, "Loaded firmware (size: %lukb)\n",
+		 fw->size / 1024);
+
+	release_firmware(fw);
+
+	return ret;
+}
+
 int isp_init(struct bcwc_private *dev_priv)
 {
 	u32 num_channels, queue_size;
 	u32 reg;
 	int i, retries;
+
+	isp_load_firmware(dev_priv);
+
+	isp_acpi_set_power(dev_priv, 1);
+	mdelay(20);
+
+	/* OSX driver configures the PCI bus here but we ignore it */
+
+	pci_set_power_state(dev_priv->pdev, PCI_D0);
+
+	isp_enable_sensor(dev_priv);
 
 	BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
 	bcwc_hw_pci_post(dev_priv);
@@ -112,16 +149,19 @@ int isp_init(struct bcwc_private *dev_priv)
 	bcwc_hw_pci_post(dev_priv);
 
 	for (retries = 0; retries < 1000; retries++) {
-		reg = BCWC_ISP_REG_READ(ISP_REG_40004);
-		if ((reg & 0xff) == 0xf0)
+		reg = BCWC_ISP_REG_READ(ISP_REG_41000);
+		if ((reg & 0xf0) > 0)
 			break;
-		udelay(10);
+		mdelay(10);
 	}
 
 	if (retries >= 1000) {
 		dev_info(&dev_priv->pdev->dev, "Init failed! No wake signal\n");
 		return -EIO;
 	}
+
+	dev_info(&dev_priv->pdev->dev, "ISP woke up after %dms\n",
+		 (retries - 1) * 10);
 
 	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
 
@@ -155,7 +195,6 @@ int isp_init(struct bcwc_private *dev_priv)
 
 	return 0;
 }
-
 
 int isp_uninit(struct bcwc_private *dev_priv)
 {
