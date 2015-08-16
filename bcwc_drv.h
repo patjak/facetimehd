@@ -57,6 +57,10 @@ struct bcwc_private {
 	/* DDR_PHY saved registers. Offsets need to be initialized somewhere */
 	u32 ddr_phy_num_regs;
 	struct bcwc_reg ddr_phy_reg_map[DDR_PHY_NUM_REGS];
+
+	/* Root resource for memory management */
+	struct resource *mem;
+	struct isp_mem_obj *firmware;
 };
 
 #endif

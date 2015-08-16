@@ -25,6 +25,7 @@
 #include <linux/workqueue.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
+#include "isp.h"
 
 static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 {
@@ -39,11 +40,7 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 		return ret;
 	}
 
-	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_S2_MEM, "S2 MEM");
-	if (ret) {
-		dev_err(&dev_priv->pdev->dev, "Failed to request S2 MEM\n");
-		return ret;
-	}
+	/* S2 MEM is reserved by the isp memory manager */
 
 	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_ISP_IO, "ISP IO");
 	if (ret) {
@@ -208,6 +205,7 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 	dev_priv = pci_get_drvdata(pdev);
 
 	if (dev_priv) {
+		isp_mem_destroy(dev_priv->firmware);
 		bcwc_irq_disable(dev_priv);
 		pci_disable_msi(pdev);
 

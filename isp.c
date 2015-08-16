@@ -18,6 +18,53 @@
 #include "bcwc_reg.h"
 #include "isp.h"
 
+int isp_mem_init(struct bcwc_private *dev_priv)
+{
+	dev_priv->mem = &dev_priv->pdev->resource[BCWC_PCI_S2_MEM];
+	if (!dev_priv->mem)
+		return -EIO;
+
+	return 0;
+}
+
+struct isp_mem_obj *isp_mem_create(struct bcwc_private *dev_priv,
+				   unsigned int type, resource_size_t size)
+{
+	struct isp_mem_obj *obj;
+	struct resource *root = dev_priv->mem;
+	int ret;
+
+	obj = kzalloc(sizeof(struct isp_mem_obj), GFP_KERNEL);
+	if (!obj)
+		return NULL;
+
+	obj->type = type;
+	obj->base.name = "S2 ISP";
+	ret = allocate_resource(root, &obj->base, size, root->start, root->end,
+				PAGE_SIZE, NULL, NULL);
+	if (ret) {
+		dev_err(&dev_priv->pdev->dev,
+			"Failed to allocate resource (size: %Ld, start: %Ld, end: %Ld, ret: %d)\n", size, root->start, root->end, ret);
+		kfree(obj);
+		obj = NULL;
+	}
+
+	obj->offset = obj->base.start - root->start;
+
+	return obj;
+}
+
+int isp_mem_destroy(struct isp_mem_obj *obj)
+{
+	if (obj) {
+		release_resource(&obj->base);
+		kfree(obj);
+		obj = NULL;
+	}
+
+	return 0;
+}
+
 int isp_acpi_set_power(struct bcwc_private *dev_priv, int power)
 {
 	acpi_status status;
@@ -71,17 +118,36 @@ static int isp_enable_sensor(struct bcwc_private *dev_priv)
 static int isp_load_firmware(struct bcwc_private *dev_priv)
 {
 	const struct firmware *fw;
+	struct resource *res;
 	int ret = 0;
 
 	ret = request_firmware(&fw, "fthd.bin", &dev_priv->pdev->dev);
-
-	if (fw == NULL)
+	if (ret)
 		return ret;
 
-	memcpy(dev_priv->s2_mem, fw->data, fw->size);
+	/*
+	 * The firmware must be the first thing we allocate since it needs to
+	 * be at offset 0. Would be better if we preallocated memory for it and
+	 * then resized it to not waste any space.
+	 */
+	dev_priv->firmware = isp_mem_create(dev_priv, FTHD_MEM_FIRMWARE,
+					    fw->size);
+	if (!dev_priv->firmware)
+		return -ENOMEM;
 
-	dev_info(&dev_priv->pdev->dev, "Loaded firmware (size: %lukb)\n",
-		 fw->size / 1024);
+	if (res->start != dev_priv->mem->start) {
+		dev_err(&dev_priv->pdev->dev,
+			"Misaligned firmware memory object (offset: %Ld)\n",
+			res->start - dev_priv->mem->start);
+		isp_mem_destroy(dev_priv->firmware);
+		return -EBUSY;
+	}
+
+	memcpy(dev_priv->s2_mem + dev_priv->firmware->offset, fw->data,
+	       fw->size);
+
+	dev_info(&dev_priv->pdev->dev, "Loaded firmware, size: %lukb (%Lukb)\n",
+		 fw->size / 1024, (res->end - res->start) / 1024);
 
 	release_firmware(fw);
 
@@ -92,9 +158,15 @@ int isp_init(struct bcwc_private *dev_priv)
 {
 	u32 num_channels, queue_size;
 	u32 reg;
-	int i, retries;
+	int i, retries, ret;
 
-	isp_load_firmware(dev_priv);
+	ret = isp_mem_init(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = isp_load_firmware(dev_priv);
+	if (ret)
+		return ret;
 
 	isp_acpi_set_power(dev_priv, 1);
 	mdelay(20);
