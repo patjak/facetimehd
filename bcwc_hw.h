@@ -111,6 +111,7 @@ static inline void _BCWC_ISP_REG_WRITE(struct bcwc_private *dev_priv, u32 val,
 
 	// dev_info(&dev_priv->pdev->dev, "Dev IO write at %u\n", offset);
 	iowrite32(val, dev_priv->isp_io + offset);
+	bcwc_hw_pci_post(dev_priv);
 }
 
 extern int bcwc_hw_init(struct bcwc_private *dev_priv);
