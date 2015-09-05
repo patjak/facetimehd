@@ -684,6 +684,7 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 	for (i = 0; i < DDR_PHY_NUM_REGS; i++)
 		dev_priv->ddr_phy_reg_map[i].offset = ddr_phy_reg_map[i];
 
+/*
 	dev_info(&dev_priv->pdev->dev,
 		 "Dumping DDR PHY reg map before shmoo\n");
 
@@ -695,6 +696,7 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 		printk(KERN_CONT "0x%.3x = 0x%.8x\t",
 			 ddr_phy_reg_map[i], val);
 	}
+*/
 
 	ret = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM_FULL);
 	if (ret) {
