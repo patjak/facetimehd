@@ -25,10 +25,14 @@
 #define FTHD_MEM_HEAP		2
 #define FTHD_MEM_IPC_QUEUE	3
 
+#define FTHD_MEM_SIZE		0x8000000	/* 128mb */
+#define FTHD_MEM_FW_SIZE	0x800000	/* 8mb */
+
 struct isp_mem_obj {
 	struct resource base;
 	unsigned int type;
 	resource_size_t size;
+	resource_size_t size_aligned;
 	unsigned long offset;
 };
 
