@@ -178,7 +178,8 @@ static int isp_load_firmware(struct bcwc_private *dev_priv)
 
 int isp_init(struct bcwc_private *dev_priv)
 {
-	u32 num_channels, queue_size;
+	struct isp_mem_obj *ipc_queue, *heap;
+	u32 num_channels, queue_size, heap_size;
 	u32 reg;
 	int i, retries, ret;
 
@@ -200,31 +201,15 @@ int isp_init(struct bcwc_private *dev_priv)
 	isp_enable_sensor(dev_priv);
 
 	BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_ISP_REG_WRITE(0, ISP_IPC_QUEUE_SIZE);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_C3008);
-	bcwc_hw_pci_post(dev_priv);
-
+	BCWC_ISP_REG_WRITE(0, ISP_FW_SIZE);
 	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_C3010);
-	bcwc_hw_pci_post(dev_priv);
-
-	BCWC_ISP_REG_WRITE(0, ISP_REG_C3014);
-	bcwc_hw_pci_post(dev_priv);
-
+	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
+	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
 	BCWC_ISP_REG_WRITE(0, ISP_REG_C3018);
-	bcwc_hw_pci_post(dev_priv);
-
 	BCWC_ISP_REG_WRITE(0, ISP_REG_C301C);
-	bcwc_hw_pci_post(dev_priv);
 
 	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
-	bcwc_hw_pci_post(dev_priv);
 
 	/*
 	 * Probably the IPC queue
@@ -234,13 +219,9 @@ int isp_init(struct bcwc_private *dev_priv)
 		BCWC_ISP_REG_WRITE(0xffffffff, i);
 		BCWC_ISP_REG_WRITE(0, i + 4);
 	}
-	bcwc_hw_pci_post(dev_priv);
 
-	BCWC_ISP_REG_WRITE( 0x80000000, ISP_REG_40008);
-	bcwc_hw_pci_post(dev_priv);
-
+	BCWC_ISP_REG_WRITE(0x80000000, ISP_REG_40008);
 	BCWC_ISP_REG_WRITE(0x1, ISP_REG_40004);
-	bcwc_hw_pci_post(dev_priv);
 
 	for (retries = 0; retries < 1000; retries++) {
 		reg = BCWC_ISP_REG_READ(ISP_REG_41000);
@@ -272,20 +253,53 @@ int isp_init(struct bcwc_private *dev_priv)
 		return -EIO;
 	}
 
-	/*
-	bcwc_alloc_dev_mem(queue_size, &ret, 0);
-	*/
-
-	/* Firmware must fit in 4194304 bytes */
-	reg = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
-	if (reg > 0x400000) {
-		dev_info(&dev_priv->pdev->dev,
-			 "Firmware request size too big (%u bytes)\n",
-			 reg);
+	ipc_queue = isp_mem_create(dev_priv, FTHD_MEM_IPC_QUEUE, queue_size);
+	if (!ipc_queue)
 		return -ENOMEM;
-	}
 
-	dev_info(&dev_priv->pdev->dev, "Firmware request size: %u\n", reg);
+	/* Firmware heap max size is 4mb */
+	heap_size = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
+
+	if (heap_size == 0) {
+		BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
+		BCWC_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
+		BCWC_ISP_REG_WRITE(dev_priv->firmware->size_aligned, ISP_FW_SIZE);
+		BCWC_ISP_REG_WRITE(0x10000000 - dev_priv->firmware->size_aligned,
+				   ISP_FW_HEAP_SIZE);
+		BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
+		BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
+	} else {
+		/* Must be at least 0x1000 bytes */
+		heap_size = (heap_size < 0x1000) ? 0x1000 : heap_size;
+
+		if (heap_size > 0x400000) {
+			dev_info(&dev_priv->pdev->dev,
+				 "Firmware heap request size too big (%ukb)\n",
+				 heap_size / 1024);
+			return -ENOMEM;
+		}
+
+		dev_info(&dev_priv->pdev->dev, "Firmware requested heap size: %ukb\n",
+			 heap_size / 1024);
+
+		heap = isp_mem_create(dev_priv, FTHD_MEM_HEAP, heap_size);
+		if (!heap)
+			return -ENOMEM;
+
+		BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
+
+		/* Set IPC queue base addr */
+		BCWC_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
+
+		BCWC_ISP_REG_WRITE(FTHD_MEM_FW_SIZE, ISP_FW_SIZE);
+
+		BCWC_ISP_REG_WRITE(0x10000000 - FTHD_MEM_FW_SIZE, ISP_FW_HEAP_SIZE);
+
+		BCWC_ISP_REG_WRITE(heap->offset, ISP_FW_HEAP_ADDR);
+
+		BCWC_ISP_REG_WRITE(heap->size, ISP_FW_HEAP_SIZE2);
+
+	}
 
 	return 0;
 }

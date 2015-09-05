@@ -60,7 +60,11 @@ struct bcwc_private {
 
 	/* Root resource for memory management */
 	struct resource *mem;
+
+	/* ISP memory objects */
 	struct isp_mem_obj *firmware;
+	struct isp_mem_obj *ipc_queue;
+	struct isp_mem_obj *heap;
 };
 
 #endif
