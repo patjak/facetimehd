@@ -240,8 +240,8 @@ int isp_init(struct bcwc_private *dev_priv)
 
 	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
 
-	num_channels = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN) + 1;
-	queue_size = BCWC_ISP_REG_READ(ISP_IPC_QUEUE_SIZE);
+	num_channels = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN);
+	queue_size = BCWC_ISP_REG_READ(ISP_IPC_QUEUE_SIZE) + 1;
 
 	dev_info(&dev_priv->pdev->dev,
 		 "Number of IPC channels: %u, queue size: %u\n",
