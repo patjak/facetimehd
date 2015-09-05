@@ -51,12 +51,15 @@ struct isp_mem_obj *isp_mem_create(struct bcwc_private *dev_priv,
 				PAGE_SIZE, NULL, NULL);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
-			"Failed to allocate resource (size: %Ld, start: %Ld, end: %Ld, ret: %d)\n", size, root->start, root->end, ret);
+			"Failed to allocate resource (size: %Ld, start: %Ld, end: %Ld)\n",
+			size, root->start, root->end);
 		kfree(obj);
 		obj = NULL;
 	}
 
 	obj->offset = obj->base.start - root->start;
+	obj->size = size;
+	obj->size_aligned = obj->base.end - obj->base.start;
 
 	return obj;
 }
