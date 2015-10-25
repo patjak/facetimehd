@@ -186,9 +186,7 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	dev_priv->ddr_model = 4;
 	dev_priv->ddr_speed = 450;
 
-	bcwc_hw_init(dev_priv);
-
-	return 0;
+	return bcwc_hw_init(dev_priv);
 fail_msi:
 	pci_disable_msi(pdev);
 fail_enable:
