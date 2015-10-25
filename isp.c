@@ -102,8 +102,9 @@ int isp_acpi_set_power(struct bcwc_private *dev_priv, int power)
 	union acpi_object *result;
 	int ret = 0;
 
-	status = acpi_get_handle(NULL, "\\_SB.PCI0.RP02.CMRA.CMPE", &handle);
-	if (ACPI_FAILURE(status)) {
+
+	handle = ACPI_HANDLE(&dev_priv->pdev->dev);
+	if(!handle) {
 		dev_err(&dev_priv->pdev->dev,
 			"Failed to get S2 CMPE ACPI handle\n");
 		ret = -ENODEV;
@@ -116,7 +117,7 @@ int isp_acpi_set_power(struct bcwc_private *dev_priv, int power)
 	arg_list.count = 1;
 	arg_list.pointer = args;
 
-	status = acpi_evaluate_object(handle, NULL, &arg_list, &buffer);
+	status = acpi_evaluate_object(handle, "CMPE", &arg_list, &buffer);
 	if (ACPI_FAILURE(status)) {
 		dev_err(&dev_priv->pdev->dev,
 			"Failed to execute S2 CMPE ACPI method\n");
