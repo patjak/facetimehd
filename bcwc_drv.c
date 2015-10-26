@@ -87,6 +87,7 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 
 static void bcwc_irq_work(struct work_struct *work)
 {
+	printk("BCWC interrupt\n");
 }
 
 static irqreturn_t bcwc_irq_handler(int irq, void *arg)
@@ -205,6 +206,7 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 
 	dev_priv = pci_get_drvdata(pdev);
 
+	bcwc_hw_deinit(dev_priv);
 	if (dev_priv) {
 		isp_mem_destroy(dev_priv->firmware);
 		bcwc_irq_disable(dev_priv);

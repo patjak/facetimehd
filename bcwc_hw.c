@@ -660,11 +660,13 @@ static int bcwc_hw_ddr_phy_save_regs(struct bcwc_private *dev_priv)
 
 static int bcwc_hw_irq_enable(struct bcwc_private *dev_priv)
 {
+	BCWC_ISP_REG_WRITE(0xf8, ISP_REG_41004);
 	return 0;
 }
 
 static int bcwc_hw_irq_disable(struct bcwc_private *dev_priv)
 {
+	BCWC_ISP_REG_WRITE(0, ISP_REG_41004);
 	return 0;
 }
 
@@ -720,8 +722,18 @@ int bcwc_hw_init(struct bcwc_private *dev_priv)
 
 	BCWC_ISP_REG_WRITE(0, ISP_REG_40004);
 
-	isp_init(dev_priv);
+	ret = isp_init(dev_priv);
+	if (ret)
+	    goto out;
 
+	dev_info(&dev_priv->pdev->dev, "Enabling interrupts\n");
+	bcwc_hw_irq_enable(dev_priv);
 out:
 	return ret;
+}
+
+void bcwc_hw_deinit(struct bcwc_private *priv)
+{
+	dev_info(&priv->pdev->dev, "%s", __FUNCTION__);
+	bcwc_hw_irq_disable(priv);
 }

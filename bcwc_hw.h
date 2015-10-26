@@ -115,5 +115,5 @@ static inline void _BCWC_ISP_REG_WRITE(struct bcwc_private *dev_priv, u32 val,
 }
 
 extern int bcwc_hw_init(struct bcwc_private *dev_priv);
-
+extern void bcwc_hw_deinit(struct bcwc_private *priv);
 #endif
