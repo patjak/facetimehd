@@ -24,6 +24,7 @@
 #define FTHD_MEM_FIRMWARE	1
 #define FTHD_MEM_HEAP		2
 #define FTHD_MEM_IPC_QUEUE	3
+#define FTHD_MEM_FW_ARGS        4
 
 #define FTHD_MEM_SIZE		0x8000000	/* 128mb */
 #define FTHD_MEM_FW_SIZE	0x800000	/* 8mb */
@@ -36,6 +37,11 @@ struct isp_mem_obj {
 	unsigned long offset;
 };
 
+struct isp_fw_args {
+	u32 __unknown;
+	u32 fw_arg;
+	u32 full_stats_mode;
+};
 #define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
 
 extern int isp_init(struct bcwc_private *dev_priv);

@@ -177,10 +177,12 @@ static int isp_load_firmware(struct bcwc_private *dev_priv)
 
 int isp_init(struct bcwc_private *dev_priv)
 {
-	struct isp_mem_obj *ipc_queue, *heap;
+	struct isp_mem_obj *ipc_queue, *heap, *fw_args;
 	u32 num_channels, queue_size, heap_size;
 	u32 reg;
 	int i, retries, ret;
+	unsigned char *p;
+	struct isp_fw_args *fw_args_data;
 
 	ret = isp_mem_init(dev_priv);
 	if (ret)
@@ -297,6 +299,36 @@ int isp_init(struct bcwc_private *dev_priv)
 		BCWC_ISP_REG_WRITE(heap->offset, ISP_FW_HEAP_ADDR);
 
 		BCWC_ISP_REG_WRITE(heap->size, ISP_FW_HEAP_SIZE2);
+
+		/* Set FW args */
+		fw_args = isp_mem_create(dev_priv, FTHD_MEM_FW_ARGS, sizeof(struct isp_fw_args));
+		if (!fw_args)
+			return -ENOMEM;
+
+		fw_args_data = dev_priv->s2_mem + fw_args->offset;
+
+		fw_args_data->__unknown = 2;
+		fw_args_data->fw_arg = 0;
+		fw_args_data->full_stats_mode = 0;
+
+		BCWC_ISP_REG_WRITE(fw_args->offset, ISP_REG_C301C);
+
+		BCWC_ISP_REG_WRITE(0x10, ISP_REG_41020);
+
+		for (retries = 0; retries < 1000; retries++) {
+			reg = BCWC_ISP_REG_READ(ISP_REG_41000);
+			if ((reg & 0xf0) > 0)
+				break;
+			mdelay(10);
+		}
+
+		if (retries >= 1000) {
+			dev_info(&dev_priv->pdev->dev, "Init failed! No second int\n");
+			return -EIO;
+		} /* FIXME: free on error path */
+
+		dev_info(&dev_priv->pdev->dev, "ISP second int after %dms\n",
+			 (retries - 1) * 10);
 
 	}
 
