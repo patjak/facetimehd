@@ -32,6 +32,14 @@ struct bcwc_reg {
 	u32 value;
 };
 
+struct fw_channel {
+	char *name;
+	u32 offset;
+	u32 size;
+	u32 source;
+	u32 type;
+};
+
 struct bcwc_private {
 	struct pci_dev *pdev;
 	unsigned int dma_mask;
@@ -65,6 +73,10 @@ struct bcwc_private {
 	struct isp_mem_obj *firmware;
 	struct isp_mem_obj *ipc_queue;
 	struct isp_mem_obj *heap;
+
+	/* Firmware channels */
+	int num_channels;
+	struct fw_channel **channels;
 };
 
 #endif

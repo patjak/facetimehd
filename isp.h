@@ -42,6 +42,15 @@ struct isp_fw_args {
 	u32 fw_arg;
 	u32 full_stats_mode;
 };
+
+struct isp_channel_info {
+	char name[64]; /* really that big? */
+	u32 type;
+	u32 source;
+	u32 size;
+	u32 offset;
+};
+
 #define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
 
 extern int isp_init(struct bcwc_private *dev_priv);

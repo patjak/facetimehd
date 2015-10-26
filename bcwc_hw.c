@@ -670,7 +670,6 @@ static int bcwc_hw_irq_disable(struct bcwc_private *dev_priv)
 
 int bcwc_hw_init(struct bcwc_private *dev_priv)
 {
-	u32 val;
 	int ret, i;
 
 	ret = bcwc_hw_s2_init_pcie_link(dev_priv);

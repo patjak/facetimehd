@@ -175,14 +175,71 @@ static int isp_load_firmware(struct bcwc_private *dev_priv)
 	return ret;
 }
 
+static void isp_free_channel_info(struct bcwc_private *priv)
+{
+	struct fw_channel *chan;
+	int i;
+	for(i = 0; i < priv->num_channels; i++) {
+		chan = priv->channels[i];
+		if (!chan)
+			continue;
+
+		kfree(chan->name);
+		kfree(chan);
+		priv->channels[i] = NULL;
+	}
+	kfree(priv->channels);
+	priv->channels = NULL;
+}
+
+static int isp_fill_channel_info(struct bcwc_private *priv, int offset, int num_channels)
+{
+	struct isp_channel_info *info;
+	struct fw_channel *chan;
+	int i;
+
+	if (!num_channels)
+		return 0;
+
+	priv->num_channels = num_channels;
+	priv->channels = kzalloc(num_channels * sizeof(struct fw_channel *), GFP_KERNEL);
+	if (!priv->channels)
+		goto out;
+
+	for(i = 0; i < num_channels; i++) {
+		info = (struct isp_channel_info *)(priv->s2_mem + offset + i * 256);
+
+		chan = kzalloc(sizeof(struct fw_channel), GFP_KERNEL);
+		if (!chan)
+			goto out;
+
+		priv->channels[i] = chan;
+
+		dev_info(&priv->pdev->dev, "Channel %d: %s, type %d, source %d, size %d, offset %x\n",
+			 i, info->name, info->type, info->source, info->size, info->offset);
+
+		chan->name = kstrdup(info->name, GFP_KERNEL);
+		if (!chan->name)
+			goto out;
+
+		chan->type = info->type;
+		chan->source = info->source;
+		chan->size = info->size;
+		chan->offset = info->offset;
+	}
+	return 0;
+out:
+	isp_free_channel_info(priv);
+	return -ENOMEM;
+}
+
+
 int isp_init(struct bcwc_private *dev_priv)
 {
 	struct isp_mem_obj *ipc_queue, *heap, *fw_args;
-	u32 num_channels, queue_size, heap_size;
-	u32 reg;
-	int i, retries, ret;
-	unsigned char *p;
 	struct isp_fw_args *fw_args_data;
+	u32 num_channels, queue_size, heap_size, reg, offset;
+	int i, retries, ret;
 
 	ret = isp_mem_init(dev_priv);
 	if (ret)
@@ -330,6 +387,9 @@ int isp_init(struct bcwc_private *dev_priv)
 		dev_info(&dev_priv->pdev->dev, "ISP second int after %dms\n",
 			 (retries - 1) * 10);
 
+		offset = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN);
+		dev_info(&dev_priv->pdev->dev, "Channel description table at %08x\n", offset);
+		isp_fill_channel_info(dev_priv, offset, num_channels);
 	}
 
 	return 0;
@@ -337,6 +397,7 @@ int isp_init(struct bcwc_private *dev_priv)
 
 int isp_uninit(struct bcwc_private *dev_priv)
 {
+	isp_free_channel_info(dev_priv);
 	kfree(dev_priv->mem);
 	return 0;
 }
