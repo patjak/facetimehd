@@ -193,12 +193,12 @@ int isp_init(struct bcwc_private *dev_priv)
 	isp_acpi_set_power(dev_priv, 1);
 	mdelay(20);
 
-	/* OSX driver configures the PCI bus here but we ignore it */
-
 	pci_set_power_state(dev_priv->pdev, PCI_D0);
+	mdelay(10);
+
+	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
 
 	isp_enable_sensor(dev_priv);
-
 	BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
 	BCWC_ISP_REG_WRITE(0, ISP_IPC_QUEUE_SIZE);
 	BCWC_ISP_REG_WRITE(0, ISP_FW_SIZE);
