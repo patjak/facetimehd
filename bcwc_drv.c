@@ -82,8 +82,6 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 		 "Allocated ISP regs (BAR %d). %u bytes at 0x%p",
 		 BCWC_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
 
-	pci_set_master(dev_priv->pdev);
-
 	return 0;
 }
 
