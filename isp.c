@@ -415,7 +415,24 @@ int isp_init(struct bcwc_private *dev_priv)
 
 		offset = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN);
 		dev_info(&dev_priv->pdev->dev, "Channel description table at %08x\n", offset);
-		isp_fill_channel_info(dev_priv, offset, num_channels);
+		ret = isp_fill_channel_info(dev_priv, offset, num_channels);
+		if (ret)
+			return ret;
+
+		BCWC_ISP_REG_WRITE(0x8042006, ISP_IPC_NUM_CHAN);
+
+		for (retries = 0; retries < 1000; retries++) {
+			reg = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
+			if (reg)
+				break;
+			mdelay(10);
+		}
+
+		if (retries >= 1000) {
+			dev_info(&dev_priv->pdev->dev, "Init failed! No magic value\n");
+			return -EIO;
+		} /* FIXME: free on error path */
+		dev_info(&dev_priv->pdev->dev, "magic value: %08x after %d ms\n", reg, (retries - 1) * 10);
 	}
 
 	return 0;
