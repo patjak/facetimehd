@@ -40,11 +40,15 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 		return ret;
 	}
 
-	/* S2 MEM is reserved by the isp memory manager */
-
 	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_ISP_IO, "ISP IO");
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev, "Failed to request ISP IO\n");
+		return ret;
+	}
+
+	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_S2_MEM, "S2 MEM");
+	if (ret) {
+		dev_err(&dev_priv->pdev->dev, "Failed to request S2 MEM\n");
 		return ret;
 	}
 

@@ -28,15 +28,13 @@
 int isp_mem_init(struct bcwc_private *dev_priv)
 {
 	struct resource *root = &dev_priv->pdev->resource[BCWC_PCI_S2_MEM];
-	int ret;
 
-	ret = allocate_resource(root, dev_priv->mem, FTHD_MEM_SIZE, root->start,
-				root->end, PAGE_SIZE, NULL, NULL);
-	if (ret) {
-		dev_err(&dev_priv->pdev->dev,
-			"Failed to initialize ISP memory manager\n");
-		return -EIO;
-	}
+        dev_priv->mem = kzalloc(sizeof(struct resource), GFP_KERNEL);
+	if (!dev_priv->mem)
+	    return -ENOMEM;
+
+	dev_priv->mem->start = root->start;
+	dev_priv->mem->end = root->end;
 
 	/* Preallocate 8mb for the firmware */
 	dev_priv->firmware = isp_mem_create(dev_priv, FTHD_MEM_FIRMWARE,
@@ -307,5 +305,6 @@ int isp_init(struct bcwc_private *dev_priv)
 
 int isp_uninit(struct bcwc_private *dev_priv)
 {
+	kfree(dev_priv->mem);
 	return 0;
 }
