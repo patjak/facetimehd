@@ -192,6 +192,16 @@ static void isp_free_channel_info(struct bcwc_private *priv)
 	priv->channels = NULL;
 }
 
+static struct fw_channel *isp_get_chan_index(struct bcwc_private *priv, const char *name)
+{
+	int i;
+	for(i = 0; i < priv->num_channels; i++) {
+		if (!strcasecmp(priv->channels[i]->name, name))
+			return priv->channels[i];
+	}
+	return NULL;
+}
+
 static int isp_fill_channel_info(struct bcwc_private *priv, int offset, int num_channels)
 {
 	struct isp_channel_info *info;
@@ -226,6 +236,22 @@ static int isp_fill_channel_info(struct bcwc_private *priv, int offset, int num_
 		chan->source = info->source;
 		chan->size = info->size;
 		chan->offset = info->offset;
+	}
+
+	priv->channel_terminal = isp_get_chan_index(priv, "TERMINAL");
+	priv->channel_debug = isp_get_chan_index(priv, "DEBUG");
+	priv->channel_shared_malloc = isp_get_chan_index(priv, "SHAREDMALLOC");
+	priv->channel_io = isp_get_chan_index(priv, "IO");
+	priv->channel_buf_h2t = isp_get_chan_index(priv, "BUF_H2T");
+	priv->channel_buf_t2h = isp_get_chan_index(priv, "BUF_T2H");
+	priv->channel_io_t2h = isp_get_chan_index(priv, "IO_T2H");
+
+	if (!priv->channel_terminal || !priv->channel_debug
+	    || !priv->channel_shared_malloc || !priv->channel_io
+	    || !priv->channel_buf_h2t || !priv->channel_buf_t2h
+	    || !priv->channel_io_t2h) {
+		dev_err(&priv->pdev->dev, "did not find all of the required channels\n");
+		goto out;
 	}
 	return 0;
 out:

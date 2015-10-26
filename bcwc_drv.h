@@ -77,6 +77,14 @@ struct bcwc_private {
 	/* Firmware channels */
 	int num_channels;
 	struct fw_channel **channels;
+	struct fw_channel *channel_terminal;
+	struct fw_channel *channel_io;
+	struct fw_channel *channel_debug;
+	struct fw_channel *channel_buf_h2t;
+	struct fw_channel *channel_buf_t2h;
+	struct fw_channel *channel_shared_malloc;
+	struct fw_channel *channel_io_t2h;
+
 };
 
 #endif
