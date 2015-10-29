@@ -25,7 +25,8 @@
 #include <linux/workqueue.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
-#include "isp.h"
+#include "bcwc_isp.h"
+#include "bcwc_ringbuf.h"
 
 static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 {
@@ -87,14 +88,104 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 	return 0;
 }
 
+static void bcwc_irq_disable(struct bcwc_private *dev_priv)
+{
+	free_irq(dev_priv->pdev->irq, dev_priv);
+}
+
+static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *chan)
+{
+	struct isp_mem_obj *obj;
+	struct bcwc_ringbuf_entry *entry;
+	int request_size;
+	u32 address;
+
+	dev_info(&dev_priv->pdev->dev, "Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
+	bcwc_channel_ringbuf_dump(dev_priv, chan);
+	while(bcwc_channel_ringbuf_entry_available(dev_priv, chan)) {
+		entry = bcwc_channel_ringbuf_get_entry(dev_priv, chan);
+		if (!entry)
+			goto next;
+
+		request_size = entry->request_size;
+		address = entry->address_flags & ~ 3;
+
+		if (chan == dev_priv->channel_shared_malloc) {
+			if (address) {
+				dev_info(&dev_priv->pdev->dev, "Firmware wants to free memory at %08x\n", address);
+			} else {
+				if (!request_size)
+					goto next;
+				obj = isp_mem_create(dev_priv, FTHD_MEM_SHAREDMALLOC, request_size);
+				if (!obj)
+					goto next; /* FIXME */
+				dev_info(&dev_priv->pdev->dev, "Firmware allocated %d bytes at %08lx\n", request_size, obj->offset);
+				bcwc_channel_ringbuf_send(dev_priv, chan, obj->offset, 0, 0);
+			}
+		} else if (chan == dev_priv->channel_terminal) {
+			if (!address) {
+				dev_err(&dev_priv->pdev->dev, "%s: no address\n", __FUNCTION__);
+				goto next;
+			}
+			if (!request_size)
+				goto next;
+			dev_info(&dev_priv->pdev->dev, "FWMSG: %.*s", request_size, (char *)(dev_priv->s2_mem + address));
+		}
+	next:
+			bcwc_channel_ringbuf_mark_entry_available(dev_priv, chan);
+	}
+}
+
 static void bcwc_irq_work(struct work_struct *work)
 {
-	printk("BCWC interrupt\n");
+	struct bcwc_private *dev_priv = container_of(work, struct bcwc_private, irq_work);
+	struct fw_channel *chan;
+
+	u32 pending;
+	int i = 0;
+
+
+	while(i++ < 500) {
+		pending = BCWC_ISP_REG_READ(ISP_REG_41000);
+		dev_info(&dev_priv->pdev->dev, "interrupt: %08x\n", pending);
+
+		if (!(pending & 0xf0))
+			break;
+
+		pci_write_config_dword(dev_priv->pdev, 0x94, 0);
+		BCWC_ISP_REG_WRITE(pending, ISP_REG_41024);
+		pci_write_config_dword(dev_priv->pdev, 0x90, 0x200);
+
+		/* FIXME: locking */
+		for(i = 0; i < dev_priv->num_channels; i++) {
+			chan = dev_priv->channels[i];
+
+
+			BUG_ON(chan->source > 3);
+			if (!((0x10 << chan->source) & pending))
+				continue;
+			bcwc_handle_irq(dev_priv, chan);
+		}
+	}
+
+	if (i >= 500) {
+		dev_err(&dev_priv->pdev->dev, "irq stuck, disabling\n");
+//		bcwc_hw_irq_disable(dev_priv);
+		bcwc_irq_disable(dev_priv);
+		return;
+	}
+
+	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
 }
 
 static irqreturn_t bcwc_irq_handler(int irq, void *arg)
 {
 	struct bcwc_private *dev_priv = arg;
+	u32 pending;
+
+	pending = BCWC_ISP_REG_READ(ISP_REG_41000);
+	if (!(pending & 0xf0))
+		return IRQ_NONE;
 
 	schedule_work(&dev_priv->irq_work);
 
@@ -114,10 +205,6 @@ static int bcwc_irq_enable(struct bcwc_private *dev_priv)
 	return ret;
 }
 
-static void bcwc_irq_disable(struct bcwc_private *dev_priv)
-{
-	free_irq(dev_priv->pdev->irq, dev_priv);
-}
 
 static int bcwc_pci_set_dma_mask(struct bcwc_private *dev_priv,
 				 unsigned int mask)
