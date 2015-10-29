@@ -43,12 +43,14 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_ISP_IO, "ISP IO");
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev, "Failed to request ISP IO\n");
+		pci_release_region(dev_priv->pdev, BCWC_PCI_S2_IO);
 		return ret;
 	}
 
 	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_S2_MEM, "S2 MEM");
 	if (ret) {
-		dev_err(&dev_priv->pdev->dev, "Failed to request S2 MEM\n");
+		pci_release_region(dev_priv->pdev, BCWC_PCI_ISP_IO);
+		pci_release_region(dev_priv->pdev, BCWC_PCI_S2_IO);
 		return ret;
 	}
 
