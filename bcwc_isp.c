@@ -46,7 +46,6 @@ int isp_mem_init(struct bcwc_private *dev_priv)
 			"Failed to preallocate firmware memory\n");
 		return -ENOMEM;
 	}
-
 	return 0;
 }
 
@@ -76,7 +75,6 @@ struct isp_mem_obj *isp_mem_create(struct bcwc_private *dev_priv,
 	obj->offset = obj->base.start - root->start;
 	obj->size = size;
 	obj->size_aligned = obj->base.end - obj->base.start;
-
 	return obj;
 }
 
@@ -381,8 +379,6 @@ int isp_init(struct bcwc_private *dev_priv)
 
 	pci_set_power_state(dev_priv->pdev, PCI_D0);
 	mdelay(10);
-
-	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
 
 	isp_enable_sensor(dev_priv);
 	BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);

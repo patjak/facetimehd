@@ -22,6 +22,7 @@
 
 #include <linux/pci.h>
 #include "bcwc_reg.h"
+#include "bcwc_ringbuf.h"
 
 #define BCWC_PCI_S2_IO  0
 #define BCWC_PCI_S2_MEM 2
@@ -33,11 +34,12 @@ struct bcwc_reg {
 };
 
 struct fw_channel {
-	char *name;
 	u32 offset;
 	u32 size;
 	u32 source;
 	u32 type;
+	struct bcwc_ringbuf ringbuf;
+	char *name;
 };
 
 struct bcwc_private {

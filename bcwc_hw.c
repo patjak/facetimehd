@@ -21,7 +21,7 @@
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_ddr.h"
-#include "isp.h"
+#include "bcwc_isp.h"
 
 /* FIXME: Double check these */
 static u32 ddr_phy_reg_map[] = {
@@ -79,7 +79,7 @@ static int bcwc_hw_s2_init_pcie_link(struct bcwc_private *dev_priv)
 	reg = BCWC_S2_REG_READ(S2_PCIE_LINK_D124);
 	if (reg != 0xac5800) {
 		dev_err(&dev_priv->pdev->dev,
-			"Failed to init S2 PCIe link: %u\n", reg);
+			"Failed to init S2 PCIe link: %08x\n", reg);
 		return -EIO;
 	}
 
@@ -661,12 +661,15 @@ static int bcwc_hw_ddr_phy_save_regs(struct bcwc_private *dev_priv)
 static int bcwc_hw_irq_enable(struct bcwc_private *dev_priv)
 {
 	BCWC_ISP_REG_WRITE(0xf8, ISP_REG_41004);
+	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
+
 	return 0;
 }
 
 static int bcwc_hw_irq_disable(struct bcwc_private *dev_priv)
 {
 	BCWC_ISP_REG_WRITE(0, ISP_REG_41004);
+	pci_write_config_dword(dev_priv->pdev, 0x94, 0x0);
 	return 0;
 }
 
@@ -732,8 +735,9 @@ out:
 	return ret;
 }
 
-void bcwc_hw_deinit(struct bcwc_private *priv)
+void bcwc_hw_deinit(struct bcwc_private *dev_priv)
 {
-	dev_info(&priv->pdev->dev, "%s", __FUNCTION__);
-	bcwc_hw_irq_disable(priv);
+	dev_info(&dev_priv->pdev->dev, "%s", __FUNCTION__);
+	BCWC_ISP_REG_WRITE(0, ISP_REG_41020);
+	bcwc_hw_irq_disable(dev_priv);
 }
