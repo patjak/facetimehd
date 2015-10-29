@@ -17,6 +17,7 @@
  *
  */
 
+#include <linux/delay.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/pci.h>
@@ -267,7 +268,7 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 		ret = bcwc_pci_set_dma_mask(dev_priv, 32);
 
 	if (ret)
-		goto fail_msi;
+		goto fail_irq;
 
 	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
 	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
@@ -278,8 +279,21 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	dev_priv->ddr_model = 4;
 	dev_priv->ddr_speed = 450;
 
-	if (!(ret = bcwc_hw_init(dev_priv)))
-	    return 0;
+	if (!(ret = bcwc_hw_init(dev_priv))) {
+		mdelay(100);
+		bcwc_isp_cmd_start(dev_priv);
+		bcwc_isp_cmd_print_enable(dev_priv, 1);
+		return 0;
+	}
+
+	bcwc_hw_deinit(dev_priv);
+	isp_mem_destroy(dev_priv->firmware);
+	pci_release_region(pdev, BCWC_PCI_S2_IO);
+	pci_release_region(pdev, BCWC_PCI_S2_MEM);
+	pci_release_region(pdev, BCWC_PCI_ISP_IO);
+
+fail_irq:
+	bcwc_irq_disable(dev_priv);
 fail_msi:
 	pci_disable_msi(pdev);
 fail_enable:
@@ -294,7 +308,7 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 	struct bcwc_private *dev_priv;
 
 	dev_priv = pci_get_drvdata(pdev);
-
+	bcwc_isp_cmd_stop(dev_priv);
 	bcwc_hw_deinit(dev_priv);
 	if (dev_priv) {
 		isp_mem_destroy(dev_priv->firmware);
