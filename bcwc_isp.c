@@ -258,8 +258,46 @@ out:
 	return -ENOMEM;
 }
 
+static void bcwc_isp_powerdown(struct bcwc_private *dev_priv)
+{
+	struct isp_mem_obj *request;
+	struct isp_cmd_hdr *cmd;
+
+	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+
+	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
+	if (!request) {
+		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
+		return;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
+	cmd = dev_priv->s2_mem + request->offset;
+	memset(cmd, 0, sizeof(*cmd));
+	cmd->opcode = CISP_CMD_POWER_DOWN;
+
+	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 8, 8);
+	mdelay(100);
+	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+}
+
 int isp_uninit(struct bcwc_private *dev_priv)
 {
+	int retries;
+	u32 reg;
+	BCWC_ISP_REG_WRITE(0xf7fbdff9, 0xc3000);
+	bcwc_isp_powerdown(dev_priv);
+	for (retries = 0; retries < 1000; retries++) {
+		reg = BCWC_ISP_REG_READ(0xc3000);
+		if (reg == 0x8042006)
+			break;
+		mdelay(10);
+	}
+
+	if (retries >= 1000) {
+		dev_info(&dev_priv->pdev->dev, "Deinit failed!\n");
+	}
+
 	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0008);
 	BCWC_ISP_REG_WRITE(0xffffffff, 0xc000c);
 	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0010);

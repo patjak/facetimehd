@@ -35,6 +35,7 @@ enum bcwc_isp_cmds {
     CISP_CMD_START=0,
     CISP_CMD_STOP=1,
     CISP_CMD_PRINT_ENABLE=4,
+    CISP_CMD_POWER_DOWN=10,
 };
 
 struct isp_mem_obj {
@@ -72,6 +73,7 @@ struct isp_cmd_print_enable {
 #define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
 
 extern int isp_init(struct bcwc_private *dev_priv);
+extern int isp_uninit(struct bcwc_private *dev_priv);
 
 extern int isp_mem_init(struct bcwc_private *dev_priv);
 extern struct isp_mem_obj *isp_mem_create(struct bcwc_private *dev_priv,

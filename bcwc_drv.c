@@ -309,6 +309,7 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 
 	dev_priv = pci_get_drvdata(pdev);
 	bcwc_isp_cmd_stop(dev_priv);
+	isp_uninit(dev_priv);
 	bcwc_hw_deinit(dev_priv);
 	if (dev_priv) {
 		isp_mem_destroy(dev_priv->firmware);
