@@ -423,7 +423,7 @@ int isp_init(struct bcwc_private *dev_priv)
 
 		for (retries = 0; retries < 1000; retries++) {
 			reg = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
-			if (reg)
+			if (!reg)
 				break;
 			mdelay(10);
 		}
