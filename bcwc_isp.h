@@ -25,9 +25,17 @@
 #define FTHD_MEM_HEAP		2
 #define FTHD_MEM_IPC_QUEUE	3
 #define FTHD_MEM_FW_ARGS        4
+#define FTHD_MEM_CMD            5
+#define FTHD_MEM_SHAREDMALLOC   6
 
 #define FTHD_MEM_SIZE		0x8000000	/* 128mb */
 #define FTHD_MEM_FW_SIZE	0x800000	/* 8mb */
+
+enum bcwc_isp_cmds {
+    CISP_CMD_START=0,
+    CISP_CMD_STOP=1,
+    CISP_CMD_PRINT_ENABLE=4,
+};
 
 struct isp_mem_obj {
 	struct resource base;
@@ -51,6 +59,16 @@ struct isp_channel_info {
 	u32 offset;
 };
 
+struct isp_cmd_hdr {
+	u32 unknown0;
+	enum bcwc_isp_cmds opcode;
+} __attribute__((packed));
+
+struct isp_cmd_print_enable {
+	struct isp_cmd_hdr hdr;
+	u32 enable;
+} __attribute__((packed));
+
 #define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
 
 extern int isp_init(struct bcwc_private *dev_priv);
@@ -60,5 +78,7 @@ extern struct isp_mem_obj *isp_mem_create(struct bcwc_private *dev_priv,
 					  unsigned int type,
 					  resource_size_t size);
 extern int isp_mem_destroy(struct isp_mem_obj *obj);
-
+extern int bcwc_isp_cmd_start(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable);
 #endif

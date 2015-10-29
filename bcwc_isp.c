@@ -23,7 +23,8 @@
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_reg.h"
-#include "isp.h"
+#include "bcwc_ringbuf.h"
+#include "bcwc_isp.h"
 
 int isp_mem_init(struct bcwc_private *dev_priv)
 {
@@ -259,6 +260,106 @@ out:
 	return -ENOMEM;
 }
 
+int isp_uninit(struct bcwc_private *dev_priv)
+{
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0008);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc000c);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0010);
+	BCWC_ISP_REG_WRITE(0, 0xc0c04);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0c0c);
+	BCWC_ISP_REG_WRITE(0, 0xc0c14);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0c1c);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0c24);
+	mdelay(1);
+
+	BCWC_ISP_REG_WRITE(0, 0xc0000);
+	BCWC_ISP_REG_WRITE(0, 0xc0004);
+	BCWC_ISP_REG_WRITE(0, 0xc0008);
+	BCWC_ISP_REG_WRITE(0, 0xc000c);
+	BCWC_ISP_REG_WRITE(0, 0xc0010);
+	BCWC_ISP_REG_WRITE(0, 0xc0014);
+	BCWC_ISP_REG_WRITE(0, 0xc0018);
+	BCWC_ISP_REG_WRITE(0, 0xc001c);
+	BCWC_ISP_REG_WRITE(0, 0xc0020);
+	BCWC_ISP_REG_WRITE(0, 0xc0024);
+
+	BCWC_ISP_REG_WRITE(0xffffffff, 0x41024);
+	isp_free_channel_info(dev_priv);
+	kfree(dev_priv->mem);
+	return 0;
+}
+
+int bcwc_isp_cmd_start(struct bcwc_private *dev_priv)
+{
+	struct isp_mem_obj *request;
+	struct isp_cmd_hdr *cmd;
+
+	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+
+	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
+	if (!request) {
+		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
+		return -ENOMEM;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
+	cmd = dev_priv->s2_mem + request->offset;
+	memset(cmd, 0, sizeof(*cmd));
+	cmd->opcode = CISP_CMD_START;
+
+	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 8, 8);
+	mdelay(100);
+	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+	return 0;
+}
+
+int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv)
+{
+	struct isp_mem_obj *request;
+	struct isp_cmd_hdr *cmd;
+
+	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+
+	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
+	if (!request) {
+		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
+		return -ENOMEM;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
+	cmd = dev_priv->s2_mem + request->offset;
+	memset(cmd, 0, sizeof(*cmd));
+	cmd->opcode = 1;
+
+	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 8, 8);
+	mdelay(100);
+	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+	return 0;
+}
+
+int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable)
+{
+	struct isp_mem_obj *request;
+	struct isp_cmd_print_enable *cmd;
+
+	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+
+	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
+	if (!request) {
+		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
+		return -ENOMEM;
+	}
+
+	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
+	cmd = dev_priv->s2_mem + request->offset;
+	memset(cmd, 0, sizeof(*cmd));
+	cmd->hdr.opcode = CISP_CMD_PRINT_ENABLE;
+	cmd->enable = enable;
+	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 12, 12);
+	mdelay(100);
+	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+	return 0;
+}
 
 int isp_init(struct bcwc_private *dev_priv)
 {
@@ -419,7 +520,15 @@ int isp_init(struct bcwc_private *dev_priv)
 		if (ret)
 			return ret;
 
-		BCWC_ISP_REG_WRITE(0x8042006, ISP_IPC_NUM_CHAN);
+		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_terminal);
+		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_io);
+		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_debug);
+		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_h2t);
+		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_t2h);
+		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_shared_malloc);
+		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_io_t2h);
+
+		BCWC_ISP_REG_WRITE(0x8042006, ISP_FW_HEAP_SIZE);
 
 		for (retries = 0; retries < 1000; retries++) {
 			reg = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
@@ -430,17 +539,11 @@ int isp_init(struct bcwc_private *dev_priv)
 
 		if (retries >= 1000) {
 			dev_info(&dev_priv->pdev->dev, "Init failed! No magic value\n");
+			isp_uninit(dev_priv);
 			return -EIO;
 		} /* FIXME: free on error path */
 		dev_info(&dev_priv->pdev->dev, "magic value: %08x after %d ms\n", reg, (retries - 1) * 10);
 	}
 
-	return 0;
-}
-
-int isp_uninit(struct bcwc_private *dev_priv)
-{
-	isp_free_channel_info(dev_priv);
-	kfree(dev_priv->mem);
 	return 0;
 }
