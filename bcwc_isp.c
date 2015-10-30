@@ -224,7 +224,7 @@ static int isp_fill_channel_info(struct bcwc_private *priv, int offset, int num_
 
 		priv->channels[i] = chan;
 
-		dev_info(&priv->pdev->dev, "Channel %d: %s, type %d, source %d, size %d, offset %x\n",
+		pr_debug("Channel %d: %s, type %d, source %d, size %d, offset %x\n",
 			 i, info->name, info->type, info->source, info->size, info->offset);
 
 		chan->name = kstrdup(info->name, GFP_KERNEL);
@@ -263,7 +263,7 @@ static void bcwc_isp_powerdown(struct bcwc_private *dev_priv)
 	struct isp_mem_obj *request;
 	struct isp_cmd_hdr *cmd;
 
-	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+	pr_debug("going to power down isp\n");
 
 	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
 	if (!request) {
@@ -271,7 +271,7 @@ static void bcwc_isp_powerdown(struct bcwc_private *dev_priv)
 		return;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
+	pr_debug("allocated request cmd buffer at offset %08lx\n", request->offset);
 	cmd = dev_priv->s2_mem + request->offset;
 	memset(cmd, 0, sizeof(*cmd));
 	cmd->opcode = CISP_CMD_POWER_DOWN;
@@ -295,7 +295,7 @@ int isp_uninit(struct bcwc_private *dev_priv)
 	}
 
 	if (retries >= 1000) {
-		dev_info(&dev_priv->pdev->dev, "Deinit failed!\n");
+		dev_info(&dev_priv->pdev->dev, "deinit failed!\n");
 	}
 
 	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0008);
@@ -330,7 +330,7 @@ int bcwc_isp_cmd_start(struct bcwc_private *dev_priv)
 	struct isp_mem_obj *request;
 	struct isp_cmd_hdr *cmd;
 
-	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+	pr_debug("sending start cmd to firmware\n");
 
 	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
 	if (!request) {
@@ -338,7 +338,6 @@ int bcwc_isp_cmd_start(struct bcwc_private *dev_priv)
 		return -ENOMEM;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
 	cmd = dev_priv->s2_mem + request->offset;
 	memset(cmd, 0, sizeof(*cmd));
 	cmd->opcode = CISP_CMD_START;
@@ -354,7 +353,7 @@ int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv)
 	struct isp_mem_obj *request;
 	struct isp_cmd_hdr *cmd;
 
-	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+	pr_debug("sending start command to firmware\n");
 
 	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
 	if (!request) {
@@ -362,7 +361,6 @@ int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv)
 		return -ENOMEM;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
 	cmd = dev_priv->s2_mem + request->offset;
 	memset(cmd, 0, sizeof(*cmd));
 	cmd->opcode = 1;
@@ -378,7 +376,7 @@ int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable)
 	struct isp_mem_obj *request;
 	struct isp_cmd_print_enable *cmd;
 
-	dev_info(&dev_priv->pdev->dev, "%s\n", __FUNCTION__);
+	pr_debug("sending print enable %d\n", enable);
 
 	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
 	if (!request) {
@@ -386,7 +384,6 @@ int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable)
 		return -ENOMEM;
 	}
 
-	dev_info(&dev_priv->pdev->dev, "allocated request cmd buffer at offset %08lx\n", request->offset);
 	cmd = dev_priv->s2_mem + request->offset;
 	memset(cmd, 0, sizeof(*cmd));
 	cmd->hdr.opcode = CISP_CMD_PRINT_ENABLE;
@@ -394,6 +391,51 @@ int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable)
 	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 12, 12);
 	mdelay(100);
 	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+	return 0;
+}
+
+int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv)
+{
+	struct isp_mem_obj *request;
+	struct isp_cmd_set_loadfile *cmd;
+
+	pr_debug("set loadfile\n");
+
+	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
+	if (!request) {
+		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
+		return -ENOMEM;
+	}
+
+	cmd = dev_priv->s2_mem + request->offset;
+	memset(cmd, 0, sizeof(*cmd));
+	cmd->hdr.opcode = CISP_CMD_SET_LOADFILE;
+	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 20, 20);
+	mdelay(100);
+	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+	return 0;
+}
+
+int bcwc_isp_cmd_sensor_detect(struct bcwc_private *dev_priv)
+{
+	struct isp_mem_obj *request;
+	struct isp_cmd_sensor_detect *cmd;
+
+	pr_debug("sending ch info\n");
+
+	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, sizeof(cmd));
+	if (!request) {
+		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
+		return -ENOMEM;
+	}
+
+	cmd = dev_priv->s2_mem + request->offset;
+	memset(cmd, 0, sizeof(*cmd));
+	cmd->hdr.opcode = CISP_CMD_SENSOR_DETECT;
+	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 168, 168);
+	mdelay(100);
+	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+	print_hex_dump_bytes("CHINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(*cmd));
 	return 0;
 }
 
