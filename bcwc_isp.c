@@ -409,7 +409,7 @@ int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv)
 
 	cmd = dev_priv->s2_mem + request->offset;
 	memset(cmd, 0, sizeof(*cmd));
-	cmd->hdr.opcode = CISP_CMD_SET_LOADFILE;
+	cmd->hdr.opcode = CISP_CMD_CH_SET_FILE_LOAD;
 	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 20, 20);
 	mdelay(100);
 	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
@@ -431,7 +431,7 @@ int bcwc_isp_cmd_sensor_detect(struct bcwc_private *dev_priv)
 
 	cmd = dev_priv->s2_mem + request->offset;
 	memset(cmd, 0, sizeof(*cmd));
-	cmd->hdr.opcode = CISP_CMD_SENSOR_DETECT;
+	cmd->hdr.opcode = CISP_CMD_CH_INFO_GET;
 	bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io, request->offset, 168, 168);
 	mdelay(100);
 	bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
