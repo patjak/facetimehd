@@ -74,16 +74,13 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 	dev_priv->isp_io = ioremap_nocache(start, len);
 	dev_priv->isp_io_len = len;
 
-	dev_info(&dev_priv->pdev->dev,
-		 "Allocated S2 regs (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated S2 regs (BAR %d). %u bytes at 0x%p",
 		 BCWC_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
 
-	dev_info(&dev_priv->pdev->dev,
-		 "Allocated S2 mem (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated S2 mem (BAR %d). %u bytes at 0x%p",
 		 BCWC_PCI_S2_MEM, dev_priv->s2_mem_len, dev_priv->s2_mem);
 
-	dev_info(&dev_priv->pdev->dev,
-		 "Allocated ISP regs (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated ISP regs (BAR %d). %u bytes at 0x%p",
 		 BCWC_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
 
 	return 0;
@@ -101,7 +98,7 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 	int request_size;
 	u32 address;
 
-	dev_info(&dev_priv->pdev->dev, "Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
+	pr_debug("Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
 	bcwc_channel_ringbuf_dump(dev_priv, chan);
 	while(bcwc_channel_ringbuf_entry_available(dev_priv, chan)) {
 		entry = bcwc_channel_ringbuf_get_entry(dev_priv, chan);
@@ -113,14 +110,14 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 
 		if (chan == dev_priv->channel_shared_malloc) {
 			if (address) {
-				dev_info(&dev_priv->pdev->dev, "Firmware wants to free memory at %08x\n", address);
+				pr_debug("Firmware wants to free memory at %08x\n", address);
 			} else {
 				if (!request_size)
 					goto next;
 				obj = isp_mem_create(dev_priv, FTHD_MEM_SHAREDMALLOC, request_size);
 				if (!obj)
 					goto next; /* FIXME */
-				dev_info(&dev_priv->pdev->dev, "Firmware allocated %d bytes at %08lx\n", request_size, obj->offset);
+				pr_debug("Firmware allocated %d bytes at %08lx\n", request_size, obj->offset);
 				bcwc_channel_ringbuf_send(dev_priv, chan, obj->offset, 0, 0);
 			}
 		} else if (chan == dev_priv->channel_terminal) {
@@ -130,7 +127,7 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 			}
 			if (!request_size)
 				goto next;
-			dev_info(&dev_priv->pdev->dev, "FWMSG: %.*s", request_size, (char *)(dev_priv->s2_mem + address));
+			pr_debug("FWMSG: %.*s", request_size, (char *)(dev_priv->s2_mem + address));
 		}
 	next:
 			bcwc_channel_ringbuf_mark_entry_available(dev_priv, chan);
@@ -148,7 +145,7 @@ static void bcwc_irq_work(struct work_struct *work)
 
 	while(i++ < 500) {
 		pending = BCWC_ISP_REG_READ(ISP_REG_41000);
-		dev_info(&dev_priv->pdev->dev, "interrupt: %08x\n", pending);
+		pr_debug("interrupt: %08x\n", pending);
 
 		if (!(pending & 0xf0))
 			break;
@@ -283,6 +280,7 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 		mdelay(100);
 		bcwc_isp_cmd_start(dev_priv);
 		bcwc_isp_cmd_print_enable(dev_priv, 1);
+		bcwc_isp_cmd_sensor_detect(dev_priv);
 		return 0;
 	}
 
