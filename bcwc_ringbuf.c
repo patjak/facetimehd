@@ -39,7 +39,8 @@ void bcwc_channel_ringbuf_dump(struct bcwc_private *dev_priv, struct fw_channel 
 	struct bcwc_ringbuf_entry *entry;
 	char pos;
 	int i;
-	dev_info(&dev_priv->pdev->dev, "%s: dumping %d [%s]\n", __FUNCTION__, chan->type, chan->name);
+
+	pr_debug("dumping %d [%s]\n", chan->type, chan->name);
 	for( i = 0; i < chan->size; i++) {
 		if (chan->ringbuf.send_idx == i && chan->ringbuf.recv_idx == i)
 			pos = '*';
@@ -50,7 +51,7 @@ void bcwc_channel_ringbuf_dump(struct bcwc_private *dev_priv, struct fw_channel 
 		else
 			pos = ' ';
 	    entry = dev_priv->s2_mem + chan->offset + i * sizeof(struct bcwc_ringbuf_entry);
-	    dev_info(&dev_priv->pdev->dev, "%c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n", pos, i, entry->address_flags,
+	    pr_debug("%c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n", pos, i, entry->address_flags,
 			 entry->request_size, entry->response_size);
 
 	}
@@ -70,7 +71,7 @@ void bcwc_channel_ringbuf_init(struct bcwc_private *dev_priv, struct fw_channel 
 
 	if (chan->type == RINGBUF_TYPE_H2T) {
 		entry = (struct bcwc_ringbuf_entry *)chan->ringbuf.virt_addr;
-		dev_info(&dev_priv->pdev->dev, "clearing ringbuf %s at %p (size %d)\n", chan->name, entry, chan->size);
+		pr_debug("clearing ringbuf %s at %p (size %d)\n", chan->name, entry, chan->size);
 		for(i = 0; i < chan->size; i++) {
 			entry->address_flags = 1;
 			entry->request_size = 0;
@@ -84,19 +85,16 @@ int bcwc_channel_ringbuf_send(struct bcwc_private *dev_priv, struct fw_channel *
 			      u32 data_offset, u32 request_size, u32 response_size)
 {
 	struct bcwc_ringbuf_entry *entry;
-	u32 val;
 
 	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.send_idx++);
-	dev_info(&dev_priv->pdev->dev, "%s: entry %p offset %08x\n", __FUNCTION__, entry, data_offset);
+	pr_debug("send entry %p offset %08x\n", entry, data_offset);
 	entry->address_flags = data_offset | (chan->type == 0 ? 0 : 1);
 	entry->request_size = request_size;
 	entry->response_size = response_size;
-	dev_info(&dev_priv->pdev->dev, "%s: address_flags %x, request size %x response size %x\n", __FUNCTION__,
+	pr_debug("address_flags %x, request size %x response size %x\n",
 		 entry->address_flags, entry->request_size, entry->response_size);
 	wmb();
-	val = 0x10 << chan->source;
-	dev_info(&dev_priv->pdev->dev, "%s: val %08x\n", __FUNCTION__, val);
-	BCWC_ISP_REG_WRITE(val, ISP_REG_41020);
+	BCWC_ISP_REG_WRITE(0x10 << chan->source, ISP_REG_41020);
 	return 0;
 }
 
