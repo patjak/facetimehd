@@ -291,8 +291,8 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 	entry = bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
 		request->offset, request_len + 8, (response_len ? *response_len : 0) + 8);
 
-	if (command == CISP_CMD_STOP) {
-		/* stop doesn't seem to generate a response */
+	if (command == CISP_CMD_POWER_DOWN) {
+		/* powerdown doesn't seem to generate a response */
 		ret = 0;
 		goto out;
 	}
