@@ -81,21 +81,22 @@ void bcwc_channel_ringbuf_init(struct bcwc_private *dev_priv, struct fw_channel 
 	}
 }
 
-int bcwc_channel_ringbuf_send(struct bcwc_private *dev_priv, struct fw_channel *chan,
+struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_send(struct bcwc_private *dev_priv, struct fw_channel *chan,
 			      u32 data_offset, u32 request_size, u32 response_size)
 {
 	struct bcwc_ringbuf_entry *entry;
 
 	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.send_idx++);
 	pr_debug("send entry %p offset %08x\n", entry, data_offset);
-	entry->address_flags = data_offset | (chan->type == 0 ? 0 : 1);
 	entry->request_size = request_size;
 	entry->response_size = response_size;
+	entry->address_flags = data_offset | (chan->type == 0 ? 0 : 1);
+
 	pr_debug("address_flags %x, request size %x response size %x\n",
 		 entry->address_flags, entry->request_size, entry->response_size);
 	wmb();
 	BCWC_ISP_REG_WRITE(0x10 << chan->source, ISP_REG_41020);
-	return 0;
+	return entry;
 }
 
 struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_get_entry(struct bcwc_private *dev_priv,

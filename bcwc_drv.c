@@ -24,6 +24,8 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
+#include <linux/sched.h>
+#include <linux/wait.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_isp.h"
@@ -100,6 +102,11 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 
 	pr_debug("Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
 	bcwc_channel_ringbuf_dump(dev_priv, chan);
+	if (chan == dev_priv->channel_io) {
+		pr_debug("command ready\n");
+		wake_up_interruptible(&dev_priv->wq);
+	}
+
 	while(bcwc_channel_ringbuf_entry_available(dev_priv, chan)) {
 		entry = bcwc_channel_ringbuf_get_entry(dev_priv, chan);
 		if (!entry)
@@ -180,8 +187,12 @@ static irqreturn_t bcwc_irq_handler(int irq, void *arg)
 {
 	struct bcwc_private *dev_priv = arg;
 	u32 pending;
-
+	unsigned long flags;
+	
+	spin_lock_irqsave(&dev_priv->io_lock, flags);
 	pending = BCWC_ISP_REG_READ(ISP_REG_41000);
+	spin_unlock_irqrestore(&dev_priv->io_lock, flags);
+	
 	if (!(pending & 0xf0))
 		return IRQ_NONE;
 

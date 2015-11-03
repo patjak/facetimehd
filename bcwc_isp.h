@@ -469,12 +469,22 @@ struct isp_channel_info {
 
 struct isp_cmd_hdr {
 	u32 unknown0;
-	enum bcwc_isp_cmds opcode;
+	u16 opcode;
+	u16 status;
 } __attribute__((packed));
 
 struct isp_cmd_print_enable {
-	struct isp_cmd_hdr hdr;
 	u32 enable;
+} __attribute__((packed));
+
+struct isp_cmd_set_loadfile {
+	u32 unknown;
+	u32 addr;
+	u32 length;
+} __attribute__((packed));
+
+struct isp_cmd_channel_info {
+	u32 data[160];
 } __attribute__((packed));
 
 #define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
@@ -490,4 +500,7 @@ extern int isp_mem_destroy(struct isp_mem_obj *obj);
 extern int bcwc_isp_cmd_start(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable);
+extern int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_channel_start(struct bcwc_private *dev_priv);
 #endif

@@ -21,12 +21,16 @@
 #define _PCWC_PCIE_H
 
 #include <linux/pci.h>
+#include <linux/wait.h>
+
 #include "bcwc_reg.h"
 #include "bcwc_ringbuf.h"
 
 #define BCWC_PCI_S2_IO  0
 #define BCWC_PCI_S2_MEM 2
 #define BCWC_PCI_ISP_IO 4
+
+#define MAX(a, b) ((a)>(b)?(a):(b))
 
 struct bcwc_reg {
 	u32 offset;
@@ -46,6 +50,9 @@ struct bcwc_private {
 	struct pci_dev *pdev;
 	unsigned int dma_mask;
 
+	/* waitqueue for signaling command completion */
+	wait_queue_head_t wq;
+	
 	/* Mapped PCI resources */
 	void *s2_io;
 	u32 s2_io_len;
