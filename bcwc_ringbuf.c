@@ -87,6 +87,8 @@ struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_send(struct bcwc_private *dev_pr
 	struct bcwc_ringbuf_entry *entry;
 
 	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.send_idx++);
+	if (chan->ringbuf.send_idx > chan->size)
+		chan->ringbuf.send_idx = 0;
 	pr_debug("send entry %p offset %08x\n", entry, data_offset);
 	entry->request_size = request_size;
 	entry->response_size = response_size;
