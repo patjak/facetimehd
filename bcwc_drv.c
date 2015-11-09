@@ -291,7 +291,22 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 		mdelay(100);
 		bcwc_isp_cmd_start(dev_priv);
 		bcwc_isp_cmd_print_enable(dev_priv, 1);
-		bcwc_isp_cmd_sensor_detect(dev_priv);
+		bcwc_isp_cmd_set_loadfile(dev_priv);
+		bcwc_isp_cmd_channel_info(dev_priv);
+		bcwc_isp_cmd_channel_camera_config(dev_priv);
+		bcwc_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
+		bcwc_isp_cmd_channel_crop_set(dev_priv, 0, 0, 0, 1280, 720);
+		bcwc_isp_cmd_channel_output_config_set(dev_priv, 0, 1280, 720);
+		bcwc_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
+		bcwc_isp_cmd_channel_recycle_start(dev_priv, 0);
+		bcwc_isp_cmd_channel_drc_start(dev_priv, 0);
+		bcwc_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+		bcwc_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
+		bcwc_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
+		bcwc_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
+		bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, 7672);
+		bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, 3072);
+		bcwc_isp_cmd_channel_start(dev_priv);
 		return 0;
 	}
 

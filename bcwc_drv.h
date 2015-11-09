@@ -80,6 +80,7 @@ struct bcwc_private {
 
 	/* ISP memory objects */
 	struct isp_mem_obj *firmware;
+	struct isp_mem_obj *set_file;
 	struct isp_mem_obj *ipc_queue;
 	struct isp_mem_obj *heap;
 
@@ -94,6 +95,8 @@ struct bcwc_private {
 	struct fw_channel *channel_shared_malloc;
 	struct fw_channel *channel_io_t2h;
 
+	/* camera config */
+	int sensor_count;
 };
 
 #endif

@@ -27,6 +27,7 @@
 #define FTHD_MEM_FW_ARGS        4
 #define FTHD_MEM_CMD            5
 #define FTHD_MEM_SHAREDMALLOC   6
+#define FTHD_MEM_SET_FILE       7
 
 #define FTHD_MEM_SIZE		0x8000000	/* 128mb */
 #define FTHD_MEM_FW_SIZE	0x800000	/* 8mb */
@@ -484,8 +485,80 @@ struct isp_cmd_set_loadfile {
 } __attribute__((packed));
 
 struct isp_cmd_channel_info {
-	u32 data[160];
+	u8 unknown[88];
+	u32 sensor_count;
+	u8 unknown2[40];
+	u8 sensor_serial_number[8];
+	u8 camera_module_serial_number[18];
 } __attribute__((packed));
+
+struct isp_cmd_channel_camera_config {
+	u32 unknown;
+	u32 channel;
+	u8 data[88];
+};
+
+struct isp_cmd_channel_set_crop {
+	u32 channel;
+	u32 x1;
+	u32 y1;
+	u32 x2;
+	u32 y2;
+};
+
+struct isp_cmd_channel_output_config {
+	u32 unknown0;
+	u32 x1;
+	u32 y1;
+	u32 unknown3;
+	u32 unknown4;
+	u32 x2;
+	u32 x3;
+	u32 unknown5;
+};
+
+struct isp_cmd_channel_recycle_mode {
+	u32 channel;
+	u32 mode;
+};
+
+struct isp_cmd_channel_camera_config_select {
+	u32 channel;
+	u32 config;
+};
+
+struct isp_cmd_channel_drc_start {
+	u32 channel;
+};
+
+struct isp_cmd_channel_tone_curve_adaptation_start {
+	u32 channel;
+};
+
+struct isp_cmd_channel_sif_format_set {
+	u32 channel;
+	u8 param1;
+	u8 param2;
+	u8 unknown0;
+	u8 unknown1;
+};
+
+struct isp_cmd_channel_camera_err_handle_config {
+	u32 channel;
+	u16 param1;
+	u16 param2;
+};
+
+struct isp_cmd_channel_streaming_mode {
+	u32 channel;
+	u16 mode;
+	u16 unknown;
+};
+
+struct isp_cmd_channel_frame_rate_set {
+	u32 channel;
+	u16 rate;
+};
 
 #define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
 
@@ -503,4 +576,18 @@ extern int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable);
 extern int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_channel_start(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_channel_camera_config(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_channel_crop_set(struct bcwc_private *dev_priv, int channel,
+					 int x1, int y1, int x2, int y2);
+extern int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int channel, int x, int y);
+extern int bcwc_isp_cmd_channel_recycle_mode(struct bcwc_private *dev_priv, int channel, int mode);
+extern int bcwc_isp_cmd_channel_recycle_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_camera_config_select(struct bcwc_private *dev_priv, int channel, int config);
+extern int bcwc_isp_cmd_channel_drc_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_tone_curve_adaptation_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_sif_pixel_format(struct bcwc_private *dev_priv, int channel, int param1, int param2);
+extern int bcwc_isp_cmd_channel_error_handling_config(struct bcwc_private *dev_priv, int channel, int param1, int param2);
+extern int bcwc_isp_cmd_channel_streaming_mode(struct bcwc_private *dev_priv, int channel, int mode);
+extern int bcwc_isp_cmd_channel_frame_rate_min(struct bcwc_private *dev_priv, int channel, int rate);
+extern int bcwc_isp_cmd_channel_frame_rate_max(struct bcwc_private *dev_priv, int channel, int rate);
 #endif
