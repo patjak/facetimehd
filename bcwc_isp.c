@@ -348,12 +348,15 @@ static void isp_free_set_file(struct bcwc_private *dev_priv)
 {
 	isp_mem_destroy(dev_priv->set_file);
 }
-int isp_uninit(struct bcwc_private *dev_priv)
+
+int isp_powerdown(struct bcwc_private *dev_priv)
 {
 	int retries;
 	u32 reg;
+
 	BCWC_ISP_REG_WRITE(0xf7fbdff9, 0xc3000);
 	bcwc_isp_cmd_powerdown(dev_priv);
+
 	for (retries = 0; retries < 1000; retries++) {
 		reg = BCWC_ISP_REG_READ(0xc3000);
 		if (reg == 0x8042006)
@@ -363,16 +366,23 @@ int isp_uninit(struct bcwc_private *dev_priv)
 
 	if (retries >= 1000) {
 		dev_info(&dev_priv->pdev->dev, "deinit failed!\n");
+		return -EIO;
 	}
+	return 0;
+}
 
+int isp_uninit(struct bcwc_private *dev_priv)
+{
+	BCWC_ISP_REG_WRITE(0x00000000, 0x40004);
+	BCWC_ISP_REG_WRITE(0x00000000, 0x41004);
 	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0008);
 	BCWC_ISP_REG_WRITE(0xffffffff, 0xc000c);
 	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0010);
-	BCWC_ISP_REG_WRITE(0, 0xc0c04);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0c0c);
-	BCWC_ISP_REG_WRITE(0, 0xc0c14);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0c1c);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0c24);
+	BCWC_ISP_REG_WRITE(0x00000000, 0xc1004);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc100c);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc1014);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc101c);
+	BCWC_ISP_REG_WRITE(0xffffffff, 0xc1024);
 	mdelay(1);
 
 	BCWC_ISP_REG_WRITE(0, 0xc0000);

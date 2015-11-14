@@ -332,12 +332,16 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 	struct bcwc_private *dev_priv;
 
 	dev_priv = pci_get_drvdata(pdev);
-	bcwc_isp_cmd_stop(dev_priv);
-	isp_uninit(dev_priv);
-	bcwc_hw_deinit(dev_priv);
 	if (dev_priv) {
-		isp_mem_destroy(dev_priv->firmware);
+		bcwc_isp_cmd_stop(dev_priv);
+		isp_powerdown(dev_priv);
 		bcwc_irq_disable(dev_priv);
+		cancel_work_sync(&dev_priv->irq_work);
+		isp_uninit(dev_priv);
+		bcwc_hw_deinit(dev_priv);
+
+		isp_mem_destroy(dev_priv->firmware);
+		bcwc_buffer_exit(dev_priv);
 		pci_disable_msi(pdev);
 
 		if (dev_priv->s2_io)

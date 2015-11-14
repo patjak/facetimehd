@@ -572,6 +572,7 @@ extern struct isp_mem_obj *isp_mem_create(struct bcwc_private *dev_priv,
 extern int isp_mem_destroy(struct isp_mem_obj *obj);
 extern int bcwc_isp_cmd_start(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv);
+extern int isp_powerdown(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable);
 extern int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv);
