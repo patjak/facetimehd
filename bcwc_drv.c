@@ -30,6 +30,7 @@
 #include "bcwc_hw.h"
 #include "bcwc_isp.h"
 #include "bcwc_ringbuf.h"
+#include "bcwc_v4l2.h"
 
 static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 {
