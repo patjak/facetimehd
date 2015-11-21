@@ -17,8 +17,8 @@
  *
  */
 
-#ifndef _BCWC_PCIE_H
-#define _PCWC_PCIE_H
+#ifndef _BCWC_V4L2_H
+#define _BCWC_V4L2_H
 
 #include <linux/pci.h>
 #include <linux/spinlock.h>
@@ -26,6 +26,17 @@
 #include <linux/mutex.h>
 #include <media/videobuf-dma-sg.h>
 #include <media/v4l2-device.h>
+
+struct bcwc_fmt {
+	struct v4l2_pix_format fmt;
+	const char *desc;
+	int range; /* CISP_COMMAND_CH_OUTPUT_CONFIG_SET */
+	int planes;
+	int x1; /* for CISP_CMD_CH_CROP_SET */
+	int y1;
+	int x2;
+	int y2;
+};
 
 struct bcwc_private;
 extern int bcwc_v4l2_register(struct bcwc_private *dev_priv);

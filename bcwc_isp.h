@@ -28,6 +28,7 @@
 #define FTHD_MEM_CMD            5
 #define FTHD_MEM_SHAREDMALLOC   6
 #define FTHD_MEM_SET_FILE       7
+#define FTHD_MEM_BUFFER         8
 
 #define FTHD_MEM_SIZE		0x8000000	/* 128mb */
 #define FTHD_MEM_FW_SIZE	0x800000	/* 8mb */
@@ -478,6 +479,17 @@ struct isp_cmd_print_enable {
 	u32 enable;
 } __attribute__((packed));
 
+struct isp_cmd_config {
+	u32 field0;
+	u32 field4;
+	u32 field8;
+	u32 fieldc;
+	u32 field10;
+	u32 field14;
+	u32 field18;
+	u32 field1c;
+} __attribute__((packed));
+
 struct isp_cmd_set_loadfile {
 	u32 unknown;
 	u32 addr;
@@ -507,11 +519,11 @@ struct isp_cmd_channel_set_crop {
 };
 
 struct isp_cmd_channel_output_config {
-	u32 unknown0;
+	u32 channel;
 	u32 x1;
 	u32 y1;
 	u32 unknown3;
-	u32 unknown4;
+	u32 pixelformat;
 	u32 x2;
 	u32 x3;
 	u32 unknown5;
@@ -560,6 +572,68 @@ struct isp_cmd_channel_frame_rate_set {
 	u16 rate;
 };
 
+struct isp_cmd_channel_ae_speed_set {
+	u32 channel;
+	u16 speed;
+};
+
+struct isp_cmd_channel_ae_stability_set {
+	u32 channel;
+	u16 stability;
+};
+
+struct isp_cmd_channel_ae_stability_to_stable_set {
+	u32 channel;
+	u16 value;
+};
+
+struct isp_cmd_channel_face_detection_start {
+	u32 channel;
+};
+
+struct isp_cmd_channel_face_detection_enable {
+	u32 channel;
+};
+
+struct isp_cmd_channel_temporal_filter_start {
+	u32 channel;
+};
+
+struct isp_cmd_channel_temporal_filter_enable {
+	u32 channel;
+};
+
+struct isp_cmd_channel_motion_history_start {
+	u32 channel;
+};
+
+struct isp_cmd_channel_ae_metering_mode_set {
+	u32 channel;
+	u32 mode;
+};
+
+struct isp_cmd_channel_start {
+	u32 channel;
+};
+
+struct isp_cmd_channel_stop {
+	u32 channel;
+};
+
+struct isp_cmd_channel_brightness_set {
+	u32 channel;
+	u32 brightness;
+};
+
+struct isp_cmd_channel_contrast_set {
+	u32 channel;
+	u32 contrast;
+};
+
+struct isp_cmd_channel_buffer_return {
+	u32 channel;
+};
+
 #define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
 
 extern int isp_init(struct bcwc_private *dev_priv);
@@ -577,10 +651,11 @@ extern int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable);
 extern int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_channel_start(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_channel_stop(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_channel_camera_config(struct bcwc_private *dev_priv);
 extern int bcwc_isp_cmd_channel_crop_set(struct bcwc_private *dev_priv, int channel,
 					 int x1, int y1, int x2, int y2);
-extern int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int channel, int x, int y);
+extern int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int channel, int x, int y, int pixelformat);
 extern int bcwc_isp_cmd_channel_recycle_mode(struct bcwc_private *dev_priv, int channel, int mode);
 extern int bcwc_isp_cmd_channel_recycle_start(struct bcwc_private *dev_priv, int channel);
 extern int bcwc_isp_cmd_channel_camera_config_select(struct bcwc_private *dev_priv, int channel, int config);
@@ -591,4 +666,17 @@ extern int bcwc_isp_cmd_channel_error_handling_config(struct bcwc_private *dev_p
 extern int bcwc_isp_cmd_channel_streaming_mode(struct bcwc_private *dev_priv, int channel, int mode);
 extern int bcwc_isp_cmd_channel_frame_rate_min(struct bcwc_private *dev_priv, int channel, int rate);
 extern int bcwc_isp_cmd_channel_frame_rate_max(struct bcwc_private *dev_priv, int channel, int rate);
+extern int bcwc_isp_cmd_camera_config(struct bcwc_private *dev_priv);
+extern int bcwc_isp_cmd_channel_ae_speed_set(struct bcwc_private *dev_priv, int channel, int speed);
+extern int bcwc_isp_cmd_channel_ae_stability_set(struct bcwc_private *dev_priv, int channel, int stability);
+extern int bcwc_isp_cmd_channel_ae_stability_to_stable_set(struct bcwc_private *dev_priv, int channel, int value);
+extern int bcwc_isp_cmd_channel_face_detection_enable(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_face_detection_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_temporal_filter_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_temporal_filter_enable(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_motion_history_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_ae_metering_mode_set(struct bcwc_private *dev_priv, int channel, int mode);
+extern int bcwc_isp_cmd_channel_brightness_set(struct bcwc_private *dev_priv, int channel, int brightness);
+extern int bcwc_isp_cmd_channel_contrast_set(struct bcwc_private *dev_priv, int channel, int contrast);
+extern int bcwc_isp_cmd_channel_buffer_return(struct bcwc_private *dev_priv, int channel);
 #endif

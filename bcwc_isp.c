@@ -158,6 +158,7 @@ static int isp_load_firmware(struct bcwc_private *dev_priv)
 			"Misaligned firmware memory object (offset: %lu)\n",
 			dev_priv->firmware->offset);
 		isp_mem_destroy(dev_priv->firmware);
+		dev_priv->firmware = NULL;
 		return -EBUSY;
 	}
 
@@ -287,7 +288,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 
 	if (request_len)
 		memcpy((char *)cmd + sizeof(struct isp_cmd_hdr), buf, request_len);
-	print_hex_dump_bytes("TXCMD ", DUMP_PREFIX_OFFSET, cmd, len);
+
 	entry = bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
 		request->offset, request_len + 8, (response_len ? *response_len : 0) + 8);
 
@@ -297,7 +298,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 		goto out;
 	}
 
-	if (!wait_event_interruptible_timeout(dev_priv->wq, (entry->address_flags & 1), 5 * HZ)) {
+	if (!wait_event_interruptible_timeout(dev_priv->wq, (entry->address_flags & 1), HZ)) {
 		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd->opcode);
 		bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
 		if (response_len)
@@ -310,7 +311,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 	if (response_len && *response_len)
 		memcpy(buf, (entry->address_flags & ~3) + dev_priv->s2_mem + sizeof(struct isp_cmd_hdr), *response_len);
 
-	pr_debug("status %04x, request_len %d response len %d address_flags %x", cmd->status,
+	pr_debug("status %04x, request_len %d response len %d address_flags %x\n", cmd->status,
 		entry->request_size, entry->response_size, entry->address_flags);
 
 	ret = 0;
@@ -329,10 +330,21 @@ int bcwc_isp_cmd_start(struct bcwc_private *dev_priv)
 
 int bcwc_isp_cmd_channel_start(struct bcwc_private *dev_priv)
 {
+	struct isp_cmd_channel_start cmd;
 	pr_debug("sending channel start cmd to firmware\n");
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_START, NULL, 0, NULL);
+
+	cmd.channel = 0;
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_START, &cmd, sizeof(cmd), NULL);
 }
 
+int bcwc_isp_cmd_channel_stop(struct bcwc_private *dev_priv)
+{
+	struct isp_cmd_channel_stop cmd;
+
+	cmd.channel = 0;
+	pr_debug("sending channel stop cmd to firmware\n");
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_STOP, &cmd, sizeof(cmd), NULL);
+}
 
 int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv)
 {
@@ -357,14 +369,14 @@ int isp_powerdown(struct bcwc_private *dev_priv)
 	BCWC_ISP_REG_WRITE(0xf7fbdff9, 0xc3000);
 	bcwc_isp_cmd_powerdown(dev_priv);
 
-	for (retries = 0; retries < 1000; retries++) {
+	for (retries = 0; retries < 100; retries++) {
 		reg = BCWC_ISP_REG_READ(0xc3000);
 		if (reg == 0x8042006)
 			break;
 		mdelay(10);
 	}
 
-	if (retries >= 1000) {
+	if (retries >= 100) {
 		dev_info(&dev_priv->pdev->dev, "deinit failed!\n");
 		return -EIO;
 	}
@@ -399,6 +411,7 @@ int isp_uninit(struct bcwc_private *dev_priv)
 	BCWC_ISP_REG_WRITE(0xffffffff, 0x41024);
 	isp_free_channel_info(dev_priv);
 	isp_free_set_file(dev_priv);
+	isp_mem_destroy(dev_priv->firmware);
 	kfree(dev_priv->mem);
 	return 0;
 }
@@ -465,11 +478,27 @@ int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv)
 	return ret;
 }
 
+int bcwc_isp_cmd_camera_config(struct bcwc_private *dev_priv)
+{
+	struct isp_cmd_config cmd;
+	int ret, len;
+
+	pr_debug("sending camera config\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+
+	len = sizeof(cmd);
+	ret = bcwc_isp_cmd(dev_priv, CISP_CMD_CONFIG_GET, &cmd, sizeof(cmd), &len);
+	if (!ret)
+		print_hex_dump_bytes("CAMINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
+	return ret;
+}
+
 int bcwc_isp_cmd_channel_camera_config(struct bcwc_private *dev_priv)
 {
 	struct isp_cmd_channel_camera_config cmd;
 	int ret, len, i;
-
+	char prefix[16];
 	pr_debug("sending ch camera config\n");
 
 	memset(&cmd, 0, sizeof(cmd));
@@ -480,7 +509,8 @@ int bcwc_isp_cmd_channel_camera_config(struct bcwc_private *dev_priv)
 		ret = bcwc_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_CONFIG_GET, &cmd, sizeof(cmd), &len);
 		if (ret)
 			break;
-		print_hex_dump_bytes("CHINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
+		snprintf(prefix, sizeof(prefix)-1, "CAMCONF%d ", i);
+		print_hex_dump_bytes(prefix, DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
 	}
 	return ret;
 }
@@ -517,7 +547,7 @@ int bcwc_isp_cmd_channel_crop_set(struct bcwc_private *dev_priv, int channel,
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int channel, int x, int y)
+int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int channel, int x, int y, int pixelformat)
 {
 	struct isp_cmd_channel_output_config cmd;
 	int len;
@@ -525,11 +555,19 @@ int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int ch
 	pr_debug("output config: [%d, %d]\n", x, y);
 
 	memset(&cmd, 0, sizeof(cmd));
-	//	cmd.channel = channel;
-	cmd.x1 = x;
-	cmd.x2 = x;
+	cmd.channel = channel;
+	cmd.x1 = x; /* Y size */
+	cmd.x2 = x * 2; /* Chroma size? */
 	cmd.x3 = x;
 	cmd.y1 = y;
+
+	/* pixel formats:
+	 * 0 - plane 0 Y plane 1 UV
+	   1 - YUYV
+	   2 - YVYU
+	*/
+	cmd.pixelformat = pixelformat;
+	cmd.unknown3 = 0;
 	cmd.unknown5 = 0x7ff;
 	len = sizeof(cmd);
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_OUTPUT_CONFIG_SET, &cmd, sizeof(cmd), &len);
@@ -549,12 +587,25 @@ int bcwc_isp_cmd_channel_recycle_mode(struct bcwc_private *dev_priv, int channel
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RECYCLE_MODE_SET, &cmd, sizeof(cmd), &len);
 }
 
+int bcwc_isp_cmd_channel_buffer_return(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_buffer_return cmd;
+	int len;
+
+	pr_debug("buffer return\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RETURN, &cmd, sizeof(cmd), &len);
+}
+
 int bcwc_isp_cmd_channel_recycle_start(struct bcwc_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_recycle_mode cmd;
 	int len;
 
-	pr_debug("start recycle");
+	pr_debug("start recycle\n");
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
@@ -567,7 +618,7 @@ int bcwc_isp_cmd_channel_drc_start(struct bcwc_private *dev_priv, int channel)
 	struct isp_cmd_channel_drc_start cmd;
 	int len;
 
-	pr_debug("start drc");
+	pr_debug("start drc\n");
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
@@ -580,7 +631,7 @@ int bcwc_isp_cmd_channel_tone_curve_adaptation_start(struct bcwc_private *dev_pr
 	struct isp_cmd_channel_tone_curve_adaptation_start cmd;
 	int len;
 
-	pr_debug("start drc");
+	pr_debug("tone curve adaptation start\n");
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
@@ -593,7 +644,7 @@ int bcwc_isp_cmd_channel_sif_pixel_format(struct bcwc_private *dev_priv, int cha
 	struct isp_cmd_channel_sif_format_set cmd;
 	int len;
 
-	pr_debug("set pixel format %d, %d", param1, param2);
+	pr_debug("set pixel format %d, %d\n", param1, param2);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
@@ -608,7 +659,7 @@ int bcwc_isp_cmd_channel_error_handling_config(struct bcwc_private *dev_priv, in
 	struct isp_cmd_channel_camera_err_handle_config cmd;
 	int len;
 
-	pr_debug("set error handling config %d, %d", param1, param2);
+	pr_debug("set error handling config %d, %d\n", param1, param2);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
@@ -623,7 +674,7 @@ int bcwc_isp_cmd_channel_streaming_mode(struct bcwc_private *dev_priv, int chann
 	struct isp_cmd_channel_streaming_mode cmd;
 	int len;
 
-	pr_debug("set streaming mode %d", mode);
+	pr_debug("set streaming mode %d\n", mode);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
@@ -637,7 +688,7 @@ int bcwc_isp_cmd_channel_frame_rate_min(struct bcwc_private *dev_priv, int chann
 	struct isp_cmd_channel_frame_rate_set cmd;
 	int len;
 
-	pr_debug("set ae frame rate min %d", rate);
+	pr_debug("set ae frame rate min %d\n", rate);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
@@ -651,13 +702,162 @@ int bcwc_isp_cmd_channel_frame_rate_max(struct bcwc_private *dev_priv, int chann
 	struct isp_cmd_channel_frame_rate_set cmd;
 	int len;
 
-	pr_debug("set ae frame rate max %d", rate);
+	pr_debug("set ae frame rate max %d\n", rate);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	cmd.rate = rate;
 	len = sizeof(cmd);
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MAX_SET, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_ae_speed_set(struct bcwc_private *dev_priv, int channel, int speed)
+{
+	struct isp_cmd_channel_ae_speed_set cmd;
+	int len;
+
+	pr_debug("set ae speed %d\n", speed);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.speed = speed;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_SPEED_SET, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_ae_stability_set(struct bcwc_private *dev_priv, int channel, int stability)
+{
+	struct isp_cmd_channel_ae_stability_set cmd;
+	int len;
+
+	pr_debug("set ae stability %d\n", stability);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.stability = stability;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_SET, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_ae_stability_to_stable_set(struct bcwc_private *dev_priv, int channel, int value)
+{
+	struct isp_cmd_channel_ae_stability_to_stable_set cmd;
+	int len;
+
+	pr_debug("set ae stability to stable %d\n", value);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.value = value;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_TO_STABLE_SET, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_face_detection_start(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_face_detection_start cmd;
+	int len;
+
+	pr_debug("face detection start\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_START, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_face_detection_enable(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_face_detection_enable cmd;
+	int len;
+
+	pr_debug("face detection enable\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_ENABLE, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_temporal_filter_start(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_temporal_filter_start cmd;
+	int len;
+
+	pr_debug("temporal filter start\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_START, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_temporal_filter_enable(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_temporal_filter_enable cmd;
+	int len;
+
+	pr_debug("temporal filter enable\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_ENABLE, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_motion_history_start(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_motion_history_start cmd;
+	int len;
+
+	pr_debug("motion history start\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_START, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_ae_metering_mode_set(struct bcwc_private *dev_priv, int channel, int mode)
+{
+	struct isp_cmd_channel_ae_metering_mode_set cmd;
+	int len;
+
+	pr_debug("ae metering mode %d\n", mode);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.mode = mode;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_AE_METERING_MODE_SET, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_brightness_set(struct bcwc_private *dev_priv, int channel, int brightness)
+{
+	struct isp_cmd_channel_brightness_set cmd;
+	int len;
+
+	pr_debug("set brightness %d\n", brightness);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.brightness = brightness;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_BRIGHTNESS_SET, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_contrast_set(struct bcwc_private *dev_priv, int channel, int contrast)
+{
+	struct isp_cmd_channel_contrast_set cmd;
+	int len;
+
+	pr_debug("set contrast %d\n", contrast);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.contrast = contrast;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_CONTRAST_SET, &cmd, sizeof(cmd), &len);
 }
 
 int isp_init(struct bcwc_private *dev_priv)

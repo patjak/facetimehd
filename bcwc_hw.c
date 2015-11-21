@@ -43,11 +43,6 @@ static u32 ddr_phy_reg_map[] = {
 	0x038c, 0x0390, 0x0394, 0x03a0, 0x03a4, 0x03a8, 0x03ac,
 };
 
-static int bcwc_hw_set_core_clk(struct bcwc_private *dev_priv)
-{
-	return 0;
-}
-
 static int bcwc_hw_s2_pll_reset(struct bcwc_private *dev_priv)
 {
 	BCWC_S2_REG_WRITE(0x40, S2_PLL_CTRL_2C);

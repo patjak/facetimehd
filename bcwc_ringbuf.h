@@ -29,10 +29,7 @@ enum ringbuf_type_t {
 struct bcwc_ringbuf {
 	void *doorbell;
 	u32 phys_offset;
-	int recv_idx;
-	int send_idx;
-	int recv_cnt;
-	int sent_cnt;
+	int idx;
         u8 *virt_addr;
 };
 

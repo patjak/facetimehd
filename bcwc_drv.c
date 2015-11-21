@@ -24,12 +24,15 @@
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
+#include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
+#include <linux/videodev2.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_isp.h"
 #include "bcwc_ringbuf.h"
+#include "bcwc_buffer.h"
 #include "bcwc_v4l2.h"
 
 static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
@@ -91,54 +94,112 @@ static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
 
 static void bcwc_irq_disable(struct bcwc_private *dev_priv)
 {
+	//bcwc_hw_irq_disable(dev_priv);
 	free_irq(dev_priv->pdev->irq, dev_priv);
+}
+
+static void sharedmalloc_handler(struct bcwc_private *dev_priv,
+				 struct fw_channel *chan,
+				 struct bcwc_ringbuf_entry *entry)
+{
+	u32 request_size, response_size, address;
+	struct isp_mem_obj *obj, **p;
+
+	request_size = entry->request_size;
+	response_size = entry->response_size;
+	address = entry->address_flags & ~ 3;
+
+	if (address) {
+		pr_debug("Firmware wants to free memory at %08x\n", address);
+		p = dev_priv->s2_mem + address - 64;
+		isp_mem_destroy(*p);
+
+		bcwc_channel_ringbuf_mark_entry_available(dev_priv, chan);
+		bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
+	} else {
+		if (!request_size)
+			return;
+		obj = isp_mem_create(dev_priv, FTHD_MEM_SHAREDMALLOC, request_size + 64);
+		if (!obj)
+			return;
+
+		pr_debug("Firmware allocated %d bytes at %08lx (tag %c%c%c%c)\n", request_size, obj->offset,
+			 response_size >> 24,response_size >> 16,
+			 response_size >> 8, response_size);
+		p = dev_priv->s2_mem + obj->offset;
+		*p = obj;
+		bcwc_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0);
+	}
+
+}
+
+
+static void terminal_handler(struct bcwc_private *dev_priv,
+				 struct fw_channel *chan,
+				 struct bcwc_ringbuf_entry *entry)
+{
+	u32 request_size, response_size, address;
+
+	request_size = entry->request_size;
+	response_size = entry->response_size;
+	address = entry->address_flags & ~ 3;
+
+	if (!address || !request_size)
+		return;
+
+	pr_info("FWMSG: %.*s", request_size, (char *)(dev_priv->s2_mem + address));
+
+}
+
+static void buf_t2h_handler(struct bcwc_private *dev_priv,
+				 struct fw_channel *chan,
+				 struct bcwc_ringbuf_entry *entry)
+{
+	u32 request_size, response_size, address;
+
+	request_size = entry->request_size;
+	response_size = entry->response_size;
+	address = entry->address_flags & ~ 3;
+
+	if (entry->address_flags & 1)
+		return;
+
+	bcwc_buffer_return_handler(dev_priv, dev_priv->s2_mem + address, request_size);
+	bcwc_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
+				  0, 0x80000000);
+}
+
+static void io_t2h_handler(struct bcwc_private *dev_priv,
+				 struct fw_channel *chan,
+				 struct bcwc_ringbuf_entry *entry)
+{
+	bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 }
 
 static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *chan)
 {
-	struct isp_mem_obj *obj;
 	struct bcwc_ringbuf_entry *entry;
-	int request_size;
-	u32 address;
+	int i = 0;
+//	pr_debug("Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
 
-	pr_debug("Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
-	bcwc_channel_ringbuf_dump(dev_priv, chan);
-	if (chan == dev_priv->channel_io) {
-		pr_debug("command ready\n");
-		wake_up_interruptible(&dev_priv->wq);
-	}
+//	if (strcmp(chan->name, "TERMINAL"))
+//		bcwc_channel_ringbuf_dump(dev_priv, chan);
 
-	while(bcwc_channel_ringbuf_entry_available(dev_priv, chan)) {
+	while(bcwc_channel_ringbuf_entry_available(dev_priv, chan) && i++ < 500) {
 		entry = bcwc_channel_ringbuf_get_entry(dev_priv, chan);
-		if (!entry)
-			goto next;
-
-		request_size = entry->request_size;
-		address = entry->address_flags & ~ 3;
 
 		if (chan == dev_priv->channel_shared_malloc) {
-			if (address) {
-				pr_debug("Firmware wants to free memory at %08x\n", address);
-			} else {
-				if (!request_size)
-					goto next;
-				obj = isp_mem_create(dev_priv, FTHD_MEM_SHAREDMALLOC, request_size);
-				if (!obj)
-					goto next; /* FIXME */
-				pr_debug("Firmware allocated %d bytes at %08lx\n", request_size, obj->offset);
-				bcwc_channel_ringbuf_send(dev_priv, chan, obj->offset, 0, 0);
-			}
+			sharedmalloc_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_terminal) {
-			if (!address) {
-				dev_err(&dev_priv->pdev->dev, "%s: no address\n", __FUNCTION__);
-				goto next;
-			}
-			if (!request_size)
-				goto next;
-			pr_debug("FWMSG: %.*s", request_size, (char *)(dev_priv->s2_mem + address));
-		}
-	next:
+			terminal_handler(dev_priv, chan, entry);
 			bcwc_channel_ringbuf_mark_entry_available(dev_priv, chan);
+		} else if (chan == dev_priv->channel_buf_t2h) {
+			buf_t2h_handler(dev_priv, chan, entry);
+		} else if (chan == dev_priv->channel_io) {
+			wake_up_interruptible(&dev_priv->wq);
+		} else if (chan == dev_priv->channel_io_t2h) {
+			io_t2h_handler(dev_priv, chan, entry);
+		}
 	}
 }
 
@@ -150,19 +211,20 @@ static void bcwc_irq_work(struct work_struct *work)
 	u32 pending;
 	int i = 0;
 
-
 	while(i++ < 500) {
+		spin_lock_irq(&dev_priv->io_lock);
 		pending = BCWC_ISP_REG_READ(ISP_REG_41000);
-		pr_debug("interrupt: %08x\n", pending);
+		spin_unlock_irq(&dev_priv->io_lock);
 
 		if (!(pending & 0xf0))
 			break;
 
 		pci_write_config_dword(dev_priv->pdev, 0x94, 0);
+		spin_lock_irq(&dev_priv->io_lock);
 		BCWC_ISP_REG_WRITE(pending, ISP_REG_41024);
+		spin_unlock_irq(&dev_priv->io_lock);
 		pci_write_config_dword(dev_priv->pdev, 0x90, 0x200);
 
-		/* FIXME: locking */
 		for(i = 0; i < dev_priv->num_channels; i++) {
 			chan = dev_priv->channels[i];
 
@@ -176,11 +238,8 @@ static void bcwc_irq_work(struct work_struct *work)
 
 	if (i >= 500) {
 		dev_err(&dev_priv->pdev->dev, "irq stuck, disabling\n");
-//		bcwc_hw_irq_disable(dev_priv);
 		bcwc_irq_disable(dev_priv);
-		return;
 	}
-
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
 }
 
@@ -189,11 +248,11 @@ static irqreturn_t bcwc_irq_handler(int irq, void *arg)
 	struct bcwc_private *dev_priv = arg;
 	u32 pending;
 	unsigned long flags;
-	
+
 	spin_lock_irqsave(&dev_priv->io_lock, flags);
 	pending = BCWC_ISP_REG_READ(ISP_REG_41000);
 	spin_unlock_irqrestore(&dev_priv->io_lock, flags);
-	
+
 	if (!(pending & 0xf0))
 		return IRQ_NONE;
 
@@ -221,7 +280,7 @@ static int bcwc_pci_set_dma_mask(struct bcwc_private *dev_priv,
 {
 	int ret;
 
-	ret = pci_set_dma_mask(dev_priv->pdev, DMA_BIT_MASK(mask));
+	ret = dma_set_mask_and_coherent(&dev_priv->pdev->dev, DMA_BIT_MASK(mask));
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev, "Failed to set %u pci dma mask\n",
 			mask);
@@ -232,6 +291,39 @@ static int bcwc_pci_set_dma_mask(struct bcwc_private *dev_priv,
 
 	return 0;
 }
+
+static void bcwc_pci_remove(struct pci_dev *pdev)
+{
+	struct bcwc_private *dev_priv;
+
+	dev_priv = pci_get_drvdata(pdev);
+	if (!dev_priv)
+		goto out;
+
+	bcwc_v4l2_unregister(dev_priv);
+	bcwc_isp_cmd_stop(dev_priv);
+	isp_powerdown(dev_priv);
+	bcwc_irq_disable(dev_priv);
+	cancel_work_sync(&dev_priv->irq_work);
+	isp_uninit(dev_priv);
+	bcwc_hw_deinit(dev_priv);
+	bcwc_buffer_exit(dev_priv);
+	pci_disable_msi(pdev);
+
+	if (dev_priv->s2_io)
+		iounmap(dev_priv->s2_io);
+	if (dev_priv->s2_mem)
+		iounmap(dev_priv->s2_mem);
+	if (dev_priv->isp_io)
+		iounmap(dev_priv->isp_io);
+
+	pci_release_region(pdev, BCWC_PCI_S2_IO);
+	pci_release_region(pdev, BCWC_PCI_S2_MEM);
+	pci_release_region(pdev, BCWC_PCI_ISP_IO);
+out:
+	pci_disable_device(pdev);
+}
+
 
 static int bcwc_pci_probe(struct pci_dev *pdev,
 			  const struct pci_device_id *entry)
@@ -248,6 +340,14 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 		return -ENOMEM;
 	}
 
+	spin_lock_init(&dev_priv->io_lock);
+	spin_lock_init(&dev_priv->rb_lock);
+	mutex_init(&dev_priv->vb2_queue_lock);
+
+	mutex_init(&dev_priv->ioctl_lock);
+	init_waitqueue_head(&dev_priv->wq);
+	INIT_LIST_HEAD(&dev_priv->buffer_queue);
+
 	dev_priv->pdev = pdev;
 
 	ret = pci_enable_device(pdev);
@@ -263,7 +363,7 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	ret = pci_enable_msi(pdev);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to enable MSI\n");
-		goto fail_enable;
+		goto fail_reserve;
 	}
 
 	INIT_WORK(&dev_priv->irq_work, bcwc_irq_work);
@@ -288,76 +388,65 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	dev_priv->ddr_model = 4;
 	dev_priv->ddr_speed = 450;
 
-	if (!(ret = bcwc_hw_init(dev_priv))) {
-		mdelay(100);
-		bcwc_isp_cmd_start(dev_priv);
-		bcwc_isp_cmd_print_enable(dev_priv, 1);
-		bcwc_isp_cmd_set_loadfile(dev_priv);
-		bcwc_isp_cmd_channel_info(dev_priv);
-		bcwc_isp_cmd_channel_camera_config(dev_priv);
-		bcwc_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
-		bcwc_isp_cmd_channel_crop_set(dev_priv, 0, 0, 0, 1280, 720);
-		bcwc_isp_cmd_channel_output_config_set(dev_priv, 0, 1280, 720);
-		bcwc_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
-		bcwc_isp_cmd_channel_recycle_start(dev_priv, 0);
-		bcwc_isp_cmd_channel_drc_start(dev_priv, 0);
-		bcwc_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
-		bcwc_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
-		bcwc_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
-		bcwc_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
-		bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, 7672);
-		bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, 3072);
-		bcwc_isp_cmd_channel_start(dev_priv);
-		return 0;
-	}
+	ret = bcwc_buffer_init(dev_priv);
+	if (ret)
+		goto fail_irq;
 
-	bcwc_hw_deinit(dev_priv);
-	isp_mem_destroy(dev_priv->firmware);
-	pci_release_region(pdev, BCWC_PCI_S2_IO);
-	pci_release_region(pdev, BCWC_PCI_S2_MEM);
-	pci_release_region(pdev, BCWC_PCI_ISP_IO);
+	ret = bcwc_hw_init(dev_priv);
+	if (ret)
+		goto fail_irq;
 
+	mdelay(1000); /* XXX: should not be needed */
+	bcwc_isp_cmd_start(dev_priv);
+	bcwc_isp_cmd_print_enable(dev_priv, 1);
+	bcwc_isp_cmd_set_loadfile(dev_priv);
+	bcwc_isp_cmd_camera_config(dev_priv);
+	bcwc_isp_cmd_channel_info(dev_priv);
+	bcwc_isp_cmd_channel_camera_config(dev_priv);
+	bcwc_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
+	bcwc_isp_cmd_channel_crop_set(dev_priv, 0, 0, 0, 1024, 768);
+	bcwc_isp_cmd_channel_output_config_set(dev_priv, 0, 1024, 768, 1);
+	bcwc_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
+	bcwc_isp_cmd_channel_recycle_start(dev_priv, 0);
+	bcwc_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, 3);
+	bcwc_isp_cmd_channel_drc_start(dev_priv, 0);
+	bcwc_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+	bcwc_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
+	bcwc_isp_cmd_channel_ae_stability_set(dev_priv, 0, 75);
+	bcwc_isp_cmd_channel_ae_stability_to_stable_set(dev_priv, 0, 8);
+	bcwc_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
+	bcwc_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
+	bcwc_isp_cmd_channel_face_detection_enable(dev_priv, 0);
+	bcwc_isp_cmd_channel_face_detection_start(dev_priv, 0);
+	bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, 7672);
+	bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, 3072);
+	bcwc_isp_cmd_channel_temporal_filter_start(dev_priv, 0);
+	bcwc_isp_cmd_channel_motion_history_start(dev_priv, 0);
+	bcwc_isp_cmd_channel_temporal_filter_enable(dev_priv, 0);
+	bcwc_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
+	bcwc_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
+	bcwc_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
+
+	ret = bcwc_v4l2_register(dev_priv);
+	if (ret)
+		goto fail_v4l2;
+
+	return 0;
+fail_v4l2:
+	bcwc_pci_remove(pdev);
 fail_irq:
 	bcwc_irq_disable(dev_priv);
 fail_msi:
 	pci_disable_msi(pdev);
 fail_enable:
 	pci_disable_device(pdev);
+fail_reserve:
+	pci_release_region(pdev, BCWC_PCI_S2_IO);
+	pci_release_region(pdev, BCWC_PCI_S2_MEM);
+	pci_release_region(pdev, BCWC_PCI_ISP_IO);
 fail_free:
 	kfree(dev_priv);
 	return ret;
-}
-
-static void bcwc_pci_remove(struct pci_dev *pdev)
-{
-	struct bcwc_private *dev_priv;
-
-	dev_priv = pci_get_drvdata(pdev);
-	if (dev_priv) {
-		bcwc_isp_cmd_stop(dev_priv);
-		isp_powerdown(dev_priv);
-		bcwc_irq_disable(dev_priv);
-		cancel_work_sync(&dev_priv->irq_work);
-		isp_uninit(dev_priv);
-		bcwc_hw_deinit(dev_priv);
-
-		isp_mem_destroy(dev_priv->firmware);
-		bcwc_buffer_exit(dev_priv);
-		pci_disable_msi(pdev);
-
-		if (dev_priv->s2_io)
-			iounmap(dev_priv->s2_io);
-		if (dev_priv->s2_mem)
-			iounmap(dev_priv->s2_mem);
-		if (dev_priv->isp_io)
-			iounmap(dev_priv->isp_io);
-
-		pci_release_region(pdev, BCWC_PCI_S2_IO);
-		pci_release_region(pdev, BCWC_PCI_S2_MEM);
-		pci_release_region(pdev, BCWC_PCI_ISP_IO);
-	}
-
-	pci_disable_device(pdev);
 }
 
 #ifdef CONFIG_PM
