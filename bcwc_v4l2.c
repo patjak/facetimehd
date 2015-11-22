@@ -320,7 +320,7 @@ static int bcwc_v4l2_ioctl_enum_input(struct file *filp, void *priv,
 
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 	input->std = V4L2_STD_ALL;
-	strcpy(input->name, "Apple Facetime");
+	strcpy(input->name, "Apple Facetime HD");
 	return 0;
 }
 
@@ -352,7 +352,7 @@ static int bcwc_v4l2_ioctl_querycap(struct file *filp, void *priv,
 				    struct v4l2_capability *cap)
 {
 	strcpy(cap->driver, "bcwc");
-	strcpy(cap->card, "facetimehd");
+	strcpy(cap->card, "Apple Facetime HD");
 	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE |
 		V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
