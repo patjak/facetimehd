@@ -114,7 +114,6 @@ static void sharedmalloc_handler(struct bcwc_private *dev_priv,
 		p = dev_priv->s2_mem + address - 64;
 		isp_mem_destroy(*p);
 
-		bcwc_channel_ringbuf_mark_entry_available(dev_priv, chan);
 		bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 	} else {
 		if (!request_size)
