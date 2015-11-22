@@ -117,19 +117,6 @@ struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_get_entry(struct bcwc_private *d
 	return entry;
 }
 
-void bcwc_channel_ringbuf_mark_entry_available(struct bcwc_private *dev_priv,
-					       struct fw_channel *chan)
-{
-	struct bcwc_ringbuf_entry *entry;
-
-	spin_lock_irq(&dev_priv->rb_lock);
-	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx++);
-	entry->address_flags = 1;
-	entry->request_size = 0;
-	entry->response_size = 0;
-	spin_unlock_irq(&dev_priv->rb_lock);
-}
-
 int bcwc_channel_ringbuf_entry_available(struct bcwc_private *dev_priv,
 					 struct fw_channel *chan)
 {

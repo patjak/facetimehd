@@ -189,7 +189,7 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 			sharedmalloc_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_terminal) {
 			terminal_handler(dev_priv, chan, entry);
-			bcwc_channel_ringbuf_mark_entry_available(dev_priv, chan);
+			bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 		} else if (chan == dev_priv->channel_buf_t2h) {
 			buf_t2h_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_io) {
