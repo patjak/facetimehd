@@ -405,12 +405,9 @@ static int bcwc_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
 		dist = min(width, wanted_width) * min(height, wanted_height);
 		dist = width * height + wanted_width * wanted_height - 2 * dist;
 
-		pr_debug("%dx%d, dist %d\n", width, height, dist);
-
 		if (dist < maxdist) {
 			maxdist = dist;
 			p1 = p;
-			pr_debug("assign\n");
 		}
 
 		if (maxdist == 0)
@@ -418,7 +415,6 @@ static int bcwc_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
 	}
 
 	if (!p1) {
-		pr_debug("no assign\n");
 		return -EINVAL;
 	}
 
@@ -454,13 +450,6 @@ static int bcwc_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 	struct bcwc_private *dev_priv = video_drvdata(filp);
 	struct bcwc_fmt *p = NULL;
 	int i;
-
-	pr_info("%s: %dx%d %c%c%c%c\n", __FUNCTION__,
-		fmt->fmt.pix.width, fmt->fmt.pix.height,
-		fmt->fmt.pix.pixelformat,
-		fmt->fmt.pix.pixelformat >> 8,
-		fmt->fmt.pix.pixelformat >> 16,
-		fmt->fmt.pix.pixelformat >> 24);
 
 	for(i = 0; i < ARRAY_SIZE(bcwc_formats); i++) {
 		p = bcwc_formats + i;
