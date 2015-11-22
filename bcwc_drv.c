@@ -152,8 +152,8 @@ static void terminal_handler(struct bcwc_private *dev_priv,
 }
 
 static void buf_t2h_handler(struct bcwc_private *dev_priv,
-				 struct fw_channel *chan,
-				 struct bcwc_ringbuf_entry *entry)
+			    struct fw_channel *chan,
+			    struct bcwc_ringbuf_entry *entry)
 {
 	u32 request_size, response_size, address;
 
@@ -180,10 +180,8 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 {
 	struct bcwc_ringbuf_entry *entry;
 	int i = 0;
-//	pr_debug("Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
 
-//	if (strcmp(chan->name, "TERMINAL"))
-//		bcwc_channel_ringbuf_dump(dev_priv, chan);
+	pr_debug("Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
 
 	while(bcwc_channel_ringbuf_entry_available(dev_priv, chan) && i++ < 500) {
 		entry = bcwc_channel_ringbuf_get_entry(dev_priv, chan);
