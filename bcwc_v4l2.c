@@ -112,6 +112,32 @@ static void bcwc_buffer_cleanup(struct vb2_buffer *vb)
 	ctx->dma_desc_obj = NULL;
 }
 
+static int bcwc_send_h2t_buffer(struct bcwc_private *dev_priv, struct h2t_buf_ctx *ctx)
+{
+	volatile struct bcwc_ringbuf_entry *entry;
+
+	//	pr_debug("sending buffer %p\n", ctx->vb);
+	entry = bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
+					  ctx->dma_desc_obj->offset, 0x180, 0x30000000);
+
+	if (!entry)
+		return -EIO;
+
+	if (wait_event_interruptible_timeout(ctx->wq, ctx->done, HZ) <= 0) {
+		dev_err(&dev_priv->pdev->dev, "timeout wait for buffer %p\n", ctx->vb);
+		return -ETIMEDOUT;
+	}
+	ctx->done = 0;
+	return 0;
+}
+
+void bcwc_buffer_queued_handler(struct bcwc_private *dev_priv, struct dma_descriptor_list *list)
+{
+	struct h2t_buf_ctx *ctx = (struct h2t_buf_ctx *)list->desc[0].tag;
+	ctx->done = 1;
+	wake_up_interruptible(&ctx->wq);
+}
+
 static void bcwc_buffer_queue(struct vb2_buffer *vb)
 {
 	struct bcwc_private *dev_priv = vb2_get_drv_priv(vb->vb2_queue);
@@ -149,10 +175,12 @@ static void bcwc_buffer_queue(struct vb2_buffer *vb)
 		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p\n", i, list->field0,
 			 list->desc[i].count, list->desc[i].pool, list->desc[i].addr0, list->desc[i].addr1, list->desc[i].tag, ctx->vb);
 
-		bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
-					  ctx->dma_desc_obj->offset, 0x180, 0x30000000);
+		if (bcwc_send_h2t_buffer(dev_priv, ctx)) {
+			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
+			ctx->state = BUF_ALLOC;
+		}
 	}
-
+	return;
 }
 
 static int bcwc_buffer_prepare(struct vb2_buffer *vb)
@@ -209,6 +237,7 @@ static int bcwc_buffer_prepare(struct vb2_buffer *vb)
 		dma_list->desc[0].addr2 = (ctx->plane[2]->offset << 12) | 0xc0000000;
 
 	dma_list->desc[0].tag = (u64)ctx;
+	init_waitqueue_head(&ctx->wq);
 	return 0;
 }
 
@@ -270,9 +299,11 @@ static int bcwc_start_streaming(struct vb2_queue *vq, unsigned int count)
 		if (ctx->state != BUF_DRV_QUEUED)
 			continue;
 
-		ctx->state = BUF_HW_QUEUED;
-		bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
-					  ctx->dma_desc_obj->offset, 0x180, 0x30000000);
+		if (bcwc_send_h2t_buffer(dev_priv, ctx)) {
+			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
+			ctx->state = BUF_ALLOC;
+		}
+			ctx->state = BUF_HW_QUEUED;
 	}
 
 	return 0;
@@ -281,14 +312,25 @@ static int bcwc_start_streaming(struct vb2_queue *vq, unsigned int count)
 static void bcwc_stop_streaming(struct vb2_queue *vq)
 {
 	struct bcwc_private *dev_priv = vb2_get_drv_priv(vq);
+	struct h2t_buf_ctx *ctx;
+	int ret, i;
 
-	pr_debug("%s\n", __FUNCTION__);
-
-	bcwc_isp_cmd_channel_buffer_return(dev_priv, 0);
-	pr_debug("waiting for buffers...\n");
-	vb2_wait_for_all_buffers(vq);
-	pr_debug("done\n");
-	bcwc_isp_cmd_channel_stop(dev_priv);
+	ret = bcwc_stop_channel(dev_priv, 0);
+	if (!ret) {
+		pr_debug("waiting for buffers...\n");
+		vb2_wait_for_all_buffers(vq);
+		pr_debug("done\n");
+	} else {
+	    /* Firmware doesn't respond. */
+	    for(i = 0; i < BCWC_BUFFERS;i++) {
+		    ctx = dev_priv->h2t_bufs + i;
+		    if (ctx->state == BUF_DRV_QUEUED || ctx->state == BUF_HW_QUEUED) {
+			    vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
+			    ctx->vb = NULL;
+			    ctx->state = BUF_ALLOC;
+		}
+	    }
+	}
 }
 
 static struct vb2_ops vb2_queue_ops = {

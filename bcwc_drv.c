@@ -178,13 +178,9 @@ static void io_t2h_handler(struct bcwc_private *dev_priv,
 static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *chan)
 {
 	struct bcwc_ringbuf_entry *entry;
-	int i = 0;
 
-	pr_debug("Interrupt from channel source %d, type %d [%s]\n", chan->source, chan->type, chan->name);
-
-	while(bcwc_channel_ringbuf_entry_available(dev_priv, chan) && i++ < 500) {
-		entry = bcwc_channel_ringbuf_get_entry(dev_priv, chan);
-
+	while((entry = bcwc_channel_ringbuf_receive(dev_priv, chan))) {
+		pr_debug("channel %s: message available, address %08x\n", chan->name, entry->address_flags);
 		if (chan == dev_priv->channel_shared_malloc) {
 			sharedmalloc_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_terminal) {
@@ -338,7 +334,6 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	}
 
 	spin_lock_init(&dev_priv->io_lock);
-	spin_lock_init(&dev_priv->rb_lock);
 	mutex_init(&dev_priv->vb2_queue_lock);
 
 	mutex_init(&dev_priv->ioctl_lock);

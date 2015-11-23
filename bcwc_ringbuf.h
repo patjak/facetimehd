@@ -48,7 +48,7 @@ extern struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_get_entry(struct bcwc_pri
 extern struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_send(struct bcwc_private *dev_priv, struct fw_channel *chan,
 				     u32 data_offset, u32 request_size, u32 response_size);
 
-extern int bcwc_channel_ringbuf_entry_available(struct bcwc_private *dev_priv,
-						struct fw_channel *chan);
+struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_receive(struct bcwc_private *dev_priv,
+							struct fw_channel *chan);
 
 #endif

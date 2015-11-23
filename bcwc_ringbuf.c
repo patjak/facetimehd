@@ -65,14 +65,14 @@ void bcwc_channel_ringbuf_init(struct bcwc_private *dev_priv, struct fw_channel 
 		entry = (struct bcwc_ringbuf_entry *)chan->ringbuf.virt_addr;
 		pr_debug("clearing ringbuf %s at %p (size %d)\n", chan->name, entry, chan->size);
 
-		spin_lock_irq(&dev_priv->rb_lock);
+		spin_lock_irq(&chan->lock);
 		for(i = 0; i < chan->size; i++) {
 			entry->address_flags = 1;
 			entry->request_size = 0;
 			entry->response_size = 0;
 			entry++;
 		}
-		spin_unlock_irq(&dev_priv->rb_lock);
+		spin_unlock_irq(&chan->lock);
 	}
 }
 
@@ -80,52 +80,57 @@ struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_send(struct bcwc_private *dev_pr
 			      u32 data_offset, u32 request_size, u32 response_size)
 {
 	struct bcwc_ringbuf_entry *entry;
-	int pos = chan->ringbuf.idx;
 
-	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx++);
-	if (chan->ringbuf.idx >= chan->size) {
-		pr_debug("%s: reset tx pointer\n", chan->name);
-		chan->ringbuf.idx = 0;
+	pr_debug("send %08x\n", data_offset);
+
+	spin_lock_irq(&chan->lock);
+	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx);
+
+	if (chan->tx_lock) {
+		spin_unlock_irq(&chan->lock);
+		return NULL;
 	}
-	pr_debug("%s: send entry %p offset %08x pos %d\n", chan->name, entry, data_offset, pos);
 
-	spin_lock_irq(&dev_priv->rb_lock);
+	if (chan->type != FW_CHAN_TYPE_OUT && ++chan->ringbuf.idx >= chan->size)
+		chan->ringbuf.idx = 0;
+
+	chan->tx_lock = 1;
+	chan->rx_lock = 0;
+
 	entry->request_size = request_size;
 	entry->response_size = response_size;
-	entry->address_flags = data_offset | (chan->type == 0 ? 0 : 1);
-	spin_unlock_irq(&dev_priv->rb_lock);
-
-	//	pr_debug("address_flags %x, request size %x response size %x\n",
-	//	 entry->address_flags, entry->request_size, entry->response_size);
 	wmb();
+	entry->address_flags = data_offset | (chan->type == 0 ? 0 : 1);
+	spin_unlock_irq(&chan->lock);
+
 	spin_lock_irq(&dev_priv->io_lock);
 	BCWC_ISP_REG_WRITE(0x10 << chan->source, ISP_REG_41020);
 	spin_unlock_irq(&dev_priv->io_lock);
 	return entry;
 }
 
-struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_get_entry(struct bcwc_private *dev_priv,
+struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_receive(struct bcwc_private *dev_priv,
 							struct fw_channel *chan)
 {
-	struct bcwc_ringbuf_entry *entry;
+	struct bcwc_ringbuf_entry *entry, *ret = NULL;
 
-	spin_lock_irq(&dev_priv->rb_lock);
+	spin_lock_irq(&chan->lock);
+	if (chan->rx_lock)
+		goto out;
+
 	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx);
-	if (chan->ringbuf.idx > chan->size)
+
+	if (!(entry->address_flags & 1) ^ (chan->type != 0))
+		goto out;
+
+	ret = entry;
+
+	if (chan->type == FW_CHAN_TYPE_OUT && ++chan->ringbuf.idx >= chan->size)
 		chan->ringbuf.idx = 0;
-	spin_unlock_irq(&dev_priv->rb_lock);
-	return entry;
-}
 
-int bcwc_channel_ringbuf_entry_available(struct bcwc_private *dev_priv,
-					 struct fw_channel *chan)
-{
-	struct bcwc_ringbuf_entry *entry;
-	int ret;
-
-	spin_lock_irq(&dev_priv->rb_lock);
-	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx);
-	ret = !(entry->address_flags & 1) ^ (chan->type == 0);
-	spin_unlock_irq(&dev_priv->rb_lock);
+	chan->rx_lock = 1;
+	chan->tx_lock = 0;
+out:
+	spin_unlock_irq(&chan->lock);
 	return ret;
 }
