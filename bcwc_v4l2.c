@@ -32,31 +32,40 @@
 #include "bcwc_ringbuf.h"
 #include "bcwc_buffer.h"
 
-#define BCWC_FMT(_desc, _x, _y, _sizeimage, _planes, _pixfmt, _range, _x1, _y1, _x2, _y2) \
+#define BCWC_FMT(_desc, _x, _y, _sizeimage, _planes, _pixfmt)		\
 	{								\
-		.fmt.width = (_x),					\
-		.fmt.height = (_y),					\
-		.fmt.sizeimage = (_sizeimage),				\
-		.fmt.pixelformat = (_pixfmt),				\
+		.fmt.width = (_x),                                      \
+		.fmt.height = (_y),                                     \
+		.fmt.sizeimage = (_sizeimage),                          \
+		.fmt.pixelformat = (_pixfmt),                           \
 		.planes = (_planes),					\
-		.desc = (_desc),					\
-		.range = (_range),					\
-		.x1 = (_x1),						\
-		.y1 = (_y1),						\
-		.x2 = (_x2),						\
-		.y2 = (_y2)						\
+		.desc = (_desc),                                        \
 	}
 
 struct bcwc_fmt bcwc_formats[] = {
-	BCWC_FMT("1280x720 YUYV (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YUYV, 0, 0, 0, 1280, 720),
-	BCWC_FMT("1280x720 YVYU (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YVYU, 0, 0, 0, 1280, 720),
-	BCWC_FMT("1280x720 NV16", 1280, 720, 1280 * 720, 2, V4L2_PIX_FMT_NV16, 0, 0, 0, 1280, 720),
-	BCWC_FMT("640x480 YUYV (4:2:2)", 640,  480, 640 * 480 * 2, 1, V4L2_PIX_FMT_YUYV, 0, 160, 0, 960, 720),
-	BCWC_FMT("640x480 YVYU (4:2:2)", 640,  480, 640 * 480 * 2, 1, V4L2_PIX_FMT_YVYU, 0, 160, 0, 960, 720),
-	BCWC_FMT("640x480 NV16", 640,  480, 640 * 480, 2, V4L2_PIX_FMT_NV16, 0, 160, 0, 960, 720),
-	BCWC_FMT("320x240 YUYV (4:2:2)", 320,  240, 320 * 240 * 2, 1, V4L2_PIX_FMT_YUYV, 0, 160, 0, 960, 720),
-	BCWC_FMT("320x240 YVYU (4:2:2)", 320,  240, 320 * 240 * 2, 1, V4L2_PIX_FMT_YVYU, 0, 160, 0, 960, 720),
-	BCWC_FMT("320x240 NV16", 320,  240, 320 * 240, 2, V4L2_PIX_FMT_NV16, 0, 160, 0, 960, 720),
+	BCWC_FMT("1280x720 YUYV (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YUYV),
+	BCWC_FMT("1280x720 YVYU (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YVYU),
+	BCWC_FMT("1280x720 NV16", 1280, 720, 1280 * 720, 2, V4L2_PIX_FMT_NV16),
+
+	BCWC_FMT("1024x576 YUYV (4:2:2)", 1024, 576, 1024 * 576 * 2, 1, V4L2_PIX_FMT_YUYV),
+	BCWC_FMT("1024x576 YVYU (4:2:2)", 1024, 576, 1024 * 576 * 2, 1, V4L2_PIX_FMT_YVYU),
+	BCWC_FMT("1024x576 NV16", 1024, 576, 1024 * 576, 2, V4L2_PIX_FMT_NV16),
+
+	BCWC_FMT("1024x720 YUYV (4:2:2)", 1024, 720, 1024 * 720 * 2, 1, V4L2_PIX_FMT_YUYV),
+	BCWC_FMT("1024x720 YVYU (4:2:2)", 1024, 720, 1024 * 720 * 2, 1, V4L2_PIX_FMT_YVYU),
+	BCWC_FMT("1024x720 NV16", 1024, 720, 1024 * 720, 2, V4L2_PIX_FMT_NV16),
+
+	BCWC_FMT("640x480 YUYV (4:2:2)", 640,  480, 640 * 480 * 2, 1, V4L2_PIX_FMT_YUYV),
+	BCWC_FMT("640x480 YVYU (4:2:2)", 640,  480, 640 * 480 * 2, 1, V4L2_PIX_FMT_YVYU),
+	BCWC_FMT("640x480 NV16", 640,  480, 640 * 480, 2, V4L2_PIX_FMT_NV16),
+
+	BCWC_FMT("320x240 YUYV (4:2:2)", 320,  240, 320 * 240 * 2, 1, V4L2_PIX_FMT_YUYV),
+	BCWC_FMT("320x240 YVYU (4:2:2)", 320,  240, 320 * 240 * 2, 1, V4L2_PIX_FMT_YVYU),
+	BCWC_FMT("320x240 NV16", 320,  240, 320 * 240, 2, V4L2_PIX_FMT_NV16),
+
+	BCWC_FMT("384x288 YUYV (4:2:2)", 384,  288, 384 * 288 * 2, 1, V4L2_PIX_FMT_YUYV),
+	BCWC_FMT("384x288 YVYU (4:2:2)", 384,  288, 384 * 288 * 2, 1, V4L2_PIX_FMT_YVYU),
+	BCWC_FMT("384x288 NV16", 384,  288, 384 * 288, 2, V4L2_PIX_FMT_NV16),
 };
 
 static int bcwc_buffer_queue_setup(struct vb2_queue *vq,
@@ -65,19 +74,25 @@ static int bcwc_buffer_queue_setup(struct vb2_queue *vq,
 				   unsigned int sizes[], void *alloc_ctxs[])
 {
 	struct bcwc_private *dev_priv = vb2_get_drv_priv(vq);
-	int i;
-	pr_debug("%s: nbuffers %d, nplanes %d, sizes[0]: %d\n", __FUNCTION__,
-		 *nbuffers, *nplanes, sizes[0]);
+	int i, total_size = 0;
 
-	if (!dev_priv->fmt)
-	  return -EINVAL;
+	*nplanes = dev_priv->fmt.planes;
 
-	*nplanes = dev_priv->fmt->planes;
+	if (!*nplanes)
+		return -EINVAL;
+
 	for(i = 0; i < *nplanes; i++) {
-		sizes[i] = dev_priv->fmt->fmt.sizeimage;
+		sizes[i] = dev_priv->fmt.fmt.sizeimage;
 		alloc_ctxs[i] = dev_priv->alloc_ctx;
+		total_size += sizes[i];
 	}
-	*nbuffers = BCWC_BUFFERS;
+
+	*nbuffers = (4096 * 4096) / total_size;
+	if (*nbuffers > 4)
+		*nbuffers = 4;
+	if (*nbuffers <= 1)
+		return -ENOMEM;
+	pr_debug("using %d buffers\n", *nbuffers);
 	return 0;
 }
 
@@ -87,25 +102,19 @@ static void bcwc_buffer_cleanup(struct vb2_buffer *vb)
 	struct h2t_buf_ctx *ctx = NULL;
 	int i;
 
-	pr_debug("%s: vb %p\n", __FUNCTION__, vb);
 	for(i = 0; i < BCWC_BUFFERS; i++) {
 		if (dev_priv->h2t_bufs[i].vb == vb) {
 			ctx = dev_priv->h2t_bufs + i;
 			break;
 		};
 	}
-	if (!ctx) {
-		pr_err("buffer not found\n");
-		return;
-	}
-
-	if (ctx->state == BUF_FREE)
+	if (!ctx || ctx->state == BUF_FREE)
 		return;
 
 	ctx->state = BUF_FREE;
 	ctx->vb = NULL;
 	isp_mem_destroy(ctx->dma_desc_obj);
-	for(i = 0; i < dev_priv->fmt->planes; i++) {
+	for(i = 0; i < dev_priv->fmt.planes; i++) {
 		iommu_free(dev_priv, ctx->plane[i]);
 		ctx->plane[i] = NULL;
 	}
@@ -145,8 +154,7 @@ static void bcwc_buffer_queue(struct vb2_buffer *vb)
 	struct h2t_buf_ctx *ctx = NULL;
 
 	int i;
-
-	pr_debug("%s: vb %p\n", __FUNCTION__, vb);
+	pr_debug("vb = %p\n", vb);
 	for(i = 0; i < BCWC_BUFFERS; i++) {
 		if (dev_priv->h2t_bufs[i].vb == vb) {
 			ctx = dev_priv->h2t_bufs + i;
@@ -154,18 +162,13 @@ static void bcwc_buffer_queue(struct vb2_buffer *vb)
 		};
 	}
 
-	if (!ctx) {
-		pr_err("buffer not found\n");
+	if (!ctx)
 		return;
-	}
 
-	if (ctx->state != BUF_ALLOC) {
-		pr_err("buffer busy\n");
+	if (ctx->state != BUF_ALLOC)
 		return;
-	}
 
 	if (!vb->vb2_queue->streaming) {
-		pr_debug("not streaming\n");
 		ctx->state = BUF_DRV_QUEUED;
 	} else {
 		list = ctx->dma_desc_list;
@@ -191,8 +194,6 @@ static int bcwc_buffer_prepare(struct vb2_buffer *vb)
 	struct dma_descriptor_list *dma_list;
 	int i;
 
-	pr_debug("vb = %p\n", vb);
-
 	for(i = 0; i < BCWC_BUFFERS; i++) {
 		if (dev_priv->h2t_bufs[i].state == BUF_FREE ||
 		    (dev_priv->h2t_bufs[i].state == BUF_ALLOC && dev_priv->h2t_bufs[i].vb == vb)) {
@@ -214,13 +215,15 @@ static int bcwc_buffer_prepare(struct vb2_buffer *vb)
 		ctx->vb = vb;
 		ctx->state = BUF_ALLOC;
 
-		for(i = 0; i < dev_priv->fmt->planes; i++) {
+		for(i = 0; i < dev_priv->fmt.planes; i++) {
 		  sgtable = vb2_dma_sg_plane_desc(vb, i);
 		  ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
+		  if(!ctx->plane[i])
+			  return -ENOMEM;
 		}
 	}
 
-	vb2_set_plane_payload(vb, 0, dev_priv->fmt->fmt.sizeimage);
+	vb2_set_plane_payload(vb, 0, dev_priv->fmt.fmt.sizeimage);
 
 	dma_list = ctx->dma_desc_list;
 	memset(dma_list, 0, 0x180);
@@ -231,9 +234,9 @@ static int bcwc_buffer_prepare(struct vb2_buffer *vb)
 	dma_list->desc[0].pool = 0x02;
 	dma_list->desc[0].addr0 = (ctx->plane[0]->offset << 12) | 0xc0000000;
 
-	if (dev_priv->fmt->planes >= 2)
+	if (dev_priv->fmt.planes >= 2)
 		dma_list->desc[0].addr1 = (ctx->plane[1]->offset << 12) | 0xc0000000;
-	if (dev_priv->fmt->planes >= 3)
+	if (dev_priv->fmt.planes >= 3)
 		dma_list->desc[0].addr2 = (ctx->plane[2]->offset << 12) | 0xc0000000;
 
 	dma_list->desc[0].tag = (u64)ctx;
@@ -263,37 +266,13 @@ static int bcwc_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct bcwc_private *dev_priv = vb2_get_drv_priv(vq);
 	struct h2t_buf_ctx *ctx;
-	int i, pixelformat;
+	int i, ret;
 
-	pr_debug("%s: %d\n", __FUNCTION__, count);
+	pr_debug("count = %d\n", count);
+	ret = bcwc_start_channel(dev_priv, 0);
+	if (ret)
+		return ret;
 
-	bcwc_isp_cmd_channel_crop_set(dev_priv, 0,
-				      dev_priv->fmt->x1,
-				      dev_priv->fmt->y1,
-				      dev_priv->fmt->x2,
-				      dev_priv->fmt->y2);
-
-	switch(dev_priv->fmt->fmt.pixelformat) {
-	case V4L2_PIX_FMT_YUYV:
-		pixelformat = 1;
-		break;
-	case V4L2_PIX_FMT_YVYU:
-		pixelformat = 2;
-		break;
-	case V4L2_PIX_FMT_NV16:
-		pixelformat = 0;
-		break;
-	default:
-		pixelformat = 1;
-		WARN_ON(1);
-	}
-	bcwc_isp_cmd_channel_output_config_set(dev_priv, 0,
-					       dev_priv->fmt->fmt.width,
-					       dev_priv->fmt->fmt.height,
-					       pixelformat);
-
-	bcwc_isp_cmd_channel_start(dev_priv);
-	mdelay(1000); /* Needed to settle AE */
 	for(i = 0; i < BCWC_BUFFERS && count; i++, count--) {
 		ctx = dev_priv->h2t_bufs + i;
 		if (ctx->state != BUF_DRV_QUEUED)
@@ -305,7 +284,6 @@ static int bcwc_start_streaming(struct vb2_queue *vq, unsigned int count)
 		}
 			ctx->state = BUF_HW_QUEUED;
 	}
-
 	return 0;
 }
 
@@ -416,64 +394,31 @@ static int bcwc_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
 					   struct v4l2_format *fmt)
 {
 	struct bcwc_private *dev_priv = video_drvdata(filp);
-	const struct bcwc_fmt *p, *p1;
-	int i, width, height, wanted_width, wanted_height, dist, maxdist;
+
 
 	pr_info("%s: %dx%d\n", __FUNCTION__, fmt->fmt.pix.width, fmt->fmt.pix.height);
 
-	for(i = 0; i < ARRAY_SIZE(bcwc_formats); i++) {
-		p = bcwc_formats + i;
-		if (p->fmt.height == fmt->fmt.pix.height &&
-		    p->fmt.width == fmt->fmt.pix.width &&
-		    p->fmt.pixelformat == fmt->fmt.pix.pixelformat) {
-			dev_priv->fmt = p;
-			return 0;
-		}
-	}
+	dev_priv->fmt.fmt = fmt->fmt.pix;
 
-	wanted_width = fmt->fmt.pix.width;
-	wanted_height = fmt->fmt.pix.height;
-	maxdist = 0x7fffffff;
-	p1 = NULL;
-	for (i = 0; i < ARRAY_SIZE(bcwc_formats); i++) {
-		p = bcwc_formats + i;
-
-		if (p->fmt.pixelformat != fmt->fmt.pix.pixelformat)
-			continue;
-
-		width = p->fmt.width;
-		height = p->fmt.height;
-
-		dist = min(width, wanted_width) * min(height, wanted_height);
-		dist = width * height + wanted_width * wanted_height - 2 * dist;
-
-		if (dist < maxdist) {
-			maxdist = dist;
-			p1 = p;
-		}
-
-		if (maxdist == 0)
-			break;
-	}
-
-	if (!p1) {
-		return -EINVAL;
-	}
-
-	fmt->fmt.pix.width = p1->fmt.width;
-	fmt->fmt.pix.height = p1->fmt.height;
-	fmt->fmt.pix.field = V4L2_FIELD_NONE;
-
-	switch(p1->fmt.pixelformat) {
+	switch(fmt->fmt.pix.pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
 	case V4L2_PIX_FMT_YVYU:
-		fmt->fmt.pix.bytesperline = p1->fmt.width * 2;
+		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height * 2;
+		dev_priv->fmt.fmt.bytesperline = fmt->fmt.pix.width * 2;
+		dev_priv->fmt.planes = 1;
 		break;
 	case V4L2_PIX_FMT_NV16:
-		fmt->fmt.pix.bytesperline = p1->fmt.width;
+		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height;
+		dev_priv->fmt.fmt.bytesperline = fmt->fmt.pix.width;
+		dev_priv->fmt.planes = 2;
 		break;
 	default:
-		WARN_ON(1);
+		pr_err("unknown pixelformat %c%c%c%c\n",
+		       fmt->fmt.pix.pixelformat,
+		       fmt->fmt.pix.pixelformat >> 8,
+		       fmt->fmt.pix.pixelformat >> 16,
+		       fmt->fmt.pix.pixelformat >> 24);
+		return -EINVAL;
 	}
 	return 0;
 }
@@ -482,7 +427,8 @@ static int bcwc_v4l2_ioctl_g_fmt_vid_cap(struct file *filp, void *priv,
 					 struct v4l2_format *fmt)
 {
 	struct bcwc_private *dev_priv = video_drvdata(filp);
-	fmt->fmt.pix = dev_priv->fmt->fmt;
+	pr_debug("%s\n", __FUNCTION__);
+	fmt->fmt.pix = dev_priv->fmt.fmt;
 	return 0;
 }
 
@@ -490,22 +436,39 @@ static int bcwc_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 					 struct v4l2_format *fmt)
 {
 	struct bcwc_private *dev_priv = video_drvdata(filp);
-	struct bcwc_fmt *p = NULL;
-	int i;
 
-	for(i = 0; i < ARRAY_SIZE(bcwc_formats); i++) {
-		p = bcwc_formats + i;
-		if (p->fmt.width == fmt->fmt.pix.width &&
-		    p->fmt.height == fmt->fmt.pix.height &&
-		    p->fmt.pixelformat == fmt->fmt.pix.pixelformat) {
-			break;
-		}
+	if (fmt->fmt.pix.width < 320 ||
+	    fmt->fmt.pix.height < 240 ||
+	    (fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_YUYV &&
+	     fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_YVYU &&
+	     fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_NV16)) {
+		fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+		fmt->fmt.pix.height = 720;
+		fmt->fmt.pix.width = 1280;
+		return 0;
 	}
 
-	if (i == ARRAY_SIZE(bcwc_formats))
+	fmt->fmt.pix.width &= ~7;
+	pr_debug("%c%c%c%c\n", fmt->fmt.pix.pixelformat, fmt->fmt.pix.pixelformat >> 8,
+		 fmt->fmt.pix.pixelformat >> 16, fmt->fmt.pix.pixelformat >> 24);
+	switch(fmt->fmt.pix.pixelformat) {
+	case V4L2_PIX_FMT_NV16:
+		dev_priv->fmt.fmt = fmt->fmt.pix;
+		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height;
+		dev_priv->fmt.planes = 2;
+		break;
+	case V4L2_PIX_FMT_YVYU:
+	case V4L2_PIX_FMT_YUYV:
+		dev_priv->fmt.fmt = fmt->fmt.pix;
+		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height * 2;
+		dev_priv->fmt.planes = 1;
+		break;
+	case 0:
+		fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
+		break;
+	default:
 		return -EINVAL;
-
-	dev_priv->fmt = p;
+	}
 	return 0;
 }
 
@@ -527,31 +490,13 @@ static int bcwc_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 static int bcwc_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		struct v4l2_frmsizeenum *sizes)
 {
-	struct bcwc_fmt *p = NULL;
-	int i, j;
-	pr_debug("format %c%c%c%c, index %d\n",
-		 sizes->pixel_format >> 24,
-		 sizes->pixel_format >> 16,
-		 sizes->pixel_format >> 8,
-		 sizes->pixel_format,
-		 sizes->index);
-
-	for(i = 0, j = 0; i < ARRAY_SIZE(bcwc_formats); i++) {
-		if (bcwc_formats[i].fmt.pixelformat == sizes->pixel_format) {
-			if (j++ == sizes->index) {
-				p = bcwc_formats + i;
-				break;
-			}
-		}
-	}
-
-	if (!p)
-		return -EINVAL;
-
-	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-	sizes->discrete.width = p->fmt.width;
-	sizes->discrete.height = p->fmt.height;
-	pr_debug("%dx%d\n", sizes->discrete.width, sizes->discrete.height);
+	sizes->type = V4L2_FRMSIZE_TYPE_CONTINUOUS;
+	sizes->stepwise.min_width = 320;
+	sizes->stepwise.max_width = 2560;
+	sizes->stepwise.min_height = 240;
+	sizes->stepwise.max_height = 1600;
+	sizes->stepwise.step_width = 8;
+	sizes->stepwise.step_height = 1;
 	return 0;
 }
 
@@ -627,7 +572,6 @@ int bcwc_v4l2_register(struct bcwc_private *dev_priv)
 		goto fail;
 
 	dev_priv->alloc_ctx = vb2_dma_sg_init_ctx(&dev_priv->pdev->dev);
-	dev_priv->fmt = bcwc_formats;
 	vdev->v4l2_dev = v4l2_dev;
 	strcpy(vdev->name, "Apple Facetime HD"); // XXX: Length?
 	vdev->vfl_dir = VFL_DIR_RX;
@@ -642,6 +586,11 @@ int bcwc_v4l2_register(struct bcwc_private *dev_priv)
 		video_device_release(vdev);
 		goto fail;
 	}
+	dev_priv->fmt.fmt.sizeimage = 1280 * 720 * 2;
+	dev_priv->fmt.fmt.pixelformat = V4L2_PIX_FMT_YUYV;
+	dev_priv->fmt.fmt.width = 1280;
+	dev_priv->fmt.fmt.height = 720;
+
 	return 0;
 fail:
 	v4l2_device_unregister(&dev_priv->v4l2_dev);

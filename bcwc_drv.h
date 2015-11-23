@@ -123,7 +123,7 @@ struct bcwc_private {
 	/* camera config */
 	int sensor_count;
 
-	const struct bcwc_fmt *fmt;
+	struct bcwc_fmt fmt;
 
 	struct vb2_queue vb2_queue;
 	struct mutex vb2_queue_lock;
