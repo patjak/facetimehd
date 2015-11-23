@@ -236,6 +236,11 @@ static int isp_fill_channel_info(struct bcwc_private *priv, int offset, int num_
 		chan->source = info->source;
 		chan->size = info->size;
 		chan->offset = info->offset;
+		if (chan->type == FW_CHAN_TYPE_OUT)
+			chan->rx_lock = 1;
+		if (chan->type == FW_CHAN_TYPE_IN)
+			chan->tx_lock = 1;
+		spin_lock_init(&chan->lock);
 	}
 
 	priv->channel_terminal = isp_get_chan_index(priv, "TERMINAL");
