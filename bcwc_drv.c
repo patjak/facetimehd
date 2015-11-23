@@ -196,7 +196,7 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 		} else if (chan == dev_priv->channel_buf_t2h) {
 			buf_t2h_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_io) {
-			wake_up_interruptible(&dev_priv->wq);
+			wake_up_interruptible(&dev_priv->cmd_wq);
 		} else if (chan == dev_priv->channel_io_t2h) {
 			io_t2h_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_buf_h2t) {
@@ -367,7 +367,7 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	mutex_init(&dev_priv->vb2_queue_lock);
 
 	mutex_init(&dev_priv->ioctl_lock);
-	init_waitqueue_head(&dev_priv->wq);
+	init_waitqueue_head(&dev_priv->cmd_wq);
 	INIT_LIST_HEAD(&dev_priv->buffer_queue);
 
 	dev_priv->pdev = pdev;

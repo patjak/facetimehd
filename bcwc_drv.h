@@ -55,7 +55,11 @@ struct fw_channel {
 	u32 size;
 	u32 source;
 	u32 type;
+	int tx_lock;
+	int rx_lock;
 	struct bcwc_ringbuf ringbuf;
+	spinlock_t lock;
+
 	char *name;
 };
 
@@ -69,11 +73,9 @@ struct bcwc_private {
 	int users;
 	/* lock for synchronizing with irq/workqueue */
 	spinlock_t io_lock;
-	/* lock for ringbuffer synchronization */
-	spinlock_t rb_lock;
 
 	/* waitqueue for signaling command completion */
-	wait_queue_head_t wq;
+	wait_queue_head_t cmd_wq;
 
 	/* Mapped PCI resources */
 	void *s2_io;
