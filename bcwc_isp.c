@@ -766,6 +766,19 @@ int bcwc_isp_cmd_channel_face_detection_start(struct bcwc_private *dev_priv, int
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_START, &cmd, sizeof(cmd), &len);
 }
 
+int bcwc_isp_cmd_channel_face_detection_stop(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_face_detection_stop cmd;
+	int len;
+
+	pr_debug("face detection stop\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_STOP, &cmd, sizeof(cmd), &len);
+}
+
 int bcwc_isp_cmd_channel_face_detection_enable(struct bcwc_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_face_detection_enable cmd;
@@ -777,6 +790,19 @@ int bcwc_isp_cmd_channel_face_detection_enable(struct bcwc_private *dev_priv, in
 	cmd.channel = channel;
 	len = sizeof(cmd);
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_ENABLE, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_face_detection_disable(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_face_detection_disable cmd;
+	int len;
+
+	pr_debug("face detection disable\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_DISABLE, &cmd, sizeof(cmd), &len);
 }
 
 int bcwc_isp_cmd_channel_temporal_filter_start(struct bcwc_private *dev_priv, int channel)
@@ -792,6 +818,19 @@ int bcwc_isp_cmd_channel_temporal_filter_start(struct bcwc_private *dev_priv, in
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_START, &cmd, sizeof(cmd), &len);
 }
 
+int bcwc_isp_cmd_channel_temporal_filter_stop(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_temporal_filter_stop cmd;
+	int len;
+
+	pr_debug("temporal filter stop\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_STOP, &cmd, sizeof(cmd), &len);
+}
+
 int bcwc_isp_cmd_channel_temporal_filter_enable(struct bcwc_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_temporal_filter_enable cmd;
@@ -805,6 +844,19 @@ int bcwc_isp_cmd_channel_temporal_filter_enable(struct bcwc_private *dev_priv, i
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_ENABLE, &cmd, sizeof(cmd), &len);
 }
 
+int bcwc_isp_cmd_channel_temporal_filter_disable(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_temporal_filter_disable cmd;
+	int len;
+
+	pr_debug("temporal filter disable\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_DISABLE, &cmd, sizeof(cmd), &len);
+}
+
 int bcwc_isp_cmd_channel_motion_history_start(struct bcwc_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_motion_history_start cmd;
@@ -816,6 +868,19 @@ int bcwc_isp_cmd_channel_motion_history_start(struct bcwc_private *dev_priv, int
 	cmd.channel = channel;
 	len = sizeof(cmd);
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_START, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_isp_cmd_channel_motion_history_stop(struct bcwc_private *dev_priv, int channel)
+{
+	struct isp_cmd_channel_motion_history_stop cmd;
+	int len;
+
+	pr_debug("motion history stop\n");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_STOP, &cmd, sizeof(cmd), &len);
 }
 
 int bcwc_isp_cmd_channel_ae_metering_mode_set(struct bcwc_private *dev_priv, int channel, int mode)
@@ -858,6 +923,149 @@ int bcwc_isp_cmd_channel_contrast_set(struct bcwc_private *dev_priv, int channel
 	cmd.contrast = contrast;
 	len = sizeof(cmd);
 	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_CONTRAST_SET, &cmd, sizeof(cmd), &len);
+}
+
+int bcwc_start_channel(struct bcwc_private *dev_priv, int channel)
+{
+	int ret, x1 = 0, x2 = 0, pixelformat;
+
+	ret = bcwc_isp_cmd_channel_camera_config(dev_priv);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
+	if (ret)
+		return ret;
+
+	if (dev_priv->fmt.fmt.width < 1280 ||
+	    dev_priv->fmt.fmt.height < 720) {
+		x1 = 160;
+		x2 = 960;
+	} else {
+		x1 = 0;
+		x2 = 1280;
+	}
+
+	ret = bcwc_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2, 720);
+	if (ret)
+		return ret;
+
+	switch(dev_priv->fmt.fmt.pixelformat) {
+	case V4L2_PIX_FMT_YUYV:
+		pixelformat = 1;
+		break;
+	case V4L2_PIX_FMT_YVYU:
+		pixelformat = 2;
+		break;
+	case V4L2_PIX_FMT_NV16:
+		pixelformat = 0;
+		break;
+	default:
+		pixelformat = 1;
+		WARN_ON(1);
+	}
+	ret = bcwc_isp_cmd_channel_output_config_set(dev_priv, 0,
+						     dev_priv->fmt.fmt.width,
+						     dev_priv->fmt.fmt.height,
+						     pixelformat);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_recycle_start(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, 3);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_drc_start(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_ae_stability_set(dev_priv, 0, 75);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_ae_stability_to_stable_set(dev_priv, 0, 8);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_face_detection_enable(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_face_detection_start(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, 7672);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, 3072);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_temporal_filter_start(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_motion_history_start(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_temporal_filter_enable(dev_priv, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_channel_start(dev_priv);
+	if (ret)
+		return ret;
+	mdelay(1000); /* Needed to settle AE */
+	return 0;
+}
+
+int bcwc_stop_channel(struct bcwc_private *dev_priv, int channel)
+{
+	int ret;
+
+	ret = bcwc_isp_cmd_channel_stop(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_channel_buffer_return(dev_priv, 0);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_channel_face_detection_stop(dev_priv, 0);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_channel_face_detection_disable(dev_priv, 0);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_channel_temporal_filter_disable(dev_priv, 0);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_channel_motion_history_stop(dev_priv, 0);
+	if (ret)
+		return ret;
+
+	return bcwc_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
 }
 
 int isp_init(struct bcwc_private *dev_priv)

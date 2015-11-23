@@ -591,7 +591,15 @@ struct isp_cmd_channel_face_detection_start {
 	u32 channel;
 };
 
+struct isp_cmd_channel_face_detection_stop {
+	u32 channel;
+};
+
 struct isp_cmd_channel_face_detection_enable {
+	u32 channel;
+};
+
+struct isp_cmd_channel_face_detection_disable {
 	u32 channel;
 };
 
@@ -599,11 +607,23 @@ struct isp_cmd_channel_temporal_filter_start {
 	u32 channel;
 };
 
+struct isp_cmd_channel_temporal_filter_stop {
+	u32 channel;
+};
+
 struct isp_cmd_channel_temporal_filter_enable {
 	u32 channel;
 };
 
+struct isp_cmd_channel_temporal_filter_disable {
+	u32 channel;
+};
+
 struct isp_cmd_channel_motion_history_start {
+	u32 channel;
+};
+
+struct isp_cmd_channel_motion_history_stop {
 	u32 channel;
 };
 
@@ -671,12 +691,19 @@ extern int bcwc_isp_cmd_channel_ae_speed_set(struct bcwc_private *dev_priv, int 
 extern int bcwc_isp_cmd_channel_ae_stability_set(struct bcwc_private *dev_priv, int channel, int stability);
 extern int bcwc_isp_cmd_channel_ae_stability_to_stable_set(struct bcwc_private *dev_priv, int channel, int value);
 extern int bcwc_isp_cmd_channel_face_detection_enable(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_face_detection_disable(struct bcwc_private *dev_priv, int channel);
 extern int bcwc_isp_cmd_channel_face_detection_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_face_detection_stop(struct bcwc_private *dev_priv, int channel);
 extern int bcwc_isp_cmd_channel_temporal_filter_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_temporal_filter_stop(struct bcwc_private *dev_priv, int channel);
 extern int bcwc_isp_cmd_channel_temporal_filter_enable(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_temporal_filter_disable(struct bcwc_private *dev_priv, int channel);
 extern int bcwc_isp_cmd_channel_motion_history_start(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_isp_cmd_channel_motion_history_stop(struct bcwc_private *dev_priv, int channel);
 extern int bcwc_isp_cmd_channel_ae_metering_mode_set(struct bcwc_private *dev_priv, int channel, int mode);
 extern int bcwc_isp_cmd_channel_brightness_set(struct bcwc_private *dev_priv, int channel, int brightness);
 extern int bcwc_isp_cmd_channel_contrast_set(struct bcwc_private *dev_priv, int channel, int contrast);
 extern int bcwc_isp_cmd_channel_buffer_return(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_start_channel(struct bcwc_private *dev_priv, int channel);
+extern int bcwc_stop_channel(struct bcwc_private *dev_priv, int channel);
 #endif
