@@ -424,6 +424,7 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		goto fail_work;
 
+	dev_priv->frametime = 40; /* 25 fps */
 	ret = bcwc_v4l2_register(dev_priv);
 	if (ret)
 		goto fail_work;

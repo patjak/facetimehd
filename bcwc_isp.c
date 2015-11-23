@@ -1016,10 +1016,10 @@ int bcwc_start_channel(struct bcwc_private *dev_priv, int channel)
 	ret = bcwc_isp_cmd_channel_face_detection_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, 7672);
+	ret = bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frametime * 256);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, 3072);
+	ret = bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, dev_priv->frametime * 256);
 	if (ret)
 		return ret;
 	ret = bcwc_isp_cmd_channel_temporal_filter_start(dev_priv, 0);

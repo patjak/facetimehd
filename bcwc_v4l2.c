@@ -374,7 +374,7 @@ static int bcwc_v4l2_ioctl_querycap(struct file *filp, void *priv,
 	strcpy(cap->driver, "bcwc");
 	strcpy(cap->card, "Apple Facetime HD");
 	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE |
-		V4L2_CAP_READWRITE | V4L2_CAP_STREAMING;
+		V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_TIMEPERFRAME;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
 }
@@ -476,15 +476,42 @@ static int bcwc_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 static int bcwc_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 		struct v4l2_streamparm *parm)
 {
-	pr_debug("%s\n", __FUNCTION__);
-	return -ENODEV;
+        struct bcwc_private *priv_dev = video_drvdata(filp);
+	struct v4l2_fract timeperframe = {
+		.numerator = priv_dev->frametime,
+		.denominator = 1000,
+	};
+
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	parm->parm.capture.readbuffers = 2;
+	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+	parm->parm.capture.timeperframe = timeperframe;
+	return 0;
 }
 
 static int bcwc_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 		struct v4l2_streamparm *parm)
 {
-	pr_debug("%s\n", __FUNCTION__);
-	return -ENODEV;
+
+        struct bcwc_private *dev_priv = video_drvdata(filp);
+	struct v4l2_fract *timeperframe;
+
+	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	timeperframe = &parm->parm.capture.timeperframe;
+
+	if(timeperframe->denominator == 0) {
+		timeperframe->numerator = 20;
+		timeperframe->denominator = 1000;
+	}
+
+	dev_priv->frametime = clamp_t(unsigned int, timeperframe->numerator * 1000 /
+				timeperframe->denominator, 20, 500);
+
+	return bcwc_v4l2_ioctl_g_parm(filp, priv, parm);
 }
 
 static int bcwc_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
@@ -504,6 +531,18 @@ static int bcwc_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		struct v4l2_frmivalenum *interval)
 {
 	pr_debug("%s\n", __FUNCTION__);
+
+	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
+	    interval->pixel_format != V4L2_PIX_FMT_YVYU &&
+	    interval->pixel_format != V4L2_PIX_FMT_NV16)
+		return -EINVAL;
+
+	interval->type = V4L2_FRMIVAL_TYPE_STEPWISE;
+	interval->stepwise.min.numerator = 33;
+	interval->stepwise.min.denominator = 1000;
+	interval->stepwise.max.numerator = 500;
+	interval->stepwise.max.denominator = 1000;
+
 	return -ENODEV;
 }
 

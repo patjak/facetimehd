@@ -131,6 +131,7 @@ struct bcwc_private {
 	struct vb2_alloc_ctx *alloc_ctx;
 	struct h2t_buf_ctx h2t_bufs[BCWC_BUFFERS];
 
+	int frametime;
 };
 
 #endif
