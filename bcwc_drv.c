@@ -392,14 +392,14 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 
 	ret = bcwc_irq_enable(dev_priv);
 	if (ret)
-		goto fail_msi;
+		goto fail_work;
 
 	ret = bcwc_pci_set_dma_mask(dev_priv, 64);
 	if (ret)
 		ret = bcwc_pci_set_dma_mask(dev_priv, 32);
 
 	if (ret)
-		goto fail_irq;
+		goto fail_work;
 
 	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
 	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
