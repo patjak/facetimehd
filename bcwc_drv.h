@@ -76,7 +76,7 @@ struct bcwc_private {
 
 	/* waitqueue for signaling command completion */
 	wait_queue_head_t cmd_wq;
-
+	int cmd_ready;
 	/* Mapped PCI resources */
 	void *s2_io;
 	u32 s2_io_len;

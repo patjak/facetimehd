@@ -307,7 +307,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 		goto out;
 	}
 
-	if (wait_event_interruptible_timeout(dev_priv->cmd_wq, (entry->address_flags & 1), HZ) <= 0) {
+	if (wait_event_interruptible_timeout(dev_priv->cmd_wq, dev_priv->cmd_ready, HZ) <= 0) {
 		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd->opcode);
 		bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
 		if (response_len)
@@ -315,6 +315,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 		ret = -ETIMEDOUT;
 		goto out;
 	}
+	dev_priv->cmd_ready = 0;
 	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
 	        verification done? */
 	if (response_len && *response_len)
