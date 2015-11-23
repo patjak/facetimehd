@@ -175,6 +175,13 @@ static void io_t2h_handler(struct bcwc_private *dev_priv,
 	bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 }
 
+static void buf_h2t_handler(struct bcwc_private *dev_priv,
+			    struct fw_channel *chan,
+			    struct bcwc_ringbuf_entry *entry)
+{
+	bcwc_buffer_queued_handler(dev_priv, (struct dma_descriptor_list *)(dev_priv->s2_mem + (entry->address_flags & ~3)));
+}
+
 static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *chan)
 {
 	struct bcwc_ringbuf_entry *entry;
@@ -192,6 +199,8 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 			wake_up_interruptible(&dev_priv->wq);
 		} else if (chan == dev_priv->channel_io_t2h) {
 			io_t2h_handler(dev_priv, chan, entry);
+		} else if (chan == dev_priv->channel_buf_h2t) {
+			buf_h2t_handler(dev_priv, chan, entry);
 		}
 	}
 }
