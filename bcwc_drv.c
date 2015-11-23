@@ -326,6 +326,27 @@ out:
 	pci_disable_device(pdev);
 }
 
+static int bcwc_firmware_start(struct bcwc_private *dev_priv)
+{
+	int ret;
+
+	ret = bcwc_isp_cmd_start(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_print_enable(dev_priv, 1);
+	if (ret)
+		return ret;
+	ret = bcwc_isp_cmd_set_loadfile(dev_priv);
+	if (ret)
+		return ret;
+
+	ret = bcwc_isp_cmd_camera_config(dev_priv);
+	if (ret)
+		return ret;
+
+	return bcwc_isp_cmd_channel_info(dev_priv);
+}
 
 static int bcwc_pci_probe(struct pci_dev *pdev,
 			  const struct pci_device_id *entry)
@@ -391,48 +412,24 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 
 	ret = bcwc_buffer_init(dev_priv);
 	if (ret)
-		goto fail_irq;
+		goto fail_work;
 
 	ret = bcwc_hw_init(dev_priv);
 	if (ret)
-		goto fail_irq;
+		goto fail_work;
 
 	mdelay(1000); /* XXX: should not be needed */
-	bcwc_isp_cmd_start(dev_priv);
-	bcwc_isp_cmd_print_enable(dev_priv, 1);
-	bcwc_isp_cmd_set_loadfile(dev_priv);
-	bcwc_isp_cmd_camera_config(dev_priv);
-	bcwc_isp_cmd_channel_info(dev_priv);
-	bcwc_isp_cmd_channel_camera_config(dev_priv);
-	bcwc_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
-	bcwc_isp_cmd_channel_crop_set(dev_priv, 0, 0, 0, 1024, 768);
-	bcwc_isp_cmd_channel_output_config_set(dev_priv, 0, 1024, 768, 1);
-	bcwc_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
-	bcwc_isp_cmd_channel_recycle_start(dev_priv, 0);
-	bcwc_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, 3);
-	bcwc_isp_cmd_channel_drc_start(dev_priv, 0);
-	bcwc_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
-	bcwc_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
-	bcwc_isp_cmd_channel_ae_stability_set(dev_priv, 0, 75);
-	bcwc_isp_cmd_channel_ae_stability_to_stable_set(dev_priv, 0, 8);
-	bcwc_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
-	bcwc_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
-	bcwc_isp_cmd_channel_face_detection_enable(dev_priv, 0);
-	bcwc_isp_cmd_channel_face_detection_start(dev_priv, 0);
-	bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, 7672);
-	bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, 3072);
-	bcwc_isp_cmd_channel_temporal_filter_start(dev_priv, 0);
-	bcwc_isp_cmd_channel_motion_history_start(dev_priv, 0);
-	bcwc_isp_cmd_channel_temporal_filter_enable(dev_priv, 0);
-	bcwc_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
-	bcwc_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
-	bcwc_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
+	ret = bcwc_firmware_start(dev_priv);
+	if (ret)
+		goto fail_work;
 
 	ret = bcwc_v4l2_register(dev_priv);
 	if (ret)
-		goto fail_v4l2;
+		goto fail_work;
 
 	return 0;
+fail_work:
+	cancel_work_sync(&dev_priv->irq_work);
 fail_v4l2:
 	bcwc_pci_remove(pdev);
 fail_irq:
