@@ -307,7 +307,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 		goto out;
 	}
 
-	if (!wait_event_interruptible_timeout(dev_priv->wq, (entry->address_flags & 1), HZ)) {
+	if (wait_event_interruptible_timeout(dev_priv->cmd_wq, (entry->address_flags & 1), HZ) <= 0) {
 		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd->opcode);
 		bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
 		if (response_len)
