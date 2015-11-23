@@ -44,6 +44,12 @@ struct bcwc_reg {
 	u32 value;
 };
 
+enum FW_CHAN_TYPE {
+	FW_CHAN_TYPE_OUT=0,
+	FW_CHAN_TYPE_IN=1,
+	FW_CHAN_TYPE_UNI_IN=2,
+};
+
 struct fw_channel {
 	u32 offset;
 	u32 size;
