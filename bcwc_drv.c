@@ -295,6 +295,12 @@ static int bcwc_pci_set_dma_mask(struct bcwc_private *dev_priv,
 	return 0;
 }
 
+static void bcwc_stop_firmware(struct bcwc_private *dev_priv)
+{
+		bcwc_isp_cmd_stop(dev_priv);
+	isp_powerdown(dev_priv);
+}
+
 static void bcwc_pci_remove(struct pci_dev *pdev)
 {
 	struct bcwc_private *dev_priv;
@@ -304,13 +310,19 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 		goto out;
 
 	bcwc_v4l2_unregister(dev_priv);
-	bcwc_isp_cmd_stop(dev_priv);
-	isp_powerdown(dev_priv);
+
+	bcwc_stop_firmware(dev_priv);
+
 	bcwc_irq_disable(dev_priv);
+
 	cancel_work_sync(&dev_priv->irq_work);
+
 	isp_uninit(dev_priv);
+
 	bcwc_hw_deinit(dev_priv);
+
 	bcwc_buffer_exit(dev_priv);
+
 	pci_disable_msi(pdev);
 
 	if (dev_priv->s2_io)
@@ -325,6 +337,59 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 	pci_release_region(pdev, BCWC_PCI_ISP_IO);
 out:
 	pci_disable_device(pdev);
+}
+
+static int bcwc_pci_init(struct bcwc_private *dev_priv)
+{
+	struct pci_dev *pdev = dev_priv->pdev;
+	int ret;
+
+
+	ret = pci_enable_device(pdev);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to enable device\n");
+		return ret;
+	}
+
+	ret = bcwc_pci_reserve_mem(dev_priv);
+	if (ret)
+		goto fail_enable;
+
+	ret = pci_enable_msi(pdev);
+	if (ret) {
+		dev_err(&pdev->dev, "Failed to enable MSI\n");
+		goto fail_reserve;
+	}
+
+	ret = bcwc_irq_enable(dev_priv);
+	if (ret)
+		goto fail_msi;
+
+	ret = bcwc_pci_set_dma_mask(dev_priv, 64);
+	if (ret)
+		ret = bcwc_pci_set_dma_mask(dev_priv, 32);
+
+	if (ret)
+		goto fail_irq;
+
+	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
+	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
+
+	pci_set_master(pdev);
+	pci_set_drvdata(pdev, dev_priv);
+	return 0;
+
+fail_irq:
+	bcwc_irq_disable(dev_priv);
+fail_msi:
+	pci_disable_msi(pdev);
+fail_reserve:
+	pci_release_region(pdev, BCWC_PCI_S2_IO);
+	pci_release_region(pdev, BCWC_PCI_S2_MEM);
+	pci_release_region(pdev, BCWC_PCI_ISP_IO);
+fail_enable:
+	pci_disable_device(pdev);
+	return ret;
 }
 
 static int bcwc_firmware_start(struct bcwc_private *dev_priv)
@@ -364,87 +429,57 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 		return -ENOMEM;
 	}
 
+	dev_priv->ddr_model = 4;
+	dev_priv->ddr_speed = 450;
+	dev_priv->frametime = 40; /* 25 fps */
+
 	spin_lock_init(&dev_priv->io_lock);
 	mutex_init(&dev_priv->vb2_queue_lock);
 
 	mutex_init(&dev_priv->ioctl_lock);
 	init_waitqueue_head(&dev_priv->cmd_wq);
 	INIT_LIST_HEAD(&dev_priv->buffer_queue);
+	INIT_WORK(&dev_priv->irq_work, bcwc_irq_work);
 
 	dev_priv->pdev = pdev;
 
-	ret = pci_enable_device(pdev);
-	if (ret) {
-		dev_err(&pdev->dev, "Failed to enable device\n");
-		goto fail_free;
-	}
-
-	ret = bcwc_pci_reserve_mem(dev_priv);
-	if (ret)
-		goto fail_enable;
-
-	ret = pci_enable_msi(pdev);
-	if (ret) {
-		dev_err(&pdev->dev, "Failed to enable MSI\n");
-		goto fail_reserve;
-	}
-
-	INIT_WORK(&dev_priv->irq_work, bcwc_irq_work);
-
-	ret = bcwc_irq_enable(dev_priv);
+	ret = bcwc_pci_init(dev_priv);
 	if (ret)
 		goto fail_work;
-
-	ret = bcwc_pci_set_dma_mask(dev_priv, 64);
-	if (ret)
-		ret = bcwc_pci_set_dma_mask(dev_priv, 32);
-
-	if (ret)
-		goto fail_work;
-
-	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
-	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
-
-	pci_set_master(pdev);
-	pci_set_drvdata(pdev, dev_priv);
-
-	dev_priv->ddr_model = 4;
-	dev_priv->ddr_speed = 450;
 
 	ret = bcwc_buffer_init(dev_priv);
 	if (ret)
-		goto fail_work;
+		goto fail_pci;
 
 	ret = bcwc_hw_init(dev_priv);
 	if (ret)
-		goto fail_work;
+		goto fail_buffer;
 
-	mdelay(1000); /* XXX: should not be needed */
 	ret = bcwc_firmware_start(dev_priv);
 	if (ret)
-		goto fail_work;
+		goto fail_hw;
 
-	dev_priv->frametime = 40; /* 25 fps */
 	ret = bcwc_v4l2_register(dev_priv);
 	if (ret)
-		goto fail_work;
+		goto fail_firmware;
 
 	return 0;
-fail_work:
-	cancel_work_sync(&dev_priv->irq_work);
-fail_v4l2:
-	bcwc_pci_remove(pdev);
-fail_irq:
+fail_firmware:
+	bcwc_stop_firmware(dev_priv);
+fail_hw:
+	bcwc_hw_deinit(dev_priv);
+fail_buffer:
+	bcwc_buffer_exit(dev_priv);
+fail_pci:
 	bcwc_irq_disable(dev_priv);
-fail_msi:
 	pci_disable_msi(pdev);
-fail_enable:
-	pci_disable_device(pdev);
-fail_reserve:
 	pci_release_region(pdev, BCWC_PCI_S2_IO);
 	pci_release_region(pdev, BCWC_PCI_S2_MEM);
 	pci_release_region(pdev, BCWC_PCI_ISP_IO);
-fail_free:
+	pci_disable_device(pdev);
+
+fail_work:
+	cancel_work_sync(&dev_priv->irq_work);
 	kfree(dev_priv);
 	return ret;
 }
