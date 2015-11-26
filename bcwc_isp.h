@@ -497,7 +497,18 @@ struct isp_cmd_set_loadfile {
 } __attribute__((packed));
 
 struct isp_cmd_channel_info {
-	u8 unknown[88];
+	u32 field_0;
+	u32 field_4;
+	u32 field_8;
+	u32 field_c;
+	u16 sensorid0; /* field 10 */
+	u16 field_12;
+	u32 field_14;
+	u16 sensorid1; /* field 18 */
+	u16 field_1a;
+	u32 field_1c;
+	u32 field_20;
+	u8 unknown[52];
 	u32 sensor_count;
 	u8 unknown2[40];
 	u8 sensor_serial_number[8];

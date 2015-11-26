@@ -403,15 +403,17 @@ static int bcwc_firmware_start(struct bcwc_private *dev_priv)
 	ret = bcwc_isp_cmd_print_enable(dev_priv, 1);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_set_loadfile(dev_priv);
-	if (ret)
-		return ret;
 
 	ret = bcwc_isp_cmd_camera_config(dev_priv);
 	if (ret)
 		return ret;
 
-	return bcwc_isp_cmd_channel_info(dev_priv);
+	ret = bcwc_isp_cmd_channel_info(dev_priv);
+	if (ret)
+		return ret;
+
+	return bcwc_isp_cmd_set_loadfile(dev_priv);
+
 }
 
 static int bcwc_pci_probe(struct pci_dev *pdev,

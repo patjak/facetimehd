@@ -20,6 +20,7 @@
 #include <linux/delay.h>
 #include <linux/acpi.h>
 #include <linux/firmware.h>
+#include <linux/dmi.h>
 #include "bcwc_drv.h"
 #include "bcwc_hw.h"
 #include "bcwc_reg.h"
@@ -145,7 +146,7 @@ static int isp_load_firmware(struct bcwc_private *dev_priv)
 	const struct firmware *fw;
 	int ret = 0;
 
-	ret = request_firmware(&fw, "fthd.bin", &dev_priv->pdev->dev);
+	ret = request_firmware(&fw, "bcwc/firmware.bin", &dev_priv->pdev->dev);
 	if (ret)
 		return ret;
 
@@ -441,13 +442,66 @@ int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv)
 	struct isp_cmd_set_loadfile cmd;
 	struct isp_mem_obj *file;
 	const struct firmware *fw;
+	const char *filename = NULL;
+	const char *vendor, *board;
 	int ret = 0;
 
 	pr_debug("set loadfile\n");
 
+	vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
+	board = dmi_get_system_info(DMI_BOARD_NAME);
+
 	memset(&cmd, 0, sizeof(cmd));
 
-	ret = request_firmware(&fw, "fthd_set.bin", &dev_priv->pdev->dev);
+	switch(dev_priv->sensor_id1) {
+	case 0x164:
+		filename = "bcwc/8221_01XX.dat";
+		break;
+	case 0x190:
+		filename = "bcwc/1222_01XX.dat";
+		break;
+	case 0x8830:
+		filename = "bcwc/9112_01XX.dat";
+		break;
+	case 0x9770:
+		if (vendor && board && !strcmp(vendor, "Apple Inc.") &&
+		    !strncmp(board, "MacBookAir", sizeof("MacBookAir")-1)) {
+			filename = "bcwc/1771_01XX.dat";
+			break;
+		}
+
+		switch(dev_priv->sensor_id0) {
+		case 4:
+			filename = "bcwc/1874_01XX.dat";
+			break;
+		default:
+			filename = "bcwc/1871_01XX.dat";
+			break;
+		}
+		break;
+	case 0x9774:
+		switch(dev_priv->sensor_id0) {
+		case 4:
+			filename = "bcwc/1674_01XX.dat";
+			break;
+		case 5:
+			filename = "bcwc/1675_01XX.dat";
+			break;
+		default:
+			filename = "bcwc/1671_01XX.dat";
+			break;
+		}
+		break;
+	default:
+		break;
+
+	}
+	if (!filename) {
+		pr_err("no set file for sensorid %04x %04x found\n",
+		       dev_priv->sensor_id0, dev_priv->sensor_id1);
+		return -EINVAL;
+	}
+	ret = request_firmware(&fw, filename, &dev_priv->pdev->dev);
 	if (ret)
 		return ret;
 
@@ -477,6 +531,7 @@ int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv)
 	len = sizeof(cmd);
 	ret = bcwc_isp_cmd(dev_priv, CISP_CMD_CH_INFO_GET, &cmd, sizeof(cmd), &len);
 	print_hex_dump_bytes("CHINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
+	pr_debug("sensor id: %04x %04x\n", cmd.sensorid0, cmd.sensorid1);
 	pr_debug("sensor count: %d\n", cmd.sensor_count);
 	pr_debug("camera module serial number string: %s\n", cmd.camera_module_serial_number);
 	pr_debug("sensor serial number: %02X%02X%02X%02X%02X%02X%02X%02X\n",
@@ -484,6 +539,8 @@ int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv)
 		 cmd.sensor_serial_number[2], cmd.sensor_serial_number[3],
 		 cmd.sensor_serial_number[4], cmd.sensor_serial_number[5],
 		 cmd.sensor_serial_number[6], cmd.sensor_serial_number[7]);
+	dev_priv->sensor_id0 = cmd.sensorid0;
+	dev_priv->sensor_id1 = cmd.sensorid1;
 	dev_priv->sensor_count = cmd.sensor_count;
 	return ret;
 }

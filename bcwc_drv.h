@@ -122,6 +122,8 @@ struct bcwc_private {
 
 	/* camera config */
 	int sensor_count;
+	int sensor_id0;
+	int sensor_id1;
 
 	struct bcwc_fmt fmt;
 
