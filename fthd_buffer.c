@@ -1,7 +1,7 @@
 /*
  * Broadcom PCIe 1570 webcam driver
  *
- * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
+ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
@@ -41,43 +41,6 @@ static int iommu_allocator_init(struct fthd_private *dev_priv)
 	dev_priv->iommu->start = 0;
 	dev_priv->iommu->end = 4095;
 	return 0;
-}
-
-struct iommu_obj *iommu_allocate(struct fthd_private *dev_priv, resource_size_t size, unsigned long long phys_addr)
-{
-	struct iommu_obj *obj;
-	struct resource *root = dev_priv->iommu;
-	int ret, pages, i, j;
-
-	pages = GET_IOMMU_PAGES(size);
-
-	if (!pages || pages > 4095)
-		return NULL;
-	
-	obj = kzalloc(sizeof(struct iommu_obj), GFP_KERNEL);
-	if (!obj)
-		return NULL;
-
-	obj->base.name = "S2 IOMMU";
-	ret = allocate_resource(root, &obj->base, pages, root->start, root->end,
-				1, NULL, NULL);
-	if (ret) {
-		dev_err(&dev_priv->pdev->dev,
-			"Failed to allocate resource (size: %d, start: %Ld, end: %Ld)\n",
-			pages, root->start, root->end);
-		kfree(obj);
-		obj = NULL;
-		return NULL;
-	}
-
-	obj->offset = obj->base.start - root->start;
-	obj->size = pages;
-
-	for (i = obj->offset, j = 0; i < obj->offset + obj->size; i++, j++)
-		FTHD_S2_REG_WRITE((phys_addr >> 12) + j, 0x9000 + i * 4);
-
-	pr_debug("allocated %d pages @ %p / offset %d\n", obj->size, obj, obj->offset);
-	return obj;
 }
 
 struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct sg_table *sgtable)
@@ -135,22 +98,7 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 	pr_debug("allocated %d pages @ %p / offset %d\n", obj->size, obj, obj->offset);
 	return obj;
 }
-#if 0
-struct iommu_obj *get_iommu_obj(struct fthd_private *dev_priv, int pos)
-{
-	struct iommu_obj *obj;
-	struct resource *res;
 
-	res = lookup_resource(dev_priv->iommu, pos);
-	if (!res)
-		return NULL;
-
-	obj = container_of(res, struct iommu_obj, base);
-	if (!obj)
-		return NULL;
-	return obj;
-}
-#endif
 void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj)
 {
 	int i;
