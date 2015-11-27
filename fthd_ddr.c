@@ -18,11 +18,11 @@
  */
 
 #include <linux/random.h>
-#include "bcwc_drv.h"
-#include "bcwc_hw.h"
-#include "bcwc_ddr.h"
+#include "fthd_drv.h"
+#include "fthd_hw.h"
+#include "fthd_ddr.h"
 
-int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base, int count)
+int fthd_ddr_verify_mem(struct fthd_private *dev_priv, u32 base, int count)
 {
 	u32 i, val, val_read;
 	int failed_bits = 0;
@@ -32,14 +32,14 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base, int count)
 
 	for (i = 0; i < count; i++) {
 		val = prandom_u32_state(&state);
-		BCWC_S2_MEM_WRITE(val, i * 4 + MEM_VERIFY_BASE);
+		FTHD_S2_MEM_WRITE(val, i * 4 + MEM_VERIFY_BASE);
 	}
 
 	prandom_seed_state(&state, 0x12345678);
 
 	for (i = 0; i < count; i++) {
 		val = prandom_u32_state(&state);
-		val_read = BCWC_S2_MEM_READ(i * 4 + MEM_VERIFY_BASE);
+		val_read = FTHD_S2_MEM_READ(i * 4 + MEM_VERIFY_BASE);
 
 		failed_bits |= val ^ val_read;
 	}
@@ -47,7 +47,7 @@ int bcwc_ddr_verify_mem(struct bcwc_private *dev_priv, u32 base, int count)
 	return ((failed_bits & 0xffff) | ((failed_bits >> 16) & 0xffff));
 }
 
-static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
+static int fthd_ddr_calibrate_rd_data_dly_fifo(struct fthd_private *dev_priv)
 {
 	u32 fifo_status[2];
 	u32 rden_bytes[3];
@@ -55,13 +55,13 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 	u32 byte0_pass, byte1_pass;
 	int passed;
 
-	rden_bytes[0] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE);
-	rden_bytes[1] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0);
-	rden_bytes[2] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1);
+	rden_bytes[0] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE);
+	rden_bytes[1] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0);
+	rden_bytes[2] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE1);
 
-	BCWC_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
-	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
-	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE1);
+	FTHD_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
+	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
+	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE1);
 
 	passed = 0;
 	setting = 1;
@@ -71,15 +71,15 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 	rden_bl_setting = 0;
 
 	while (passed == 0) {
-		BCWC_S2_REG_WRITE(setting & 0x7, S2_DDR40_WL_RD_DATA_DLY);
+		FTHD_S2_REG_WRITE(setting & 0x7, S2_DDR40_WL_RD_DATA_DLY);
 
-		bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+		fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-		tmp = BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS);
+		tmp = FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS);
 		fifo_status[0] = tmp & 0xf;
 		fifo_status[1] = (tmp & 0xf0) >> 4;
 
-		BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
+		FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
 		if (fifo_status[0] == 0) {
 			if (byte0_pass == 0)
@@ -118,11 +118,11 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		}
 
 		/* Write new setting */
-		BCWC_S2_REG_WRITE(rden_wl_setting | 0x30000,
+		FTHD_S2_REG_WRITE(rden_wl_setting | 0x30000,
 				  S2_DDR40_RDEN_BYTE);
-		BCWC_S2_REG_WRITE(rden_bl_setting | 0x30100,
+		FTHD_S2_REG_WRITE(rden_bl_setting | 0x30100,
 				  S2_DDR40_RDEN_BYTE0);
-		BCWC_S2_REG_WRITE(rden_bl_setting | 0x30100,
+		FTHD_S2_REG_WRITE(rden_bl_setting | 0x30100,
 				  S2_DDR40_RDEN_BYTE1);
 	}
 
@@ -137,20 +137,20 @@ static int bcwc_ddr_calibrate_rd_data_dly_fifo(struct bcwc_private *dev_priv)
 		setting = 7;
 
 	/* Restore settings */
-	BCWC_S2_REG_WRITE(rden_bytes[0], S2_DDR40_RDEN_BYTE);
-	BCWC_S2_REG_WRITE(rden_bytes[1], S2_DDR40_RDEN_BYTE0);
-	BCWC_S2_REG_WRITE(rden_bytes[2], S2_DDR40_RDEN_BYTE1);
+	FTHD_S2_REG_WRITE(rden_bytes[0], S2_DDR40_RDEN_BYTE);
+	FTHD_S2_REG_WRITE(rden_bytes[1], S2_DDR40_RDEN_BYTE0);
+	FTHD_S2_REG_WRITE(rden_bytes[2], S2_DDR40_RDEN_BYTE1);
 
 	if (setting < 7)
 		setting++;
 
-	BCWC_S2_REG_WRITE(setting, S2_DDR40_WL_RD_DATA_DLY);
+	FTHD_S2_REG_WRITE(setting, S2_DDR40_WL_RD_DATA_DLY);
 	dev_info(&dev_priv->pdev->dev, "RD_DATA_DLY: 0x%x\n", setting);
 
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
+static int fthd_ddr_calibrate_one_re_fifo(struct fthd_private *dev_priv,
 			u32 *rden_byte, u32 *rden_byte0, u32 *rden_byte1)
 {
 	u32 fifo_status[2];
@@ -160,31 +160,31 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	u32 word_setting, byte_setting, passed, delta;
 	u32 tmp;
 
-	delta = ((BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS) & 0xffc) >> 2) / 4;
+	delta = ((FTHD_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS) & 0xffc) >> 2) / 4;
 
 	/* Start with word and byte setting at 0 */
-	BCWC_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
-	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
-	BCWC_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
+	FTHD_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
+	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
+	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
 
-	bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+	fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-	BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
+	FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
 	word_setting = 0;
 	byte_setting = 0;
 	passed = 0;
 
 	while (passed == 0) {
-		bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+		fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
 		fifo_status[0] =
-			BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
+			FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
 		fifo_status[1] =
-			(BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
+			(FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
 			 0xf0) >> 4;
 
-		BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
+		FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
 		if (fifo_status[0] == 0) {
 			if (bl_pass[0] == 0)
@@ -204,13 +204,13 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 		if (passed == 0) {
 			if (word_setting < 63) {
 				word_setting++;
-				BCWC_S2_REG_WRITE(0x30000 | (word_setting & 0x3f),
+				FTHD_S2_REG_WRITE(0x30000 | (word_setting & 0x3f),
 						  S2_DDR40_RDEN_BYTE);
 			} else {
 				byte_setting++;
-				BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
+				FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
 						  S2_DDR40_RDEN_BYTE0);
-				BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
+				FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
 						  S2_DDR40_RDEN_BYTE1);
 
 				if (word_setting > 64) {
@@ -222,10 +222,10 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 		}
 	}
 
-	wl_start = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE) & 0x3f;
+	wl_start = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE) & 0x3f;
 
 	if (bl_pass[0] == 1) {
-		bl_start[0] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
+		bl_start[0] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
 		passed = 0;
 
 		while (passed == 0) {
@@ -236,26 +236,26 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 				return -EIO;
 			}
 
-			BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
+			FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
 					  S2_DDR40_RDEN_BYTE1);
 
-			bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+			fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-			fifo_status[0] = BCWC_S2_REG_READ(
+			fifo_status[0] = FTHD_S2_REG_READ(
 					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
 			fifo_status[1] =
-				(BCWC_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
+				(FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
 				 0xf0) >> 4;
-			BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
+			FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
 			if (fifo_status[1] == 0)
 				passed = 1;
 		}
 
-		bl_start[1] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
+		bl_start[1] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
 	}
 	if (bl_pass[1] == 1) {
-		bl_start[1] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
+		bl_start[1] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
 		passed = 0;
 
 		while (passed == 0) {
@@ -266,22 +266,22 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 				return -EIO;
 			}
 
-			BCWC_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
+			FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
 					  S2_DDR40_RDEN_BYTE0);
 
-			bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+			fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 
-			fifo_status[0] = BCWC_S2_REG_READ(
+			fifo_status[0] = FTHD_S2_REG_READ(
 					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
-			fifo_status[1] = BCWC_S2_REG_READ(
+			fifo_status[1] = FTHD_S2_REG_READ(
 					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf0;
-			BCWC_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
+			FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
 
 			if (fifo_status[0] == 0)
 				passed = 1;
 		}
 
-		bl_start[0] = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
+		bl_start[0] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
 	}
 
 	*rden_byte = wl_start + delta;
@@ -306,25 +306,25 @@ static int bcwc_ddr_calibrate_one_re_fifo(struct bcwc_private *dev_priv,
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
+static int fthd_ddr_calibrate_re_byte_fifo(struct fthd_private *dev_priv)
 {
 	u32 rden_byte = 0;
 	u32 rden_byte0 = 0;
 	u32 rden_byte1 = 0;
 	int ret;
 
-	ret = bcwc_ddr_calibrate_one_re_fifo(dev_priv, &rden_byte, &rden_byte0, &rden_byte1);
+	ret = fthd_ddr_calibrate_one_re_fifo(dev_priv, &rden_byte, &rden_byte0, &rden_byte1);
 	if (ret)
 		return ret;
 
 	rden_byte = (rden_byte & 0x3f) | 0x30000;
-	BCWC_S2_REG_WRITE(rden_byte, S2_DDR40_RDEN_BYTE);
+	FTHD_S2_REG_WRITE(rden_byte, S2_DDR40_RDEN_BYTE);
 
 	rden_byte0 = (rden_byte0 & 0x3f) | 0x30100;
-	BCWC_S2_REG_WRITE(rden_byte0, S2_DDR40_RDEN_BYTE0);
+	FTHD_S2_REG_WRITE(rden_byte0, S2_DDR40_RDEN_BYTE0);
 
 	rden_byte1 = (rden_byte1 & 0x3f) | 0x30100;
-	BCWC_S2_REG_WRITE(rden_byte1, S2_DDR40_RDEN_BYTE1);
+	FTHD_S2_REG_WRITE(rden_byte1, S2_DDR40_RDEN_BYTE1);
 
 	dev_info(&dev_priv->pdev->dev,
 		 "RE BYTE FIFO success: b0 = 0x%x, b1 = 0x%x, b = 0x%x\n",
@@ -334,7 +334,7 @@ static int bcwc_ddr_calibrate_re_byte_fifo(struct bcwc_private *dev_priv)
 }
 
 /* Set default/generic read data strobe */
-static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
+static int fthd_ddr_generic_shmoo_rd_dqs(struct fthd_private *dev_priv,
 					 u32 *fail_bits)
 {
 	u32 retries, setting, tmp, offset;
@@ -343,7 +343,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 
 	/* Save the current byte lanes */
 	for (i = 0; i < S2_DDR40_NUM_BYTE_LANES; i++) {
-		tmp = BCWC_S2_REG_READ(S2_DDR40_RDEN_BYTE0 +
+		tmp = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0 +
 				       (i * S2_DDR40_BYTE_LANE_SIZE));
 		bytes[i] = tmp & 0x3f;
 	}
@@ -353,18 +353,18 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 		for (j = 0; j < 8; j++) {
 			offset = S2_DDR40_2A38 + (i * 0xa0) + (j * 8);
 
-			BCWC_S2_REG_WRITE(0x30000, offset - 4);
-			BCWC_S2_REG_WRITE(0x30000, offset);
+			FTHD_S2_REG_WRITE(0x30000, offset - 4);
+			FTHD_S2_REG_WRITE(0x30000, offset);
 		}
 	}
 
-	setting = (BCWC_S2_REG_READ(S2_DDR40_PHY_DQ_CALIB_STATUS) >> 20) & 0x3f;
+	setting = (FTHD_S2_REG_READ(S2_DDR40_PHY_DQ_CALIB_STATUS) >> 20) & 0x3f;
 
 	retries = 1000;
 	fail = 0;
 
 	while (retries-- > 0 && !fail) {
-		ret = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+		ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 		fail_bits[0] = ret;
 
 		if (ret == 0xffff) {
@@ -376,12 +376,12 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 		tmp = (setting & 0x3f) | 0x30100;
 
 		/* Byte 0 */
-		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2A08);
-		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2A0C);
+		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2A08);
+		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2A0C);
 
 		/* Byte 1 */
-		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AA8);
-		BCWC_S2_REG_WRITE(tmp, S2_DDR40_2AAC);
+		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2AA8);
+		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2AAC);
 
 		if (setting > 62)
 			fail = 1;
@@ -395,7 +395,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 			if (bytes[i] > 62)
 				fail = 1;
 
-			BCWC_S2_REG_WRITE((bytes[i] & 0x3f) | 0x30100, offset);
+			FTHD_S2_REG_WRITE((bytes[i] & 0x3f) | 0x30100, offset);
 
 			offset += 0xa0;
 		}
@@ -415,7 +415,7 @@ static int bcwc_ddr_generic_shmoo_rd_dqs(struct bcwc_private *dev_priv,
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv,
+static int fthd_ddr_calibrate_rd_dqs(struct fthd_private *dev_priv,
 				     u32 *fails, u32 *settings)
 {
 	s32 pass_len[16];
@@ -481,7 +481,7 @@ static int bcwc_ddr_calibrate_rd_dqs(struct bcwc_private *dev_priv,
 	return 0;
 }
 
-static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
+static int fthd_ddr_wr_dqs_setting(struct fthd_private *dev_priv, int set_bits,
 				   u32 *fail_bits, u32 *settings)
 {
 	u32 bl, setting, byte, bit, offset, tmp, start, inc, reg;
@@ -495,13 +495,13 @@ static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 				tmp = setting | 0x30000;
 
 				if (set_bits & 1)
-					BCWC_S2_REG_WRITE(tmp, offset - 4);
+					FTHD_S2_REG_WRITE(tmp, offset - 4);
 
 				if (set_bits & 2)
-					BCWC_S2_REG_WRITE(tmp, offset);
+					FTHD_S2_REG_WRITE(tmp, offset);
 			}
 		}
-		fail_bits[setting] = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+		fail_bits[setting] = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 	}
 
 	if (set_bits == 3) {
@@ -515,7 +515,7 @@ static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 		inc = 2;
 	}
 
-	bcwc_ddr_calibrate_rd_dqs(dev_priv, fail_bits, settings);
+	fthd_ddr_calibrate_rd_dqs(dev_priv, fail_bits, settings);
 
 	offset = 0;
 
@@ -532,7 +532,7 @@ static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 			}
 
 			tmp = (settings[offset] & 0x3f) | 0x30000;
-			BCWC_S2_REG_WRITE(tmp, reg);
+			FTHD_S2_REG_WRITE(tmp, reg);
 			if (set_bits == 3) {
 				if (i & 1)
 					offset++;
@@ -547,50 +547,50 @@ static int bcwc_ddr_wr_dqs_setting(struct bcwc_private *dev_priv, int set_bits,
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_create_result(struct bcwc_private *dev_priv)
+static int fthd_ddr_calibrate_create_result(struct fthd_private *dev_priv)
 {
 	return 0;
 }
 
-static int bcwc_ddr_generic_shmoo_calibrate_rd_dqs(
-						struct bcwc_private *dev_priv)
+static int fthd_ddr_generic_shmoo_calibrate_rd_dqs(
+						struct fthd_private *dev_priv)
 {
 	u32 settings[64]; /* Don't know the real size yet */
 	u32 fails[64]; /* Number of fails on a setting */
 	int ret;
 
-	ret = bcwc_ddr_generic_shmoo_rd_dqs(dev_priv, fails);
+	ret = fthd_ddr_generic_shmoo_rd_dqs(dev_priv, fails);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_wr_dqs_setting(dev_priv, 3, fails, settings);
+	ret = fthd_ddr_wr_dqs_setting(dev_priv, 3, fails, settings);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_wr_dqs_setting(dev_priv, 1, fails, settings);
+	ret = fthd_ddr_wr_dqs_setting(dev_priv, 1, fails, settings);
 	if (ret)
 		return ret;
 
 
-	ret = bcwc_ddr_wr_dqs_setting(dev_priv, 2, fails, settings);
+	ret = fthd_ddr_wr_dqs_setting(dev_priv, 2, fails, settings);
 	if (ret)
 		return ret;
 
 	/* NOP for now */
-	ret = bcwc_ddr_calibrate_create_result(dev_priv);
+	ret = fthd_ddr_calibrate_create_result(dev_priv);
 	if (ret)
 		return ret;
 
 	return 0;
 }
 
-static int bcwc_ddr_calibrate_wr_dq(struct bcwc_private *dev_priv, u32 *fails,
+static int fthd_ddr_calibrate_wr_dq(struct fthd_private *dev_priv, u32 *fails,
 				    u32 *settings)
 {
 	return 0;
 }
 
-static int bcwc_ddr_generic_shmoo_calibrate_wr_dq(struct bcwc_private *dev_priv)
+static int fthd_ddr_generic_shmoo_calibrate_wr_dq(struct fthd_private *dev_priv)
 {
 	u32 fails[64];
 	u32 settings[64]; /* Size is actually 16? */
@@ -602,66 +602,66 @@ static int bcwc_ddr_generic_shmoo_calibrate_wr_dq(struct bcwc_private *dev_priv)
 		for (bl = 0; bl < 2; bl++) {
 			offset = S2_DDR40_2A10 + (bl * S2_DDR40_BYTE_LANE_SIZE);
 			for (bit = 0; bit < 8; bit++) {
-				BCWC_S2_REG_WRITE(setting | 0x30000,
+				FTHD_S2_REG_WRITE(setting | 0x30000,
 						  offset + (bit * 4));
 			}
 		}
 
-		fails[setting] = bcwc_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+		fails[setting] = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 	}
 
 	fails[63] = 0xffff; /* Last setting is always a fail */
 
-	bcwc_ddr_calibrate_wr_dq(dev_priv, fails, settings);
+	fthd_ddr_calibrate_wr_dq(dev_priv, fails, settings);
 
 	return ret;
 }
 
-static int bcwc_ddr_generic_shmoo_calibrate_wr_dm(struct bcwc_private *dev_priv)
+static int fthd_ddr_generic_shmoo_calibrate_wr_dm(struct fthd_private *dev_priv)
 {
 	return 0;
 }
 
-static int bcwc_ddr_generic_shmoo_calibrate_addr(struct bcwc_private *dev_priv)
+static int fthd_ddr_generic_shmoo_calibrate_addr(struct fthd_private *dev_priv)
 {
 	return 0;
 }
 
-int bcwc_ddr_calibrate(struct bcwc_private *dev_priv)
+int fthd_ddr_calibrate(struct fthd_private *dev_priv)
 {
 	u32 reg;
 	int ret;
 
-	BCWC_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
-	BCWC_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
+	FTHD_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
+	FTHD_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
 
 	while (1) {
-		reg = BCWC_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
+		reg = FTHD_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
 		if (reg & 0x1)
 			break;
 	}
 
-	ret = bcwc_ddr_calibrate_rd_data_dly_fifo(dev_priv);
+	ret = fthd_ddr_calibrate_rd_data_dly_fifo(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_calibrate_re_byte_fifo(dev_priv);
+	ret = fthd_ddr_calibrate_re_byte_fifo(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_generic_shmoo_calibrate_rd_dqs(dev_priv);
+	ret = fthd_ddr_generic_shmoo_calibrate_rd_dqs(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_generic_shmoo_calibrate_wr_dq(dev_priv);
+	ret = fthd_ddr_generic_shmoo_calibrate_wr_dq(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_generic_shmoo_calibrate_wr_dm(dev_priv);
+	ret = fthd_ddr_generic_shmoo_calibrate_wr_dm(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_ddr_generic_shmoo_calibrate_addr(dev_priv);
+	ret = fthd_ddr_generic_shmoo_calibrate_addr(dev_priv);
 	if (ret)
 		return ret;
 

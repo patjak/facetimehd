@@ -17,7 +17,7 @@
  *
  */
 
-#ifndef _BCWC_PCIE_H
+#ifndef _FTHD_PCIE_H
 #define _PCWC_PCIE_H
 
 #include <linux/pci.h>
@@ -26,20 +26,20 @@
 #include <linux/mutex.h>
 #include <media/videobuf2-dma-sg.h>
 #include <media/v4l2-device.h>
-#include "bcwc_reg.h"
-#include "bcwc_ringbuf.h"
-#include "bcwc_buffer.h"
-#include "bcwc_v4l2.h"
+#include "fthd_reg.h"
+#include "fthd_ringbuf.h"
+#include "fthd_buffer.h"
+#include "fthd_v4l2.h"
 
-#define BCWC_PCI_S2_IO  0
-#define BCWC_PCI_S2_MEM 2
-#define BCWC_PCI_ISP_IO 4
+#define FTHD_PCI_S2_IO  0
+#define FTHD_PCI_S2_MEM 2
+#define FTHD_PCI_ISP_IO 4
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 
-#define BCWC_BUFFERS 4
+#define FTHD_BUFFERS 4
 
-struct bcwc_reg {
+struct fthd_reg {
 	u32 offset;
 	u32 value;
 };
@@ -57,13 +57,13 @@ struct fw_channel {
 	u32 type;
 	int tx_lock;
 	int rx_lock;
-	struct bcwc_ringbuf ringbuf;
+	struct fthd_ringbuf ringbuf;
 	spinlock_t lock;
 
 	char *name;
 };
 
-struct bcwc_private {
+struct fthd_private {
 	struct pci_dev *pdev;
 	unsigned int dma_mask;
 
@@ -97,7 +97,7 @@ struct bcwc_private {
 
 	/* DDR_PHY saved registers. Offsets need to be initialized somewhere */
 	u32 ddr_phy_num_regs;
-	struct bcwc_reg ddr_phy_reg_map[DDR_PHY_NUM_REGS];
+	struct fthd_reg ddr_phy_reg_map[DDR_PHY_NUM_REGS];
 
 	/* Root resource for memory management */
 	struct resource *mem;
@@ -125,13 +125,13 @@ struct bcwc_private {
 	int sensor_id0;
 	int sensor_id1;
 
-	struct bcwc_fmt fmt;
+	struct fthd_fmt fmt;
 
 	struct vb2_queue vb2_queue;
 	struct mutex vb2_queue_lock;
 	struct list_head buffer_queue;
 	struct vb2_alloc_ctx *alloc_ctx;
-	struct h2t_buf_ctx h2t_bufs[BCWC_BUFFERS];
+	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
 
 	int frametime;
 };

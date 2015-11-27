@@ -16,13 +16,13 @@
  * along with this program; if not, write to the Free Software Foundation.
  *
  */
-#ifndef BCWC_BUFFER_H
-#define BCWC_BUFFER_H
+#ifndef FTHD_BUFFER_H
+#define FTHD_BUFFER_H
 
 #include <linux/scatterlist.h>
-#include "bcwc_buffer.h"
+#include "fthd_buffer.h"
 
-enum bcwc_buffer_state {
+enum fthd_buffer_state {
 	BUF_FREE,
 	BUF_ALLOC,
 	BUF_DRV_QUEUED,
@@ -53,7 +53,7 @@ struct iommu_obj {
 	int offset;
 };
 
-struct bcwc_plane {
+struct fthd_plane {
 	u8 *virt;
 	u64 phys;
 	dma_addr_t dma;	
@@ -62,7 +62,7 @@ struct bcwc_plane {
 };
 
 struct h2t_buf_ctx {
-	enum bcwc_buffer_state state;
+	enum fthd_buffer_state state;
 	struct vb2_buffer *vb;
 	struct iommu_obj *plane[4];
 	struct isp_mem_obj *dma_desc_obj;
@@ -72,11 +72,11 @@ struct h2t_buf_ctx {
 	int done;
 };
 
-extern int setup_buffers(struct bcwc_private *dev_priv);
-extern int bcwc_buffer_init(struct bcwc_private *dev_priv);
-extern void bcwc_buffer_exit(struct bcwc_private *dev_priv);
-extern void bcwc_buffer_return_handler(struct bcwc_private *dev_priv, struct dma_descriptor_list *list, int size);
-extern void bcwc_buffer_queued_handler(struct bcwc_private *dev_priv, struct dma_descriptor_list *list);
-extern struct iommu_obj *iommu_allocate_sgtable(struct bcwc_private *dev_priv, struct sg_table *);
-extern void iommu_free(struct bcwc_private *dev_priv, struct iommu_obj *obj);
+extern int setup_buffers(struct fthd_private *dev_priv);
+extern int fthd_buffer_init(struct fthd_private *dev_priv);
+extern void fthd_buffer_exit(struct fthd_private *dev_priv);
+extern void fthd_buffer_return_handler(struct fthd_private *dev_priv, struct dma_descriptor_list *list, int size);
+extern void fthd_buffer_queued_handler(struct fthd_private *dev_priv, struct dma_descriptor_list *list);
+extern struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct sg_table *);
+extern void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj);
 #endif

@@ -21,15 +21,15 @@
 #include <linux/acpi.h>
 #include <linux/firmware.h>
 #include <linux/dmi.h>
-#include "bcwc_drv.h"
-#include "bcwc_hw.h"
-#include "bcwc_reg.h"
-#include "bcwc_ringbuf.h"
-#include "bcwc_isp.h"
+#include "fthd_drv.h"
+#include "fthd_hw.h"
+#include "fthd_reg.h"
+#include "fthd_ringbuf.h"
+#include "fthd_isp.h"
 
-int isp_mem_init(struct bcwc_private *dev_priv)
+int isp_mem_init(struct fthd_private *dev_priv)
 {
-	struct resource *root = &dev_priv->pdev->resource[BCWC_PCI_S2_MEM];
+	struct resource *root = &dev_priv->pdev->resource[FTHD_PCI_S2_MEM];
 
         dev_priv->mem = kzalloc(sizeof(struct resource), GFP_KERNEL);
 	if (!dev_priv->mem)
@@ -50,7 +50,7 @@ int isp_mem_init(struct bcwc_private *dev_priv)
 	return 0;
 }
 
-struct isp_mem_obj *isp_mem_create(struct bcwc_private *dev_priv,
+struct isp_mem_obj *isp_mem_create(struct fthd_private *dev_priv,
 				   unsigned int type, resource_size_t size)
 {
 	struct isp_mem_obj *obj;
@@ -90,7 +90,7 @@ int isp_mem_destroy(struct isp_mem_obj *obj)
 	return 0;
 }
 
-int isp_acpi_set_power(struct bcwc_private *dev_priv, int power)
+int isp_acpi_set_power(struct fthd_private *dev_priv, int power)
 {
 	acpi_status status;
 	acpi_handle handle;
@@ -136,12 +136,12 @@ out:
 	return ret;
 }
 
-static int isp_enable_sensor(struct bcwc_private *dev_priv)
+static int isp_enable_sensor(struct fthd_private *dev_priv)
 {
 	return 0;
 }
 
-static int isp_load_firmware(struct bcwc_private *dev_priv)
+static int isp_load_firmware(struct fthd_private *dev_priv)
 {
 	const struct firmware *fw;
 	int ret = 0;
@@ -176,7 +176,7 @@ static int isp_load_firmware(struct bcwc_private *dev_priv)
 	return ret;
 }
 
-static void isp_free_channel_info(struct bcwc_private *priv)
+static void isp_free_channel_info(struct fthd_private *priv)
 {
 	struct fw_channel *chan;
 	int i;
@@ -193,7 +193,7 @@ static void isp_free_channel_info(struct bcwc_private *priv)
 	priv->channels = NULL;
 }
 
-static struct fw_channel *isp_get_chan_index(struct bcwc_private *priv, const char *name)
+static struct fw_channel *isp_get_chan_index(struct fthd_private *priv, const char *name)
 {
 	int i;
 	for(i = 0; i < priv->num_channels; i++) {
@@ -203,7 +203,7 @@ static struct fw_channel *isp_get_chan_index(struct bcwc_private *priv, const ch
 	return NULL;
 }
 
-static int isp_fill_channel_info(struct bcwc_private *priv, int offset, int num_channels)
+static int isp_fill_channel_info(struct fthd_private *priv, int offset, int num_channels)
 {
 	struct isp_channel_info *info;
 	struct fw_channel *chan;
@@ -265,12 +265,12 @@ out:
 	return -ENOMEM;
 }
 
-int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void *buf,
+int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
 			int request_len, int *response_len)
 {
 	struct isp_mem_obj *request;
 	struct isp_cmd_hdr *cmd;
-	struct bcwc_ringbuf_entry *entry;
+	struct fthd_ringbuf_entry *entry;
 	int len, ret;
 
 	if (response_len) {
@@ -295,7 +295,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 	if (request_len)
 		memcpy((char *)cmd + sizeof(struct isp_cmd_hdr), buf, request_len);
 
-	entry = bcwc_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
+	entry = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
 		request->offset, request_len + 8, (response_len ? *response_len : 0) + 8);
 
 	if (!entry) {
@@ -310,7 +310,7 @@ int bcwc_isp_cmd(struct bcwc_private *dev_priv, enum bcwc_isp_cmds command, void
 
 	if (wait_event_interruptible_timeout(dev_priv->cmd_wq, dev_priv->cmd_ready, HZ) <= 0) {
 		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd->opcode);
-		bcwc_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+		fthd_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
 		if (response_len)
 			*response_len = 0;
 		ret = -ETIMEDOUT;
@@ -333,55 +333,55 @@ out:
 
 
 
-int bcwc_isp_cmd_start(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_start(struct fthd_private *dev_priv)
 {
 	pr_debug("sending start cmd to firmware\n");
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_START, NULL, 0, NULL);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_START, NULL, 0, NULL);
 }
 
-int bcwc_isp_cmd_channel_start(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_channel_start(struct fthd_private *dev_priv)
 {
 	struct isp_cmd_channel_start cmd;
 	pr_debug("sending channel start cmd to firmware\n");
 
 	cmd.channel = 0;
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_START, &cmd, sizeof(cmd), NULL);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_START, &cmd, sizeof(cmd), NULL);
 }
 
-int bcwc_isp_cmd_channel_stop(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_channel_stop(struct fthd_private *dev_priv)
 {
 	struct isp_cmd_channel_stop cmd;
 
 	cmd.channel = 0;
 	pr_debug("sending channel stop cmd to firmware\n");
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_STOP, &cmd, sizeof(cmd), NULL);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_STOP, &cmd, sizeof(cmd), NULL);
 }
 
-int bcwc_isp_cmd_stop(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_stop(struct fthd_private *dev_priv)
 {
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_STOP, NULL, 0, NULL);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_STOP, NULL, 0, NULL);
 }
 
-int bcwc_isp_cmd_powerdown(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_powerdown(struct fthd_private *dev_priv)
 {
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_POWER_DOWN, NULL, 0, NULL);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_POWER_DOWN, NULL, 0, NULL);
 }
 
-static void isp_free_set_file(struct bcwc_private *dev_priv)
+static void isp_free_set_file(struct fthd_private *dev_priv)
 {
 	isp_mem_destroy(dev_priv->set_file);
 }
 
-int isp_powerdown(struct bcwc_private *dev_priv)
+int isp_powerdown(struct fthd_private *dev_priv)
 {
 	int retries;
 	u32 reg;
 
-	BCWC_ISP_REG_WRITE(0xf7fbdff9, 0xc3000);
-	bcwc_isp_cmd_powerdown(dev_priv);
+	FTHD_ISP_REG_WRITE(0xf7fbdff9, 0xc3000);
+	fthd_isp_cmd_powerdown(dev_priv);
 
 	for (retries = 0; retries < 100; retries++) {
-		reg = BCWC_ISP_REG_READ(0xc3000);
+		reg = FTHD_ISP_REG_READ(0xc3000);
 		if (reg == 0x8042006)
 			break;
 		mdelay(10);
@@ -394,32 +394,32 @@ int isp_powerdown(struct bcwc_private *dev_priv)
 	return 0;
 }
 
-int isp_uninit(struct bcwc_private *dev_priv)
+int isp_uninit(struct fthd_private *dev_priv)
 {
-	BCWC_ISP_REG_WRITE(0x00000000, 0x40004);
-	BCWC_ISP_REG_WRITE(0x00000000, 0x41004);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0008);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc000c);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc0010);
-	BCWC_ISP_REG_WRITE(0x00000000, 0xc1004);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc100c);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc1014);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc101c);
-	BCWC_ISP_REG_WRITE(0xffffffff, 0xc1024);
+	FTHD_ISP_REG_WRITE(0x00000000, 0x40004);
+	FTHD_ISP_REG_WRITE(0x00000000, 0x41004);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0xc0008);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0xc000c);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0xc0010);
+	FTHD_ISP_REG_WRITE(0x00000000, 0xc1004);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0xc100c);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0xc1014);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0xc101c);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0xc1024);
 	mdelay(1);
 
-	BCWC_ISP_REG_WRITE(0, 0xc0000);
-	BCWC_ISP_REG_WRITE(0, 0xc0004);
-	BCWC_ISP_REG_WRITE(0, 0xc0008);
-	BCWC_ISP_REG_WRITE(0, 0xc000c);
-	BCWC_ISP_REG_WRITE(0, 0xc0010);
-	BCWC_ISP_REG_WRITE(0, 0xc0014);
-	BCWC_ISP_REG_WRITE(0, 0xc0018);
-	BCWC_ISP_REG_WRITE(0, 0xc001c);
-	BCWC_ISP_REG_WRITE(0, 0xc0020);
-	BCWC_ISP_REG_WRITE(0, 0xc0024);
+	FTHD_ISP_REG_WRITE(0, 0xc0000);
+	FTHD_ISP_REG_WRITE(0, 0xc0004);
+	FTHD_ISP_REG_WRITE(0, 0xc0008);
+	FTHD_ISP_REG_WRITE(0, 0xc000c);
+	FTHD_ISP_REG_WRITE(0, 0xc0010);
+	FTHD_ISP_REG_WRITE(0, 0xc0014);
+	FTHD_ISP_REG_WRITE(0, 0xc0018);
+	FTHD_ISP_REG_WRITE(0, 0xc001c);
+	FTHD_ISP_REG_WRITE(0, 0xc0020);
+	FTHD_ISP_REG_WRITE(0, 0xc0024);
 
-	BCWC_ISP_REG_WRITE(0xffffffff, 0x41024);
+	FTHD_ISP_REG_WRITE(0xffffffff, 0x41024);
 	isp_free_channel_info(dev_priv);
 	isp_free_set_file(dev_priv);
 	isp_mem_destroy(dev_priv->firmware);
@@ -428,16 +428,16 @@ int isp_uninit(struct bcwc_private *dev_priv)
 }
 
 
-int bcwc_isp_cmd_print_enable(struct bcwc_private *dev_priv, int enable)
+int fthd_isp_cmd_print_enable(struct fthd_private *dev_priv, int enable)
 {
 	struct isp_cmd_print_enable cmd;
 
 	cmd.enable = enable;
 
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_PRINT_ENABLE, &cmd, sizeof(cmd), NULL);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_PRINT_ENABLE, &cmd, sizeof(cmd), NULL);
 }
 
-int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 {
 	struct isp_cmd_set_loadfile cmd;
 	struct isp_mem_obj *file;
@@ -517,10 +517,10 @@ int bcwc_isp_cmd_set_loadfile(struct bcwc_private *dev_priv)
 	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
 	cmd.addr = file->offset;
 	cmd.length = file->size;
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
 }
 
-int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_channel_info(struct fthd_private *dev_priv)
 {
 	struct isp_cmd_channel_info cmd;
 	int ret, len;
@@ -529,7 +529,7 @@ int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv)
 
 	memset(&cmd, 0, sizeof(cmd));
 	len = sizeof(cmd);
-	ret = bcwc_isp_cmd(dev_priv, CISP_CMD_CH_INFO_GET, &cmd, sizeof(cmd), &len);
+	ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_INFO_GET, &cmd, sizeof(cmd), &len);
 	print_hex_dump_bytes("CHINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
 	pr_debug("sensor id: %04x %04x\n", cmd.sensorid0, cmd.sensorid1);
 	pr_debug("sensor count: %d\n", cmd.sensor_count);
@@ -545,7 +545,7 @@ int bcwc_isp_cmd_channel_info(struct bcwc_private *dev_priv)
 	return ret;
 }
 
-int bcwc_isp_cmd_camera_config(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_camera_config(struct fthd_private *dev_priv)
 {
 	struct isp_cmd_config cmd;
 	int ret, len;
@@ -555,13 +555,13 @@ int bcwc_isp_cmd_camera_config(struct bcwc_private *dev_priv)
 	memset(&cmd, 0, sizeof(cmd));
 
 	len = sizeof(cmd);
-	ret = bcwc_isp_cmd(dev_priv, CISP_CMD_CONFIG_GET, &cmd, sizeof(cmd), &len);
+	ret = fthd_isp_cmd(dev_priv, CISP_CMD_CONFIG_GET, &cmd, sizeof(cmd), &len);
 	if (!ret)
 		print_hex_dump_bytes("CAMINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
 	return ret;
 }
 
-int bcwc_isp_cmd_channel_camera_config(struct bcwc_private *dev_priv)
+int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv)
 {
 	struct isp_cmd_channel_camera_config cmd;
 	int ret, len, i;
@@ -573,7 +573,7 @@ int bcwc_isp_cmd_channel_camera_config(struct bcwc_private *dev_priv)
 		cmd.channel = i;
 
 		len = sizeof(cmd);
-		ret = bcwc_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_CONFIG_GET, &cmd, sizeof(cmd), &len);
+		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_CONFIG_GET, &cmd, sizeof(cmd), &len);
 		if (ret)
 			break;
 		snprintf(prefix, sizeof(prefix)-1, "CAMCONF%d ", i);
@@ -582,7 +582,7 @@ int bcwc_isp_cmd_channel_camera_config(struct bcwc_private *dev_priv)
 	return ret;
 }
 
-int bcwc_isp_cmd_channel_camera_config_select(struct bcwc_private *dev_priv, int channel, int config)
+int fthd_isp_cmd_channel_camera_config_select(struct fthd_private *dev_priv, int channel, int config)
 {
 	struct isp_cmd_channel_camera_config_select cmd;
 	int len;
@@ -593,10 +593,10 @@ int bcwc_isp_cmd_channel_camera_config_select(struct bcwc_private *dev_priv, int
 	cmd.channel = channel;
 	cmd.config = config;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_CONFIG_SELECT, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_CONFIG_SELECT, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_crop_set(struct bcwc_private *dev_priv, int channel,
+int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
 				  int x1, int y1, int x2, int y2)
 {
 	struct isp_cmd_channel_set_crop cmd;
@@ -611,10 +611,10 @@ int bcwc_isp_cmd_channel_crop_set(struct bcwc_private *dev_priv, int channel,
 	cmd.x2 = x2;
 	cmd.y2 = y2;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int channel, int x, int y, int pixelformat)
+int fthd_isp_cmd_channel_output_config_set(struct fthd_private *dev_priv, int channel, int x, int y, int pixelformat)
 {
 	struct isp_cmd_channel_output_config cmd;
 	int len;
@@ -637,10 +637,10 @@ int bcwc_isp_cmd_channel_output_config_set(struct bcwc_private *dev_priv, int ch
 	cmd.unknown3 = 0;
 	cmd.unknown5 = 0x7ff;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_OUTPUT_CONFIG_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_OUTPUT_CONFIG_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_recycle_mode(struct bcwc_private *dev_priv, int channel, int mode)
+int fthd_isp_cmd_channel_recycle_mode(struct fthd_private *dev_priv, int channel, int mode)
 {
 	struct isp_cmd_channel_recycle_mode cmd;
 	int len;
@@ -651,10 +651,10 @@ int bcwc_isp_cmd_channel_recycle_mode(struct bcwc_private *dev_priv, int channel
 	cmd.channel = channel;
 	cmd.mode = mode;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RECYCLE_MODE_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RECYCLE_MODE_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_buffer_return(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_buffer_return(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_buffer_return cmd;
 	int len;
@@ -664,10 +664,10 @@ int bcwc_isp_cmd_channel_buffer_return(struct bcwc_private *dev_priv, int channe
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RETURN, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RETURN, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_recycle_start(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_recycle_start(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_recycle_mode cmd;
 	int len;
@@ -677,10 +677,10 @@ int bcwc_isp_cmd_channel_recycle_start(struct bcwc_private *dev_priv, int channe
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RECYCLE_START, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RECYCLE_START, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_drc_start(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_drc_start(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_drc_start cmd;
 	int len;
@@ -690,10 +690,10 @@ int bcwc_isp_cmd_channel_drc_start(struct bcwc_private *dev_priv, int channel)
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_DRC_START, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_DRC_START, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_tone_curve_adaptation_start(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_tone_curve_adaptation_start(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_tone_curve_adaptation_start cmd;
 	int len;
@@ -703,10 +703,10 @@ int bcwc_isp_cmd_channel_tone_curve_adaptation_start(struct bcwc_private *dev_pr
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TONE_CURVE_ADAPTATION_START, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TONE_CURVE_ADAPTATION_START, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_sif_pixel_format(struct bcwc_private *dev_priv, int channel, int param1, int param2)
+int fthd_isp_cmd_channel_sif_pixel_format(struct fthd_private *dev_priv, int channel, int param1, int param2)
 {
 	struct isp_cmd_channel_sif_format_set cmd;
 	int len;
@@ -718,10 +718,10 @@ int bcwc_isp_cmd_channel_sif_pixel_format(struct bcwc_private *dev_priv, int cha
 	cmd.param1 = param1;
 	cmd.param2 = param2;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_SIF_PIXEL_FORMAT_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SIF_PIXEL_FORMAT_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_error_handling_config(struct bcwc_private *dev_priv, int channel, int param1, int param2)
+int fthd_isp_cmd_channel_error_handling_config(struct fthd_private *dev_priv, int channel, int param1, int param2)
 {
 	struct isp_cmd_channel_camera_err_handle_config cmd;
 	int len;
@@ -733,10 +733,10 @@ int bcwc_isp_cmd_channel_error_handling_config(struct bcwc_private *dev_priv, in
 	cmd.param1 = param1;
 	cmd.param2 = param2;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_ERR_HANDLE_CONFIG, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_ERR_HANDLE_CONFIG, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_streaming_mode(struct bcwc_private *dev_priv, int channel, int mode)
+int fthd_isp_cmd_channel_streaming_mode(struct fthd_private *dev_priv, int channel, int mode)
 {
 	struct isp_cmd_channel_streaming_mode cmd;
 	int len;
@@ -747,10 +747,10 @@ int bcwc_isp_cmd_channel_streaming_mode(struct bcwc_private *dev_priv, int chann
 	cmd.channel = channel;
 	cmd.mode = mode;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_STREAMING_MODE_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_STREAMING_MODE_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_frame_rate_min(struct bcwc_private *dev_priv, int channel, int rate)
+int fthd_isp_cmd_channel_frame_rate_min(struct fthd_private *dev_priv, int channel, int rate)
 {
 	struct isp_cmd_channel_frame_rate_set cmd;
 	int len;
@@ -761,10 +761,10 @@ int bcwc_isp_cmd_channel_frame_rate_min(struct bcwc_private *dev_priv, int chann
 	cmd.channel = channel;
 	cmd.rate = rate;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MIN_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MIN_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_frame_rate_max(struct bcwc_private *dev_priv, int channel, int rate)
+int fthd_isp_cmd_channel_frame_rate_max(struct fthd_private *dev_priv, int channel, int rate)
 {
 	struct isp_cmd_channel_frame_rate_set cmd;
 	int len;
@@ -775,10 +775,10 @@ int bcwc_isp_cmd_channel_frame_rate_max(struct bcwc_private *dev_priv, int chann
 	cmd.channel = channel;
 	cmd.rate = rate;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MAX_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MAX_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_ae_speed_set(struct bcwc_private *dev_priv, int channel, int speed)
+int fthd_isp_cmd_channel_ae_speed_set(struct fthd_private *dev_priv, int channel, int speed)
 {
 	struct isp_cmd_channel_ae_speed_set cmd;
 	int len;
@@ -789,10 +789,10 @@ int bcwc_isp_cmd_channel_ae_speed_set(struct bcwc_private *dev_priv, int channel
 	cmd.channel = channel;
 	cmd.speed = speed;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_SPEED_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_SPEED_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_ae_stability_set(struct bcwc_private *dev_priv, int channel, int stability)
+int fthd_isp_cmd_channel_ae_stability_set(struct fthd_private *dev_priv, int channel, int stability)
 {
 	struct isp_cmd_channel_ae_stability_set cmd;
 	int len;
@@ -803,10 +803,10 @@ int bcwc_isp_cmd_channel_ae_stability_set(struct bcwc_private *dev_priv, int cha
 	cmd.channel = channel;
 	cmd.stability = stability;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_ae_stability_to_stable_set(struct bcwc_private *dev_priv, int channel, int value)
+int fthd_isp_cmd_channel_ae_stability_to_stable_set(struct fthd_private *dev_priv, int channel, int value)
 {
 	struct isp_cmd_channel_ae_stability_to_stable_set cmd;
 	int len;
@@ -817,10 +817,10 @@ int bcwc_isp_cmd_channel_ae_stability_to_stable_set(struct bcwc_private *dev_pri
 	cmd.channel = channel;
 	cmd.value = value;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_TO_STABLE_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_TO_STABLE_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_face_detection_start(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_face_detection_start(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_face_detection_start cmd;
 	int len;
@@ -830,10 +830,10 @@ int bcwc_isp_cmd_channel_face_detection_start(struct bcwc_private *dev_priv, int
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_START, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_START, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_face_detection_stop(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_face_detection_stop(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_face_detection_stop cmd;
 	int len;
@@ -843,10 +843,10 @@ int bcwc_isp_cmd_channel_face_detection_stop(struct bcwc_private *dev_priv, int 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_STOP, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_STOP, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_face_detection_enable(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_face_detection_enable(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_face_detection_enable cmd;
 	int len;
@@ -856,10 +856,10 @@ int bcwc_isp_cmd_channel_face_detection_enable(struct bcwc_private *dev_priv, in
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_ENABLE, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_ENABLE, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_face_detection_disable(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_face_detection_disable(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_face_detection_disable cmd;
 	int len;
@@ -869,10 +869,10 @@ int bcwc_isp_cmd_channel_face_detection_disable(struct bcwc_private *dev_priv, i
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_DISABLE, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_DISABLE, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_temporal_filter_start(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_temporal_filter_start(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_temporal_filter_start cmd;
 	int len;
@@ -882,10 +882,10 @@ int bcwc_isp_cmd_channel_temporal_filter_start(struct bcwc_private *dev_priv, in
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_START, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_START, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_temporal_filter_stop(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_temporal_filter_stop(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_temporal_filter_stop cmd;
 	int len;
@@ -895,10 +895,10 @@ int bcwc_isp_cmd_channel_temporal_filter_stop(struct bcwc_private *dev_priv, int
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_STOP, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_STOP, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_temporal_filter_enable(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_temporal_filter_enable(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_temporal_filter_enable cmd;
 	int len;
@@ -908,10 +908,10 @@ int bcwc_isp_cmd_channel_temporal_filter_enable(struct bcwc_private *dev_priv, i
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_ENABLE, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_ENABLE, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_temporal_filter_disable(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_temporal_filter_disable(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_temporal_filter_disable cmd;
 	int len;
@@ -921,10 +921,10 @@ int bcwc_isp_cmd_channel_temporal_filter_disable(struct bcwc_private *dev_priv, 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_DISABLE, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_DISABLE, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_motion_history_start(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_motion_history_start(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_motion_history_start cmd;
 	int len;
@@ -934,10 +934,10 @@ int bcwc_isp_cmd_channel_motion_history_start(struct bcwc_private *dev_priv, int
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_START, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_START, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_motion_history_stop(struct bcwc_private *dev_priv, int channel)
+int fthd_isp_cmd_channel_motion_history_stop(struct fthd_private *dev_priv, int channel)
 {
 	struct isp_cmd_channel_motion_history_stop cmd;
 	int len;
@@ -947,10 +947,10 @@ int bcwc_isp_cmd_channel_motion_history_stop(struct bcwc_private *dev_priv, int 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_STOP, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_STOP, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_ae_metering_mode_set(struct bcwc_private *dev_priv, int channel, int mode)
+int fthd_isp_cmd_channel_ae_metering_mode_set(struct fthd_private *dev_priv, int channel, int mode)
 {
 	struct isp_cmd_channel_ae_metering_mode_set cmd;
 	int len;
@@ -961,10 +961,10 @@ int bcwc_isp_cmd_channel_ae_metering_mode_set(struct bcwc_private *dev_priv, int
 	cmd.channel = channel;
 	cmd.mode = mode;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_AE_METERING_MODE_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_AE_METERING_MODE_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_brightness_set(struct bcwc_private *dev_priv, int channel, int brightness)
+int fthd_isp_cmd_channel_brightness_set(struct fthd_private *dev_priv, int channel, int brightness)
 {
 	struct isp_cmd_channel_brightness_set cmd;
 	int len;
@@ -975,10 +975,10 @@ int bcwc_isp_cmd_channel_brightness_set(struct bcwc_private *dev_priv, int chann
 	cmd.channel = channel;
 	cmd.brightness = brightness;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_BRIGHTNESS_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_BRIGHTNESS_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_isp_cmd_channel_contrast_set(struct bcwc_private *dev_priv, int channel, int contrast)
+int fthd_isp_cmd_channel_contrast_set(struct fthd_private *dev_priv, int channel, int contrast)
 {
 	struct isp_cmd_channel_contrast_set cmd;
 	int len;
@@ -989,17 +989,17 @@ int bcwc_isp_cmd_channel_contrast_set(struct bcwc_private *dev_priv, int channel
 	cmd.channel = channel;
 	cmd.contrast = contrast;
 	len = sizeof(cmd);
-	return bcwc_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_CONTRAST_SET, &cmd, sizeof(cmd), &len);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_CONTRAST_SET, &cmd, sizeof(cmd), &len);
 }
 
-int bcwc_start_channel(struct bcwc_private *dev_priv, int channel)
+int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 {
 	int ret, x1 = 0, x2 = 0, pixelformat;
 
-	ret = bcwc_isp_cmd_channel_camera_config(dev_priv);
+	ret = fthd_isp_cmd_channel_camera_config(dev_priv);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
+	ret = fthd_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
 	if (ret)
 		return ret;
 
@@ -1012,7 +1012,7 @@ int bcwc_start_channel(struct bcwc_private *dev_priv, int channel)
 		x2 = 1280;
 	}
 
-	ret = bcwc_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2, 720);
+	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2, 720);
 	if (ret)
 		return ret;
 
@@ -1030,112 +1030,112 @@ int bcwc_start_channel(struct bcwc_private *dev_priv, int channel)
 		pixelformat = 1;
 		WARN_ON(1);
 	}
-	ret = bcwc_isp_cmd_channel_output_config_set(dev_priv, 0,
+	ret = fthd_isp_cmd_channel_output_config_set(dev_priv, 0,
 						     dev_priv->fmt.fmt.width,
 						     dev_priv->fmt.fmt.height,
 						     pixelformat);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
+	ret = fthd_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_recycle_start(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_recycle_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, 3);
+	ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, 3);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_drc_start(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
+	ret = fthd_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_ae_stability_set(dev_priv, 0, 75);
+	ret = fthd_isp_cmd_channel_ae_stability_set(dev_priv, 0, 75);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_ae_stability_to_stable_set(dev_priv, 0, 8);
+	ret = fthd_isp_cmd_channel_ae_stability_to_stable_set(dev_priv, 0, 8);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
+	ret = fthd_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
+	ret = fthd_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_face_detection_enable(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_face_detection_enable(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_face_detection_start(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_face_detection_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frametime * 256);
+	ret = fthd_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frametime * 256);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_frame_rate_min(dev_priv, 0, dev_priv->frametime * 256);
+	ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0, dev_priv->frametime * 256);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_temporal_filter_start(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_temporal_filter_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_motion_history_start(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_motion_history_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_temporal_filter_enable(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_temporal_filter_enable(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
+	ret = fthd_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
+	ret = fthd_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
+	ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
 	if (ret)
 		return ret;
-	ret = bcwc_isp_cmd_channel_start(dev_priv);
+	ret = fthd_isp_cmd_channel_start(dev_priv);
 	if (ret)
 		return ret;
 	mdelay(1000); /* Needed to settle AE */
 	return 0;
 }
 
-int bcwc_stop_channel(struct bcwc_private *dev_priv, int channel)
+int fthd_stop_channel(struct fthd_private *dev_priv, int channel)
 {
 	int ret;
 
-	ret = bcwc_isp_cmd_channel_stop(dev_priv);
+	ret = fthd_isp_cmd_channel_stop(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_channel_buffer_return(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_buffer_return(dev_priv, 0);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_channel_face_detection_stop(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_face_detection_stop(dev_priv, 0);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_channel_face_detection_disable(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_face_detection_disable(dev_priv, 0);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_channel_temporal_filter_disable(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_temporal_filter_disable(dev_priv, 0);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_channel_motion_history_stop(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_motion_history_stop(dev_priv, 0);
 	if (ret)
 		return ret;
 
-	return bcwc_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
+	return fthd_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
 }
 
-int isp_init(struct bcwc_private *dev_priv)
+int isp_init(struct fthd_private *dev_priv)
 {
 	struct isp_mem_obj *ipc_queue, *heap, *fw_args;
 	struct isp_fw_args *fw_args_data;
@@ -1157,31 +1157,31 @@ int isp_init(struct bcwc_private *dev_priv)
 	mdelay(10);
 
 	isp_enable_sensor(dev_priv);
-	BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
-	BCWC_ISP_REG_WRITE(0, ISP_IPC_QUEUE_SIZE);
-	BCWC_ISP_REG_WRITE(0, ISP_FW_SIZE);
-	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE);
-	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
-	BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
-	BCWC_ISP_REG_WRITE(0, ISP_REG_C3018);
-	BCWC_ISP_REG_WRITE(0, ISP_REG_C301C);
+	FTHD_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
+	FTHD_ISP_REG_WRITE(0, ISP_IPC_QUEUE_SIZE);
+	FTHD_ISP_REG_WRITE(0, ISP_FW_SIZE);
+	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE);
+	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
+	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
+	FTHD_ISP_REG_WRITE(0, ISP_REG_C3018);
+	FTHD_ISP_REG_WRITE(0, ISP_REG_C301C);
 
-	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
+	FTHD_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
 
 	/*
 	 * Probably the IPC queue
 	 * FIXME: Check if we can do 64bit writes on PCIe
 	 */
 	for (i = ISP_IPC_CHAN_START; i <= ISP_IPC_CHAN_END; i += 8) {
-		BCWC_ISP_REG_WRITE(0xffffffff, i);
-		BCWC_ISP_REG_WRITE(0, i + 4);
+		FTHD_ISP_REG_WRITE(0xffffffff, i);
+		FTHD_ISP_REG_WRITE(0, i + 4);
 	}
 
-	BCWC_ISP_REG_WRITE(0x80000000, ISP_REG_40008);
-	BCWC_ISP_REG_WRITE(0x1, ISP_REG_40004);
+	FTHD_ISP_REG_WRITE(0x80000000, ISP_REG_40008);
+	FTHD_ISP_REG_WRITE(0x1, ISP_REG_40004);
 
 	for (retries = 0; retries < 1000; retries++) {
-		reg = BCWC_ISP_REG_READ(ISP_REG_41000);
+		reg = FTHD_ISP_REG_READ(ISP_REG_41000);
 		if ((reg & 0xf0) > 0)
 			break;
 		mdelay(10);
@@ -1195,10 +1195,10 @@ int isp_init(struct bcwc_private *dev_priv)
 	dev_info(&dev_priv->pdev->dev, "ISP woke up after %dms\n",
 		 (retries - 1) * 10);
 
-	BCWC_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
+	FTHD_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
 
-	num_channels = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN);
-	queue_size = BCWC_ISP_REG_READ(ISP_IPC_QUEUE_SIZE) + 1;
+	num_channels = FTHD_ISP_REG_READ(ISP_IPC_NUM_CHAN);
+	queue_size = FTHD_ISP_REG_READ(ISP_IPC_QUEUE_SIZE) + 1;
 
 	dev_info(&dev_priv->pdev->dev,
 		 "Number of IPC channels: %u, queue size: %u\n",
@@ -1215,16 +1215,16 @@ int isp_init(struct bcwc_private *dev_priv)
 		return -ENOMEM;
 
 	/* Firmware heap max size is 4mb */
-	heap_size = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
+	heap_size = FTHD_ISP_REG_READ(ISP_FW_HEAP_SIZE);
 
 	if (heap_size == 0) {
-		BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
-		BCWC_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
-		BCWC_ISP_REG_WRITE(dev_priv->firmware->size_aligned, ISP_FW_SIZE);
-		BCWC_ISP_REG_WRITE(0x10000000 - dev_priv->firmware->size_aligned,
+		FTHD_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
+		FTHD_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
+		FTHD_ISP_REG_WRITE(dev_priv->firmware->size_aligned, ISP_FW_SIZE);
+		FTHD_ISP_REG_WRITE(0x10000000 - dev_priv->firmware->size_aligned,
 				   ISP_FW_HEAP_SIZE);
-		BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
-		BCWC_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
+		FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
+		FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
 	} else {
 		/* Must be at least 0x1000 bytes */
 		heap_size = (heap_size < 0x1000) ? 0x1000 : heap_size;
@@ -1243,18 +1243,18 @@ int isp_init(struct bcwc_private *dev_priv)
 		if (!heap)
 			return -ENOMEM;
 
-		BCWC_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
+		FTHD_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
 
 		/* Set IPC queue base addr */
-		BCWC_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
+		FTHD_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
 
-		BCWC_ISP_REG_WRITE(FTHD_MEM_FW_SIZE, ISP_FW_SIZE);
+		FTHD_ISP_REG_WRITE(FTHD_MEM_FW_SIZE, ISP_FW_SIZE);
 
-		BCWC_ISP_REG_WRITE(0x10000000 - FTHD_MEM_FW_SIZE, ISP_FW_HEAP_SIZE);
+		FTHD_ISP_REG_WRITE(0x10000000 - FTHD_MEM_FW_SIZE, ISP_FW_HEAP_SIZE);
 
-		BCWC_ISP_REG_WRITE(heap->offset, ISP_FW_HEAP_ADDR);
+		FTHD_ISP_REG_WRITE(heap->offset, ISP_FW_HEAP_ADDR);
 
-		BCWC_ISP_REG_WRITE(heap->size, ISP_FW_HEAP_SIZE2);
+		FTHD_ISP_REG_WRITE(heap->size, ISP_FW_HEAP_SIZE2);
 
 		/* Set FW args */
 		fw_args = isp_mem_create(dev_priv, FTHD_MEM_FW_ARGS, sizeof(struct isp_fw_args));
@@ -1267,12 +1267,12 @@ int isp_init(struct bcwc_private *dev_priv)
 		fw_args_data->fw_arg = 0;
 		fw_args_data->full_stats_mode = 0;
 
-		BCWC_ISP_REG_WRITE(fw_args->offset, ISP_REG_C301C);
+		FTHD_ISP_REG_WRITE(fw_args->offset, ISP_REG_C301C);
 
-		BCWC_ISP_REG_WRITE(0x10, ISP_REG_41020);
+		FTHD_ISP_REG_WRITE(0x10, ISP_REG_41020);
 
 		for (retries = 0; retries < 1000; retries++) {
-			reg = BCWC_ISP_REG_READ(ISP_REG_41000);
+			reg = FTHD_ISP_REG_READ(ISP_REG_41000);
 			if ((reg & 0xf0) > 0)
 				break;
 			mdelay(10);
@@ -1286,24 +1286,24 @@ int isp_init(struct bcwc_private *dev_priv)
 		dev_info(&dev_priv->pdev->dev, "ISP second int after %dms\n",
 			 (retries - 1) * 10);
 
-		offset = BCWC_ISP_REG_READ(ISP_IPC_NUM_CHAN);
+		offset = FTHD_ISP_REG_READ(ISP_IPC_NUM_CHAN);
 		dev_info(&dev_priv->pdev->dev, "Channel description table at %08x\n", offset);
 		ret = isp_fill_channel_info(dev_priv, offset, num_channels);
 		if (ret)
 			return ret;
 
-		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_terminal);
-		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_io);
-		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_debug);
-		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_h2t);
-		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_t2h);
-		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_shared_malloc);
-		bcwc_channel_ringbuf_init(dev_priv, dev_priv->channel_io_t2h);
+		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_terminal);
+		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_io);
+		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_debug);
+		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_h2t);
+		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_t2h);
+		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_shared_malloc);
+		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_io_t2h);
 
-		BCWC_ISP_REG_WRITE(0x8042006, ISP_FW_HEAP_SIZE);
+		FTHD_ISP_REG_WRITE(0x8042006, ISP_FW_HEAP_SIZE);
 
 		for (retries = 0; retries < 1000; retries++) {
-			reg = BCWC_ISP_REG_READ(ISP_FW_HEAP_SIZE);
+			reg = FTHD_ISP_REG_READ(ISP_FW_HEAP_SIZE);
 			if (!reg)
 				break;
 			mdelay(10);

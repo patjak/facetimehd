@@ -1,4 +1,4 @@
-#bcwc_pcie
+#facetimehd
 
 Linux driver for the Facetime HD (Broadcom 1570) PCIe webcam
 found in recent Macbooks, according to Apple the following models

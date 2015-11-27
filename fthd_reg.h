@@ -17,8 +17,8 @@
  *
  */
 
-#ifndef _BCWC_REG_H
-#define _BCWC_REG_H
+#ifndef _FTHD_REG_H
+#define _FTHD_REG_H
 
 /* PCIE link regs */
 #define S2_PCIE_LINK_D000	0xd000

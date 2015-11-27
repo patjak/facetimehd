@@ -1,7 +1,7 @@
 /*
  * Broadcom PCIe 1570 webcam driver
  *
- * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
+ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
@@ -17,29 +17,14 @@
  *
  */
 
-#ifndef _BCWC_V4L2_H
-#define _BCWC_V4L2_H
+#ifndef _FTHD_DDR_H
+#define _FTHD_DDR_H
 
-#include <linux/pci.h>
-#include <linux/spinlock.h>
-#include <linux/wait.h>
-#include <linux/mutex.h>
-#include <media/videobuf-dma-sg.h>
-#include <media/v4l2-device.h>
+#define MEM_VERIFY_BASE		0x0 /* 0x1000000 */
+#define MEM_VERIFY_NUM		128
+#define MEM_VERIFY_NUM_FULL	(1 * 1024 * 1024)
 
-struct bcwc_fmt {
-	struct v4l2_pix_format fmt;
-	const char *desc;
-	int range; /* CISP_COMMAND_CH_OUTPUT_CONFIG_SET */
-	int planes;
-	int x1; /* for CISP_CMD_CH_CROP_SET */
-	int y1;
-	int x2;
-	int y2;
-};
-
-struct bcwc_private;
-extern int bcwc_v4l2_register(struct bcwc_private *dev_priv);
-extern void bcwc_v4l2_unregister(struct bcwc_private *dev_priv);
+int fthd_ddr_calibrate(struct fthd_private *dev_priv);
+int fthd_ddr_verify_mem(struct fthd_private *dev_priv, u32 base, int count);
 
 #endif

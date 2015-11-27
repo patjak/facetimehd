@@ -17,8 +17,8 @@
  *
  */
 
-#ifndef _BCWC_RINGBUF_H
-#define _BCWC_RINGBUF_H
+#ifndef _FTHD_RINGBUF_H
+#define _FTHD_RINGBUF_H
 
 enum ringbuf_type_t {
 	RINGBUF_TYPE_H2T=0,
@@ -26,14 +26,14 @@ enum ringbuf_type_t {
 	RINGBUF_TYPE_UNIDIRECTIONAL,
 };
 
-struct bcwc_ringbuf {
+struct fthd_ringbuf {
 	void *doorbell;
 	u32 phys_offset;
 	int idx;
         u8 *virt_addr;
 };
 
-struct bcwc_ringbuf_entry {
+struct fthd_ringbuf_entry {
 	u32 address_flags;
 	u32 request_size;
 	u32 response_size;
@@ -41,14 +41,14 @@ struct bcwc_ringbuf_entry {
 } __attribute__((packed));
 
 struct fw_channel;
-struct bcwc_private;
-extern void bcwc_channel_ringbuf_dump(struct bcwc_private *dev_priv, struct fw_channel *chan);
-extern void bcwc_channel_ringbuf_init(struct bcwc_private *dev_priv, struct fw_channel *chan);
-extern struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_get_entry(struct bcwc_private *, struct fw_channel *);
-extern struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_send(struct bcwc_private *dev_priv, struct fw_channel *chan,
+struct fthd_private;
+extern void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel *chan);
+extern void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel *chan);
+extern struct fthd_ringbuf_entry *fthd_channel_ringbuf_get_entry(struct fthd_private *, struct fw_channel *);
+extern struct fthd_ringbuf_entry *fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
 				     u32 data_offset, u32 request_size, u32 response_size);
 
-struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_receive(struct bcwc_private *dev_priv,
+struct fthd_ringbuf_entry *fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
 							struct fw_channel *chan);
 
 #endif

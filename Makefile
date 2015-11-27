@@ -1,5 +1,5 @@
-bcwc_pcie-objs := bcwc_ddr.o bcwc_hw.o bcwc_drv.o bcwc_ringbuf.o bcwc_isp.o bcwc_v4l2.o bcwc_buffer.o
-obj-m := bcwc_pcie.o
+facetimehd-objs := fthd_ddr.o fthd_hw.o fthd_drv.o fthd_ringbuf.o fthd_isp.o fthd_v4l2.o fthd_buffer.o
+obj-m := facetimehd.o
 
 KVERSION := $(shell uname -r)
 KDIR := /lib/modules/$(KVERSION)/build

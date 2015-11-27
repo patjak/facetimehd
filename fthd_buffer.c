@@ -20,19 +20,19 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/printk.h>
-#include "bcwc_drv.h"
-#include "bcwc_isp.h"
-#include "bcwc_hw.h"
-#include "bcwc_buffer.h"
+#include "fthd_drv.h"
+#include "fthd_isp.h"
+#include "fthd_hw.h"
+#include "fthd_buffer.h"
 
 #define GET_IOMMU_PAGES(_x) (((_x) + 4095)/4096)
 
 struct buf_ctx {
-	struct bcwc_plane plane[4];
+	struct fthd_plane plane[4];
 	struct isp_mem_obj *isphdr;
 };
 
-static int iommu_allocator_init(struct bcwc_private *dev_priv)
+static int iommu_allocator_init(struct fthd_private *dev_priv)
 {
         dev_priv->iommu = kzalloc(sizeof(struct resource), GFP_KERNEL);
 	if (!dev_priv->iommu)
@@ -43,7 +43,7 @@ static int iommu_allocator_init(struct bcwc_private *dev_priv)
 	return 0;
 }
 
-struct iommu_obj *iommu_allocate(struct bcwc_private *dev_priv, resource_size_t size, unsigned long long phys_addr)
+struct iommu_obj *iommu_allocate(struct fthd_private *dev_priv, resource_size_t size, unsigned long long phys_addr)
 {
 	struct iommu_obj *obj;
 	struct resource *root = dev_priv->iommu;
@@ -74,13 +74,13 @@ struct iommu_obj *iommu_allocate(struct bcwc_private *dev_priv, resource_size_t 
 	obj->size = pages;
 
 	for (i = obj->offset, j = 0; i < obj->offset + obj->size; i++, j++)
-		BCWC_S2_REG_WRITE((phys_addr >> 12) + j, 0x9000 + i * 4);
+		FTHD_S2_REG_WRITE((phys_addr >> 12) + j, 0x9000 + i * 4);
 
 	pr_debug("allocated %d pages @ %p / offset %d\n", obj->size, obj, obj->offset);
 	return obj;
 }
 
-struct iommu_obj *iommu_allocate_sgtable(struct bcwc_private *dev_priv, struct sg_table *sgtable)
+struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct sg_table *sgtable)
 {
 	struct iommu_obj *obj;
 	struct resource *root = dev_priv->iommu;
@@ -127,7 +127,7 @@ struct iommu_obj *iommu_allocate_sgtable(struct bcwc_private *dev_priv, struct s
 		
 		for(dma_length = 0; dma_length < sg_dma_len(sg); dma_length += 0x1000) {
 		  //			pr_debug("IOMMU %08x -> %08llx (dma length %d)\n", pos, dma_addr, dma_length);
-			BCWC_S2_REG_WRITE(dma_addr++, pos);
+			FTHD_S2_REG_WRITE(dma_addr++, pos);
 			pos += 4;
 		}
 	}
@@ -136,7 +136,7 @@ struct iommu_obj *iommu_allocate_sgtable(struct bcwc_private *dev_priv, struct s
 	return obj;
 }
 #if 0
-struct iommu_obj *get_iommu_obj(struct bcwc_private *dev_priv, int pos)
+struct iommu_obj *get_iommu_obj(struct fthd_private *dev_priv, int pos)
 {
 	struct iommu_obj *obj;
 	struct resource *res;
@@ -151,7 +151,7 @@ struct iommu_obj *get_iommu_obj(struct bcwc_private *dev_priv, int pos)
 	return obj;
 }
 #endif
-void iommu_free(struct bcwc_private *dev_priv, struct iommu_obj *obj)
+void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj)
 {
 	int i;
 	pr_debug("freeing %p\n", obj);
@@ -160,28 +160,28 @@ void iommu_free(struct bcwc_private *dev_priv, struct iommu_obj *obj)
 		return;
 	
  	for (i = obj->offset; i < obj->offset + obj->size; i++)
-		BCWC_S2_REG_WRITE(0, 0x9000 + i * 4);
+		FTHD_S2_REG_WRITE(0, 0x9000 + i * 4);
 
 	release_resource(&obj->base);
 	kfree(obj);
 	obj = NULL;
 }
 
-static void iommu_allocator_destroy(struct bcwc_private *dev_priv)
+static void iommu_allocator_destroy(struct fthd_private *dev_priv)
 {
 	kfree(dev_priv->iommu);
 }
 
-int bcwc_buffer_init(struct bcwc_private *dev_priv)
+int fthd_buffer_init(struct fthd_private *dev_priv)
 {
 	int i;
 	for(i = 0; i < 0x1000; i++)
-		BCWC_S2_REG_WRITE(0, 0x9000 + i * 4);
+		FTHD_S2_REG_WRITE(0, 0x9000 + i * 4);
 
 	return iommu_allocator_init(dev_priv);
 }
 
-void bcwc_buffer_exit(struct bcwc_private *dev_priv)
+void fthd_buffer_exit(struct fthd_private *dev_priv)
 {
 	iommu_allocator_destroy(dev_priv);
 }

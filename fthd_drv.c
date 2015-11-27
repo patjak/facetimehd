@@ -28,79 +28,79 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/videodev2.h>
-#include "bcwc_drv.h"
-#include "bcwc_hw.h"
-#include "bcwc_isp.h"
-#include "bcwc_ringbuf.h"
-#include "bcwc_buffer.h"
-#include "bcwc_v4l2.h"
+#include "fthd_drv.h"
+#include "fthd_hw.h"
+#include "fthd_isp.h"
+#include "fthd_ringbuf.h"
+#include "fthd_buffer.h"
+#include "fthd_v4l2.h"
 
-static int bcwc_pci_reserve_mem(struct bcwc_private *dev_priv)
+static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 {
 	unsigned long start;
 	unsigned long len;
 	int ret;
 
 	/* Reserve resources */
-	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_S2_IO, "S2 IO");
+	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_S2_IO, "S2 IO");
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev, "Failed to request S2 IO\n");
 		return ret;
 	}
 
-	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_ISP_IO, "ISP IO");
+	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_ISP_IO, "ISP IO");
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev, "Failed to request ISP IO\n");
-		pci_release_region(dev_priv->pdev, BCWC_PCI_S2_IO);
+		pci_release_region(dev_priv->pdev, FTHD_PCI_S2_IO);
 		return ret;
 	}
 
-	ret = pci_request_region(dev_priv->pdev, BCWC_PCI_S2_MEM, "S2 MEM");
+	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_S2_MEM, "S2 MEM");
 	if (ret) {
-		pci_release_region(dev_priv->pdev, BCWC_PCI_ISP_IO);
-		pci_release_region(dev_priv->pdev, BCWC_PCI_S2_IO);
+		pci_release_region(dev_priv->pdev, FTHD_PCI_ISP_IO);
+		pci_release_region(dev_priv->pdev, FTHD_PCI_S2_IO);
 		return ret;
 	}
 
 	/* S2 IO */
-	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_S2_IO);
-	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_S2_IO);
+	start = pci_resource_start(dev_priv->pdev, FTHD_PCI_S2_IO);
+	len = pci_resource_len(dev_priv->pdev, FTHD_PCI_S2_IO);
 	dev_priv->s2_io = ioremap_nocache(start, len);
 	dev_priv->s2_io_len = len;
 
 	/* S2 MEM */
-	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_S2_MEM);
-	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_S2_MEM);
+	start = pci_resource_start(dev_priv->pdev, FTHD_PCI_S2_MEM);
+	len = pci_resource_len(dev_priv->pdev, FTHD_PCI_S2_MEM);
 	dev_priv->s2_mem = ioremap_nocache(start, len);
 	dev_priv->s2_mem_len = len;
 
 	/* ISP IO */
-	start = pci_resource_start(dev_priv->pdev, BCWC_PCI_ISP_IO);
-	len = pci_resource_len(dev_priv->pdev, BCWC_PCI_ISP_IO);
+	start = pci_resource_start(dev_priv->pdev, FTHD_PCI_ISP_IO);
+	len = pci_resource_len(dev_priv->pdev, FTHD_PCI_ISP_IO);
 	dev_priv->isp_io = ioremap_nocache(start, len);
 	dev_priv->isp_io_len = len;
 
 	pr_debug("Allocated S2 regs (BAR %d). %u bytes at 0x%p",
-		 BCWC_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
+		 FTHD_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
 
 	pr_debug("Allocated S2 mem (BAR %d). %u bytes at 0x%p",
-		 BCWC_PCI_S2_MEM, dev_priv->s2_mem_len, dev_priv->s2_mem);
+		 FTHD_PCI_S2_MEM, dev_priv->s2_mem_len, dev_priv->s2_mem);
 
 	pr_debug("Allocated ISP regs (BAR %d). %u bytes at 0x%p",
-		 BCWC_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
+		 FTHD_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
 
 	return 0;
 }
 
-static void bcwc_irq_disable(struct bcwc_private *dev_priv)
+static void fthd_irq_disable(struct fthd_private *dev_priv)
 {
-	//bcwc_hw_irq_disable(dev_priv);
+	//fthd_hw_irq_disable(dev_priv);
 	free_irq(dev_priv->pdev->irq, dev_priv);
 }
 
-static void sharedmalloc_handler(struct bcwc_private *dev_priv,
+static void sharedmalloc_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
-				 struct bcwc_ringbuf_entry *entry)
+				 struct fthd_ringbuf_entry *entry)
 {
 	u32 request_size, response_size, address;
 	struct isp_mem_obj *obj, **p;
@@ -114,7 +114,7 @@ static void sharedmalloc_handler(struct bcwc_private *dev_priv,
 		p = dev_priv->s2_mem + address - 64;
 		isp_mem_destroy(*p);
 
-		bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
+		fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 	} else {
 		if (!request_size)
 			return;
@@ -127,15 +127,15 @@ static void sharedmalloc_handler(struct bcwc_private *dev_priv,
 			 response_size >> 8, response_size);
 		p = dev_priv->s2_mem + obj->offset;
 		*p = obj;
-		bcwc_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0);
+		fthd_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0);
 	}
 
 }
 
 
-static void terminal_handler(struct bcwc_private *dev_priv,
+static void terminal_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
-				 struct bcwc_ringbuf_entry *entry)
+				 struct fthd_ringbuf_entry *entry)
 {
 	u32 request_size, response_size, address;
 
@@ -150,9 +150,9 @@ static void terminal_handler(struct bcwc_private *dev_priv,
 
 }
 
-static void buf_t2h_handler(struct bcwc_private *dev_priv,
+static void buf_t2h_handler(struct fthd_private *dev_priv,
 			    struct fw_channel *chan,
-			    struct bcwc_ringbuf_entry *entry)
+			    struct fthd_ringbuf_entry *entry)
 {
 	u32 request_size, response_size, address;
 
@@ -163,36 +163,36 @@ static void buf_t2h_handler(struct bcwc_private *dev_priv,
 	if (entry->address_flags & 1)
 		return;
 
-	bcwc_buffer_return_handler(dev_priv, dev_priv->s2_mem + address, request_size);
-	bcwc_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
+	fthd_buffer_return_handler(dev_priv, dev_priv->s2_mem + address, request_size);
+	fthd_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
 				  0, 0x80000000);
 }
 
-static void io_t2h_handler(struct bcwc_private *dev_priv,
+static void io_t2h_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
-				 struct bcwc_ringbuf_entry *entry)
+				 struct fthd_ringbuf_entry *entry)
 {
-	bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
+	fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 }
 
-static void buf_h2t_handler(struct bcwc_private *dev_priv,
+static void buf_h2t_handler(struct fthd_private *dev_priv,
 			    struct fw_channel *chan,
-			    struct bcwc_ringbuf_entry *entry)
+			    struct fthd_ringbuf_entry *entry)
 {
-	bcwc_buffer_queued_handler(dev_priv, (struct dma_descriptor_list *)(dev_priv->s2_mem + (entry->address_flags & ~3)));
+	fthd_buffer_queued_handler(dev_priv, (struct dma_descriptor_list *)(dev_priv->s2_mem + (entry->address_flags & ~3)));
 }
 
-static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *chan)
+static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
-	struct bcwc_ringbuf_entry *entry;
+	struct fthd_ringbuf_entry *entry;
 
-	while((entry = bcwc_channel_ringbuf_receive(dev_priv, chan))) {
+	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan))) {
 		pr_debug("channel %s: message available, address %08x\n", chan->name, entry->address_flags);
 		if (chan == dev_priv->channel_shared_malloc) {
 			sharedmalloc_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_terminal) {
 			terminal_handler(dev_priv, chan, entry);
-			bcwc_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
+			fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 		} else if (chan == dev_priv->channel_buf_t2h) {
 			buf_t2h_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_io) {
@@ -206,9 +206,9 @@ static void bcwc_handle_irq(struct bcwc_private *dev_priv, struct fw_channel *ch
 	}
 }
 
-static void bcwc_irq_work(struct work_struct *work)
+static void fthd_irq_work(struct work_struct *work)
 {
-	struct bcwc_private *dev_priv = container_of(work, struct bcwc_private, irq_work);
+	struct fthd_private *dev_priv = container_of(work, struct fthd_private, irq_work);
 	struct fw_channel *chan;
 
 	u32 pending;
@@ -216,7 +216,7 @@ static void bcwc_irq_work(struct work_struct *work)
 
 	while(i++ < 500) {
 		spin_lock_irq(&dev_priv->io_lock);
-		pending = BCWC_ISP_REG_READ(ISP_REG_41000);
+		pending = FTHD_ISP_REG_READ(ISP_REG_41000);
 		spin_unlock_irq(&dev_priv->io_lock);
 
 		if (!(pending & 0xf0))
@@ -224,7 +224,7 @@ static void bcwc_irq_work(struct work_struct *work)
 
 		pci_write_config_dword(dev_priv->pdev, 0x94, 0);
 		spin_lock_irq(&dev_priv->io_lock);
-		BCWC_ISP_REG_WRITE(pending, ISP_REG_41024);
+		FTHD_ISP_REG_WRITE(pending, ISP_REG_41024);
 		spin_unlock_irq(&dev_priv->io_lock);
 		pci_write_config_dword(dev_priv->pdev, 0x90, 0x200);
 
@@ -235,25 +235,25 @@ static void bcwc_irq_work(struct work_struct *work)
 			BUG_ON(chan->source > 3);
 			if (!((0x10 << chan->source) & pending))
 				continue;
-			bcwc_handle_irq(dev_priv, chan);
+			fthd_handle_irq(dev_priv, chan);
 		}
 	}
 
 	if (i >= 500) {
 		dev_err(&dev_priv->pdev->dev, "irq stuck, disabling\n");
-		bcwc_irq_disable(dev_priv);
+		fthd_irq_disable(dev_priv);
 	}
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
 }
 
-static irqreturn_t bcwc_irq_handler(int irq, void *arg)
+static irqreturn_t fthd_irq_handler(int irq, void *arg)
 {
-	struct bcwc_private *dev_priv = arg;
+	struct fthd_private *dev_priv = arg;
 	u32 pending;
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev_priv->io_lock, flags);
-	pending = BCWC_ISP_REG_READ(ISP_REG_41000);
+	pending = FTHD_ISP_REG_READ(ISP_REG_41000);
 	spin_unlock_irqrestore(&dev_priv->io_lock, flags);
 
 	if (!(pending & 0xf0))
@@ -264,11 +264,11 @@ static irqreturn_t bcwc_irq_handler(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static int bcwc_irq_enable(struct bcwc_private *dev_priv)
+static int fthd_irq_enable(struct fthd_private *dev_priv)
 {
 	int ret;
 
-	ret = request_irq(dev_priv->pdev->irq, bcwc_irq_handler, IRQF_SHARED,
+	ret = request_irq(dev_priv->pdev->irq, fthd_irq_handler, IRQF_SHARED,
 			  KBUILD_MODNAME, (void *)dev_priv);
 
 	if (ret)
@@ -278,7 +278,7 @@ static int bcwc_irq_enable(struct bcwc_private *dev_priv)
 }
 
 
-static int bcwc_pci_set_dma_mask(struct bcwc_private *dev_priv,
+static int fthd_pci_set_dma_mask(struct fthd_private *dev_priv,
 				 unsigned int mask)
 {
 	int ret;
@@ -295,33 +295,33 @@ static int bcwc_pci_set_dma_mask(struct bcwc_private *dev_priv,
 	return 0;
 }
 
-static void bcwc_stop_firmware(struct bcwc_private *dev_priv)
+static void fthd_stop_firmware(struct fthd_private *dev_priv)
 {
-		bcwc_isp_cmd_stop(dev_priv);
+		fthd_isp_cmd_stop(dev_priv);
 	isp_powerdown(dev_priv);
 }
 
-static void bcwc_pci_remove(struct pci_dev *pdev)
+static void fthd_pci_remove(struct pci_dev *pdev)
 {
-	struct bcwc_private *dev_priv;
+	struct fthd_private *dev_priv;
 
 	dev_priv = pci_get_drvdata(pdev);
 	if (!dev_priv)
 		goto out;
 
-	bcwc_v4l2_unregister(dev_priv);
+	fthd_v4l2_unregister(dev_priv);
 
-	bcwc_stop_firmware(dev_priv);
+	fthd_stop_firmware(dev_priv);
 
-	bcwc_irq_disable(dev_priv);
+	fthd_irq_disable(dev_priv);
 
 	cancel_work_sync(&dev_priv->irq_work);
 
 	isp_uninit(dev_priv);
 
-	bcwc_hw_deinit(dev_priv);
+	fthd_hw_deinit(dev_priv);
 
-	bcwc_buffer_exit(dev_priv);
+	fthd_buffer_exit(dev_priv);
 
 	pci_disable_msi(pdev);
 
@@ -332,14 +332,14 @@ static void bcwc_pci_remove(struct pci_dev *pdev)
 	if (dev_priv->isp_io)
 		iounmap(dev_priv->isp_io);
 
-	pci_release_region(pdev, BCWC_PCI_S2_IO);
-	pci_release_region(pdev, BCWC_PCI_S2_MEM);
-	pci_release_region(pdev, BCWC_PCI_ISP_IO);
+	pci_release_region(pdev, FTHD_PCI_S2_IO);
+	pci_release_region(pdev, FTHD_PCI_S2_MEM);
+	pci_release_region(pdev, FTHD_PCI_ISP_IO);
 out:
 	pci_disable_device(pdev);
 }
 
-static int bcwc_pci_init(struct bcwc_private *dev_priv)
+static int fthd_pci_init(struct fthd_private *dev_priv)
 {
 	struct pci_dev *pdev = dev_priv->pdev;
 	int ret;
@@ -351,7 +351,7 @@ static int bcwc_pci_init(struct bcwc_private *dev_priv)
 		return ret;
 	}
 
-	ret = bcwc_pci_reserve_mem(dev_priv);
+	ret = fthd_pci_reserve_mem(dev_priv);
 	if (ret)
 		goto fail_enable;
 
@@ -361,13 +361,13 @@ static int bcwc_pci_init(struct bcwc_private *dev_priv)
 		goto fail_reserve;
 	}
 
-	ret = bcwc_irq_enable(dev_priv);
+	ret = fthd_irq_enable(dev_priv);
 	if (ret)
 		goto fail_msi;
 
-	ret = bcwc_pci_set_dma_mask(dev_priv, 64);
+	ret = fthd_pci_set_dma_mask(dev_priv, 64);
 	if (ret)
-		ret = bcwc_pci_set_dma_mask(dev_priv, 32);
+		ret = fthd_pci_set_dma_mask(dev_priv, 32);
 
 	if (ret)
 		goto fail_irq;
@@ -380,52 +380,52 @@ static int bcwc_pci_init(struct bcwc_private *dev_priv)
 	return 0;
 
 fail_irq:
-	bcwc_irq_disable(dev_priv);
+	fthd_irq_disable(dev_priv);
 fail_msi:
 	pci_disable_msi(pdev);
 fail_reserve:
-	pci_release_region(pdev, BCWC_PCI_S2_IO);
-	pci_release_region(pdev, BCWC_PCI_S2_MEM);
-	pci_release_region(pdev, BCWC_PCI_ISP_IO);
+	pci_release_region(pdev, FTHD_PCI_S2_IO);
+	pci_release_region(pdev, FTHD_PCI_S2_MEM);
+	pci_release_region(pdev, FTHD_PCI_ISP_IO);
 fail_enable:
 	pci_disable_device(pdev);
 	return ret;
 }
 
-static int bcwc_firmware_start(struct bcwc_private *dev_priv)
+static int fthd_firmware_start(struct fthd_private *dev_priv)
 {
 	int ret;
 
-	ret = bcwc_isp_cmd_start(dev_priv);
+	ret = fthd_isp_cmd_start(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_print_enable(dev_priv, 1);
+	ret = fthd_isp_cmd_print_enable(dev_priv, 1);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_camera_config(dev_priv);
+	ret = fthd_isp_cmd_camera_config(dev_priv);
 	if (ret)
 		return ret;
 
-	ret = bcwc_isp_cmd_channel_info(dev_priv);
+	ret = fthd_isp_cmd_channel_info(dev_priv);
 	if (ret)
 		return ret;
 
-	return bcwc_isp_cmd_set_loadfile(dev_priv);
+	return fthd_isp_cmd_set_loadfile(dev_priv);
 
 }
 
-static int bcwc_pci_probe(struct pci_dev *pdev,
+static int fthd_pci_probe(struct pci_dev *pdev,
 			  const struct pci_device_id *entry)
 {
-	struct bcwc_private *dev_priv;
+	struct fthd_private *dev_priv;
 	int ret;
 
 	dev_info(&pdev->dev, "Found Broadcom PCIe webcam with device id: %x\n",
 		 pdev->device);
 
-	dev_priv = kzalloc(sizeof(struct bcwc_private), GFP_KERNEL);
+	dev_priv = kzalloc(sizeof(struct fthd_private), GFP_KERNEL);
 	if (!dev_priv) {
 		dev_err(&pdev->dev, "Failed to allocate memory\n");
 		return -ENOMEM;
@@ -441,43 +441,43 @@ static int bcwc_pci_probe(struct pci_dev *pdev,
 	mutex_init(&dev_priv->ioctl_lock);
 	init_waitqueue_head(&dev_priv->cmd_wq);
 	INIT_LIST_HEAD(&dev_priv->buffer_queue);
-	INIT_WORK(&dev_priv->irq_work, bcwc_irq_work);
+	INIT_WORK(&dev_priv->irq_work, fthd_irq_work);
 
 	dev_priv->pdev = pdev;
 
-	ret = bcwc_pci_init(dev_priv);
+	ret = fthd_pci_init(dev_priv);
 	if (ret)
 		goto fail_work;
 
-	ret = bcwc_buffer_init(dev_priv);
+	ret = fthd_buffer_init(dev_priv);
 	if (ret)
 		goto fail_pci;
 
-	ret = bcwc_hw_init(dev_priv);
+	ret = fthd_hw_init(dev_priv);
 	if (ret)
 		goto fail_buffer;
 
-	ret = bcwc_firmware_start(dev_priv);
+	ret = fthd_firmware_start(dev_priv);
 	if (ret)
 		goto fail_hw;
 
-	ret = bcwc_v4l2_register(dev_priv);
+	ret = fthd_v4l2_register(dev_priv);
 	if (ret)
 		goto fail_firmware;
 
 	return 0;
 fail_firmware:
-	bcwc_stop_firmware(dev_priv);
+	fthd_stop_firmware(dev_priv);
 fail_hw:
-	bcwc_hw_deinit(dev_priv);
+	fthd_hw_deinit(dev_priv);
 fail_buffer:
-	bcwc_buffer_exit(dev_priv);
+	fthd_buffer_exit(dev_priv);
 fail_pci:
-	bcwc_irq_disable(dev_priv);
+	fthd_irq_disable(dev_priv);
 	pci_disable_msi(pdev);
-	pci_release_region(pdev, BCWC_PCI_S2_IO);
-	pci_release_region(pdev, BCWC_PCI_S2_MEM);
-	pci_release_region(pdev, BCWC_PCI_ISP_IO);
+	pci_release_region(pdev, FTHD_PCI_S2_IO);
+	pci_release_region(pdev, FTHD_PCI_S2_MEM);
+	pci_release_region(pdev, FTHD_PCI_ISP_IO);
 	pci_disable_device(pdev);
 
 fail_work:
@@ -487,38 +487,38 @@ fail_work:
 }
 
 #ifdef CONFIG_PM
-static int bcwc_pci_suspend(struct pci_dev *pdev, pm_message_t state)
+static int fthd_pci_suspend(struct pci_dev *pdev, pm_message_t state)
 {
 	return 0;
 }
 
-static int bcwc_pci_resume(struct pci_dev *pdev)
+static int fthd_pci_resume(struct pci_dev *pdev)
 {
 	return 0;
 }
 #endif /* CONFIG_PM */
 
-static const struct pci_device_id bcwc_pci_id_table[] = {
+static const struct pci_device_id fthd_pci_id_table[] = {
 	{ PCI_VDEVICE(BROADCOM, 0x1570), 4 },
 	{ 0, },
 };
 
-static struct pci_driver bcwc_pci_driver = {
+static struct pci_driver fthd_pci_driver = {
 	.name = KBUILD_MODNAME,
-	.probe = bcwc_pci_probe,
-	.remove = bcwc_pci_remove,
-	.id_table = bcwc_pci_id_table,
+	.probe = fthd_pci_probe,
+	.remove = fthd_pci_remove,
+	.id_table = fthd_pci_id_table,
 #ifdef CONFIG_PM
-	.suspend = bcwc_pci_suspend,
-	.resume = bcwc_pci_resume,
+	.suspend = fthd_pci_suspend,
+	.resume = fthd_pci_resume,
 #endif
 };
 
-static int __init bcwc_init(void)
+static int __init fthd_init(void)
 {
 	int ret = 0;
 
-	ret = pci_register_driver(&bcwc_pci_driver);
+	ret = pci_register_driver(&fthd_pci_driver);
 
 	if (ret)
 		pr_err("Couldn't find any devices (ret=%d)\n", ret);
@@ -526,13 +526,13 @@ static int __init bcwc_init(void)
 	return ret;
 }
 
-static void __exit bcwc_exit(void)
+static void __exit fthd_exit(void)
 {
-	pci_unregister_driver(&bcwc_pci_driver);
+	pci_unregister_driver(&fthd_pci_driver);
 }
 
-module_init(bcwc_init);
-module_exit(bcwc_exit);
+module_init(fthd_init);
+module_exit(fthd_exit);
 
 MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
 MODULE_DESCRIPTION("Broadcom PCIe 1570 webcam driver");

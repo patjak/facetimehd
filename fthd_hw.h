@@ -17,27 +17,27 @@
  *
  */
 
-#ifndef _BCWC_HW_H
-#define _BCWC_HW_H
+#ifndef _FTHD_HW_H
+#define _FTHD_HW_H
 
 #include <linux/pci.h>
 
 /* Used after most PCI Link IO writes */
-static inline void bcwc_hw_pci_post(struct bcwc_private *dev_priv)
+static inline void fthd_hw_pci_post(struct fthd_private *dev_priv)
 {
 	pci_write_config_dword(dev_priv->pdev, 0, 0x12345678);
 }
 
-#define BCWC_S2_REG_READ(offset) _BCWC_S2_REG_READ(dev_priv, (offset))
-#define BCWC_S2_REG_WRITE(val, offset) _BCWC_S2_REG_WRITE(dev_priv, (val), (offset))
+#define FTHD_S2_REG_READ(offset) _FTHD_S2_REG_READ(dev_priv, (offset))
+#define FTHD_S2_REG_WRITE(val, offset) _FTHD_S2_REG_WRITE(dev_priv, (val), (offset))
 
-#define BCWC_S2_MEM_READ(offset) _BCWC_S2_MEM_READ(dev_priv, (offset))
-#define BCWC_S2_MEM_WRITE(val, offset) _BCWC_S2_MEM_WRITE(dev_priv, (val), (offset))
+#define FTHD_S2_MEM_READ(offset) _FTHD_S2_MEM_READ(dev_priv, (offset))
+#define FTHD_S2_MEM_WRITE(val, offset) _FTHD_S2_MEM_WRITE(dev_priv, (val), (offset))
 
-#define BCWC_ISP_REG_READ(offset) _BCWC_ISP_REG_READ(dev_priv, (offset))
-#define BCWC_ISP_REG_WRITE(val, offset) _BCWC_ISP_REG_WRITE(dev_priv, (val), (offset))
+#define FTHD_ISP_REG_READ(offset) _FTHD_ISP_REG_READ(dev_priv, (offset))
+#define FTHD_ISP_REG_WRITE(val, offset) _FTHD_ISP_REG_WRITE(dev_priv, (val), (offset))
 
-static inline u32 _BCWC_S2_REG_READ(struct bcwc_private *dev_priv, u32 offset)
+static inline u32 _FTHD_S2_REG_READ(struct fthd_private *dev_priv, u32 offset)
 {
 	if (offset >= dev_priv->s2_io_len) {
 		dev_err(&dev_priv->pdev->dev,
@@ -49,7 +49,7 @@ static inline u32 _BCWC_S2_REG_READ(struct bcwc_private *dev_priv, u32 offset)
 	return ioread32(dev_priv->s2_io + offset);
 }
 
-static inline void _BCWC_S2_REG_WRITE(struct bcwc_private *dev_priv, u32 val,
+static inline void _FTHD_S2_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 				      u32 offset)
 {
 	if (offset >= dev_priv->s2_io_len) {
@@ -60,10 +60,10 @@ static inline void _BCWC_S2_REG_WRITE(struct bcwc_private *dev_priv, u32 val,
 
 	// dev_info(&dev_priv->pdev->dev, "S2 IO write at %u\n", offset);
 	iowrite32(val, dev_priv->s2_io + offset);
-	bcwc_hw_pci_post(dev_priv);
+	fthd_hw_pci_post(dev_priv);
 }
 
-static inline u32 _BCWC_S2_MEM_READ(struct bcwc_private *dev_priv, u32 offset)
+static inline u32 _FTHD_S2_MEM_READ(struct fthd_private *dev_priv, u32 offset)
 {
 	if (offset >= dev_priv->s2_mem_len) {
 		dev_err(&dev_priv->pdev->dev,
@@ -75,7 +75,7 @@ static inline u32 _BCWC_S2_MEM_READ(struct bcwc_private *dev_priv, u32 offset)
 	return ioread32(dev_priv->s2_mem + offset);
 }
 
-static inline void _BCWC_S2_MEM_WRITE(struct bcwc_private *dev_priv, u32 val,
+static inline void _FTHD_S2_MEM_WRITE(struct fthd_private *dev_priv, u32 val,
 				      u32 offset)
 {
 	if (offset >= dev_priv->s2_mem_len) {
@@ -88,7 +88,7 @@ static inline void _BCWC_S2_MEM_WRITE(struct bcwc_private *dev_priv, u32 val,
 	iowrite32(val, dev_priv->s2_mem + offset);
 }
 
-static inline u32 _BCWC_ISP_REG_READ(struct bcwc_private *dev_priv, u32 offset)
+static inline u32 _FTHD_ISP_REG_READ(struct fthd_private *dev_priv, u32 offset)
 {
 	if (offset >= dev_priv->isp_io_len) {
 		dev_err(&dev_priv->pdev->dev,
@@ -100,7 +100,7 @@ static inline u32 _BCWC_ISP_REG_READ(struct bcwc_private *dev_priv, u32 offset)
 	return ioread32(dev_priv->isp_io + offset);
 }
 
-static inline void _BCWC_ISP_REG_WRITE(struct bcwc_private *dev_priv, u32 val,
+static inline void _FTHD_ISP_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 				       u32 offset)
 {
 	if (offset >= dev_priv->isp_io_len) {
@@ -111,9 +111,9 @@ static inline void _BCWC_ISP_REG_WRITE(struct bcwc_private *dev_priv, u32 val,
 
 	// dev_info(&dev_priv->pdev->dev, "Dev IO write at %u\n", offset);
 	iowrite32(val, dev_priv->isp_io + offset);
-	bcwc_hw_pci_post(dev_priv);
+	fthd_hw_pci_post(dev_priv);
 }
 
-extern int bcwc_hw_init(struct bcwc_private *dev_priv);
-extern void bcwc_hw_deinit(struct bcwc_private *priv);
+extern int fthd_hw_init(struct fthd_private *dev_priv);
+extern void fthd_hw_deinit(struct fthd_private *priv);
 #endif

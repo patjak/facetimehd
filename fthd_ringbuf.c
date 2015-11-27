@@ -22,21 +22,21 @@
 #include <linux/pci.h>
 #include <linux/io.h>
 #include <linux/delay.h>
-#include "bcwc_drv.h"
-#include "bcwc_hw.h"
-#include "bcwc_ringbuf.h"
-#include "bcwc_isp.h"
+#include "fthd_drv.h"
+#include "fthd_hw.h"
+#include "fthd_ringbuf.h"
+#include "fthd_isp.h"
 
-static struct bcwc_ringbuf_entry *get_entry_addr(struct bcwc_private *dev_priv,
+static struct fthd_ringbuf_entry *get_entry_addr(struct fthd_private *dev_priv,
 					       struct fw_channel *chan, int num)
 {
-	return (struct bcwc_ringbuf_entry *)(chan->ringbuf.virt_addr \
-					     + num * sizeof(struct bcwc_ringbuf_entry));
+	return (struct fthd_ringbuf_entry *)(chan->ringbuf.virt_addr \
+					     + num * sizeof(struct fthd_ringbuf_entry));
 }
 
-void bcwc_channel_ringbuf_dump(struct bcwc_private *dev_priv, struct fw_channel *chan)
+void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
-	struct bcwc_ringbuf_entry *entry;
+	struct fthd_ringbuf_entry *entry;
 	char pos;
 	int i;
 
@@ -45,16 +45,16 @@ void bcwc_channel_ringbuf_dump(struct bcwc_private *dev_priv, struct fw_channel 
 			pos = '*';
 		else
 			pos = ' ';
-	    entry = dev_priv->s2_mem + chan->offset + i * sizeof(struct bcwc_ringbuf_entry);
+	    entry = dev_priv->s2_mem + chan->offset + i * sizeof(struct fthd_ringbuf_entry);
 	    pr_debug("%s: %c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n", chan->name,
 		     pos, i, entry->address_flags, entry->request_size, entry->response_size);
 
 	}
 }
 
-void bcwc_channel_ringbuf_init(struct bcwc_private *dev_priv, struct fw_channel *chan)
+void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
-	struct bcwc_ringbuf_entry *entry;
+	struct fthd_ringbuf_entry *entry;
 	int i;
 
 	chan->ringbuf.idx = 0;
@@ -62,7 +62,7 @@ void bcwc_channel_ringbuf_init(struct bcwc_private *dev_priv, struct fw_channel 
 	chan->ringbuf.virt_addr = dev_priv->s2_mem + chan->offset;
 
 	if (chan->type == RINGBUF_TYPE_H2T) {
-		entry = (struct bcwc_ringbuf_entry *)chan->ringbuf.virt_addr;
+		entry = (struct fthd_ringbuf_entry *)chan->ringbuf.virt_addr;
 		pr_debug("clearing ringbuf %s at %p (size %d)\n", chan->name, entry, chan->size);
 
 		spin_lock_irq(&chan->lock);
@@ -76,10 +76,10 @@ void bcwc_channel_ringbuf_init(struct bcwc_private *dev_priv, struct fw_channel 
 	}
 }
 
-struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_send(struct bcwc_private *dev_priv, struct fw_channel *chan,
+struct fthd_ringbuf_entry *fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
 			      u32 data_offset, u32 request_size, u32 response_size)
 {
-	struct bcwc_ringbuf_entry *entry;
+	struct fthd_ringbuf_entry *entry;
 
 	pr_debug("send %08x\n", data_offset);
 
@@ -104,15 +104,15 @@ struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_send(struct bcwc_private *dev_pr
 	spin_unlock_irq(&chan->lock);
 
 	spin_lock_irq(&dev_priv->io_lock);
-	BCWC_ISP_REG_WRITE(0x10 << chan->source, ISP_REG_41020);
+	FTHD_ISP_REG_WRITE(0x10 << chan->source, ISP_REG_41020);
 	spin_unlock_irq(&dev_priv->io_lock);
 	return entry;
 }
 
-struct bcwc_ringbuf_entry *bcwc_channel_ringbuf_receive(struct bcwc_private *dev_priv,
+struct fthd_ringbuf_entry *fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
 							struct fw_channel *chan)
 {
-	struct bcwc_ringbuf_entry *entry, *ret = NULL;
+	struct fthd_ringbuf_entry *entry, *ret = NULL;
 
 	spin_lock_irq(&chan->lock);
 	if (chan->rx_lock)
