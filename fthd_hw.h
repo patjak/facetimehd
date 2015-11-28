@@ -131,4 +131,6 @@ static inline void _FTHD_ISP_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 
 extern int fthd_hw_init(struct fthd_private *dev_priv);
 extern void fthd_hw_deinit(struct fthd_private *priv);
+extern void fthd_ddr_phy_save_regs(struct fthd_private *dev_priv);
+extern void fthd_ddr_phy_restore_regs(struct fthd_private *dev_priv);
 #endif
