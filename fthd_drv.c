@@ -199,7 +199,6 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 		} else if (chan == dev_priv->channel_buf_t2h) {
 			buf_t2h_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_io) {
-			dev_priv->cmd_ready = 1;
 			wake_up_interruptible(&dev_priv->cmd_wq);
 		} else if (chan == dev_priv->channel_io_t2h) {
 			io_t2h_handler(dev_priv, chan, entry);

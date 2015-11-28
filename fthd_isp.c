@@ -310,7 +310,8 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 		goto out;
 	}
 
-	if (wait_event_interruptible_timeout(dev_priv->cmd_wq, dev_priv->cmd_ready, HZ) <= 0) {
+	if (wait_event_interruptible_timeout(dev_priv->cmd_wq,
+		FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1, HZ) <= 0) {
 		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd.opcode);
 		fthd_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
 		if (response_len)
@@ -318,8 +319,6 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 		ret = -ETIMEDOUT;
 		goto out;
 	}
-
-	dev_priv->cmd_ready = 0;
 
 	FTHD_S2_MEMCPY_FROMIO(&cmd, request->offset, sizeof(struct isp_cmd_hdr));
 	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
