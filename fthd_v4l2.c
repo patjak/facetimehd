@@ -520,7 +520,7 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	if (sizes->index)
 		return -EINVAL;
 
-	sizes->type = V4L2_FRMSIZE_TYPE_CONTINUOUS;
+	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
 	sizes->stepwise.min_width = 320;
 	sizes->stepwise.max_width = 2560;
 	sizes->stepwise.min_height = 240;
