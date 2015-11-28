@@ -137,29 +137,7 @@ static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ct
 		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
 		return ret;
 	}
-
-	if (wait_event_interruptible_timeout(ctx->wq, ctx->done, HZ) <= 0) {
-		dev_err(&dev_priv->pdev->dev, "timeout wait for buffer %p\n", ctx->vb);
-		return -ETIMEDOUT;
-	}
-	ctx->done = 0;
-	return 0;
-}
-
-void fthd_buffer_queued_handler(struct fthd_private *dev_priv, u32 offset)
-{
-
-	struct dma_descriptor_list list;
-	struct h2t_buf_ctx *ctx;
-
-
-	FTHD_S2_MEMCPY_FROMIO(&list, offset, sizeof(list));
-
-	ctx = (struct h2t_buf_ctx *)list.desc[0].tag;
-	pr_debug("vb %p, ctx = %p\n", ctx->vb, ctx);
-	memcpy(&ctx->dma_desc_list, &list, sizeof(ctx->dma_desc_list));
-	ctx->done = 1;
-	wake_up_interruptible(&ctx->wq);
+	return fthd_channel_wait_ready(dev_priv, dev_priv->channel_buf_h2t, entry, 2000);
 }
 
 static void fthd_buffer_queue(struct vb2_buffer *vb)

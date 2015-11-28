@@ -190,17 +190,25 @@ static void io_t2h_handler(struct fthd_private *dev_priv,
 
 }
 
-static void buf_h2t_handler(struct fthd_private *dev_priv,
-			    struct fw_channel *chan,
-			    u32 entry)
-{
-	fthd_buffer_queued_handler(dev_priv, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~3);
-}
-
 static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
 	u32 entry;
 	int ret;
+
+	if (chan == dev_priv->channel_io) {
+		pr_debug("IO channel ready\n");
+		wake_up_interruptible(&chan->wq);
+		return;
+	}
+
+	if (chan == dev_priv->channel_buf_h2t) {
+		pr_debug("H2T channel ready\n");
+		wake_up_interruptible(&chan->wq);
+		return;
+	}
+
+	if (chan == dev_priv->channel_debug)
+		return;
 
 	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
 		pr_debug("channel %s: message available, address %08x\n", chan->name, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS));
@@ -213,12 +221,8 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 				pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
 		} else if (chan == dev_priv->channel_buf_t2h) {
 			buf_t2h_handler(dev_priv, chan, entry);
-		} else if (chan == dev_priv->channel_io) {
-			wake_up_interruptible(&dev_priv->cmd_wq);
 		} else if (chan == dev_priv->channel_io_t2h) {
 			io_t2h_handler(dev_priv, chan, entry);
-		} else if (chan == dev_priv->channel_buf_h2t) {
-			buf_h2t_handler(dev_priv, chan, entry);
 		}
 	}
 }
@@ -456,7 +460,6 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	mutex_init(&dev_priv->vb2_queue_lock);
 
 	mutex_init(&dev_priv->ioctl_lock);
-	init_waitqueue_head(&dev_priv->cmd_wq);
 	INIT_LIST_HEAD(&dev_priv->buffer_queue);
 	INIT_WORK(&dev_priv->irq_work, fthd_irq_work);
 

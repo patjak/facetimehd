@@ -236,11 +236,8 @@ static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int 
 		chan->source = info.source;
 		chan->size = info.size;
 		chan->offset = info.offset;
-		if (chan->type == FW_CHAN_TYPE_OUT)
-			chan->rx_lock = 1;
-		if (chan->type == FW_CHAN_TYPE_IN)
-			chan->tx_lock = 1;
 		spin_lock_init(&chan->lock);
+		init_waitqueue_head(&chan->wq);
 	}
 
 	dev_priv->channel_terminal = isp_get_chan_index(dev_priv, "TERMINAL");
@@ -312,13 +309,10 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 		goto out;
 	}
 
-	if (wait_event_interruptible_timeout(dev_priv->cmd_wq,
-		FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1, HZ) <= 0) {
-		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd.opcode);
-		fthd_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_io, entry, 2000);
+	if (ret) {
 		if (response_len)
 			*response_len = 0;
-		ret = -ETIMEDOUT;
 		goto out;
 	}
 
