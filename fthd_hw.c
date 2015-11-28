@@ -697,7 +697,7 @@ int fthd_hw_init(struct fthd_private *dev_priv)
 	}
 */
 
-	ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM_FULL);
+	ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
 			"Full memory verification failed! (%d)\n", ret);
