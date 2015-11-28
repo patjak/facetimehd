@@ -1,5 +1,5 @@
 /*
- * Broadcom PCIe 1570 webcam driver
+ * FacetimeHD camera driver
  *
  * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
  *

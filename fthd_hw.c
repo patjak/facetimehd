@@ -1,5 +1,5 @@
 /*
- * Broadcom PCIe 1570 webcam driver
+ * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
  *
@@ -22,26 +22,6 @@
 #include "fthd_hw.h"
 #include "fthd_ddr.h"
 #include "fthd_isp.h"
-
-/* FIXME: Double check these */
-static u32 ddr_phy_reg_map[] = {
-	0x0000, 0x0004, 0x0010, 0x0014, 0x0018, 0x001c, 0x0020, 0x0030,
-	0x0034, 0x0038, 0x003c, 0x0040, 0x0044, 0x0048, 0x004c, 0x0050,
-	0x0054, 0x0058, 0x005c, 0x0060, 0x0064, 0x0068, 0x006c, 0x0070,
-	0x0074, 0x0078, 0x007c, 0x0080, 0x0084, 0x0090, 0x0094, 0x0098,
-	0x009c, 0x00a0, 0x00a4, 0x00b0, 0x00b4, 0x00b8, 0x00bc, 0x00c0,
-	0x0200, 0x0204, 0x0208, 0x020c, 0x0210, 0x0214, 0x0218, 0x021c,
-	0x0220, 0x0224, 0x0228, 0x022c, 0x0230, 0x0234, 0x0238, 0x023c,
-	0x0240, 0x0244, 0x0248, 0x024c, 0x0250, 0x0254, 0x0258, 0x025c,
-	0x0260, 0x0264, 0x0268, 0x026c, 0x0270, 0x0274, 0x02a4, 0x02a8,
-	0x02ac, 0x02b0, 0x02b4, 0x02b8, 0x02bc, 0x02c0, 0x02c4, 0x02c8,
-	0x02cc, 0x02d0, 0x02d4, 0x02d8, 0x02dc, 0x02e0, 0x02e4, 0x02e8,
-	0x02ec, 0x02f0, 0x02f4, 0x02f8, 0x02fc, 0x0300, 0x0304, 0x0308,
-	0x030c, 0x0310, 0x0314, 0x0328, 0x032c, 0x0330, 0x0334, 0x0338,
-	0x033c, 0x0348, 0x034c, 0x0350, 0x0354, 0x0358, 0x035c, 0x0360,
-	0x0364, 0x0370, 0x0374, 0x0378, 0x037c, 0x0380, 0x0384, 0x0388,
-	0x038c, 0x0390, 0x0394, 0x03a0, 0x03a4, 0x03a8, 0x03ac,
-};
 
 static int fthd_hw_s2_pll_reset(struct fthd_private *dev_priv)
 {
@@ -636,21 +616,28 @@ static int fthd_hw_s2_init_ddr_controller_soc(struct fthd_private *dev_priv)
 	return 0;
 }
 
-static int fthd_hw_ddr_phy_save_regs(struct fthd_private *dev_priv)
+void fthd_ddr_phy_save_regs(struct fthd_private *dev_priv)
 {
-	u32 reg, offset;
+	u32 offset;
 	int i;
 
-	if (dev_priv->ddr_phy_num_regs == 0)
-		return -ENOENT;
-
-	for (i = 0; i < dev_priv->ddr_phy_num_regs; i++) {
-		offset = dev_priv->ddr_phy_reg_map[i].offset;
-		reg = FTHD_ISP_REG_READ(offset + DDR_PHY_REG_BASE);
-		dev_priv->ddr_phy_reg_map[i].value = reg;
+	for (i = 0; i < DDR_PHY_NUM_REG; i++) {
+		offset = fthd_ddr_phy_reg_map[i];
+		dev_priv->ddr_phy_regs[i] =
+			FTHD_ISP_REG_READ(DDR_PHY_REG_BASE + offset);
 	}
+}
 
-	return 0;
+void fthd_ddr_phy_restore_regs(struct fthd_private *dev_priv)
+{
+	u32 offset;
+	int i;
+
+	for (i = 0; i < DDR_PHY_NUM_REG; i++) {
+		offset = fthd_ddr_phy_reg_map[i];
+		FTHD_S2_REG_WRITE(dev_priv->ddr_phy_regs[i],
+				  DDR_PHY_REG_BASE + offset);
+	}
 }
 
 static int fthd_hw_irq_enable(struct fthd_private *dev_priv)
@@ -670,7 +657,7 @@ static int fthd_hw_irq_disable(struct fthd_private *dev_priv)
 
 int fthd_hw_init(struct fthd_private *dev_priv)
 {
-	int ret, i;
+	int ret;
 
 	ret = fthd_hw_s2_init_pcie_link(dev_priv);
 	if (ret)
@@ -678,10 +665,6 @@ int fthd_hw_init(struct fthd_private *dev_priv)
 
 	fthd_hw_s2_preinit_ddr_controller_soc(dev_priv);
 	fthd_hw_s2_init_ddr_controller_soc(dev_priv);
-
-	/* Initialize the reg map */
-	for (i = 0; i < DDR_PHY_NUM_REGS; i++)
-		dev_priv->ddr_phy_reg_map[i].offset = ddr_phy_reg_map[i];
 
 /*
 	dev_info(&dev_priv->pdev->dev,
@@ -697,7 +680,7 @@ int fthd_hw_init(struct fthd_private *dev_priv)
 	}
 */
 
-	ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM_FULL);
+	ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
 			"Full memory verification failed! (%d)\n", ret);
@@ -713,7 +696,7 @@ int fthd_hw_init(struct fthd_private *dev_priv)
 	}
 
 	/* Save our working configuration */
-	fthd_hw_ddr_phy_save_regs(dev_priv);
+	fthd_ddr_phy_save_regs(dev_priv);
 
 	FTHD_S2_REG_WRITE(0x8, S2_D108);
 	FTHD_S2_REG_WRITE(0xc, S2_D104);

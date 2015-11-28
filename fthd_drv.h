@@ -36,14 +36,7 @@
 #define FTHD_PCI_S2_MEM 2
 #define FTHD_PCI_ISP_IO 4
 
-#define MAX(a, b) ((a)>(b)?(a):(b))
-
 #define FTHD_BUFFERS 4
-
-struct fthd_reg {
-	u32 offset;
-	u32 value;
-};
 
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,
@@ -92,9 +85,7 @@ struct fthd_private {
 	u32 ddr_speed;
 	u32 vdl_step_size;
 
-	/* DDR_PHY saved registers. Offsets need to be initialized somewhere */
-	u32 ddr_phy_num_regs;
-	struct fthd_reg ddr_phy_reg_map[DDR_PHY_NUM_REGS];
+	u32 ddr_phy_regs[DDR_PHY_NUM_REG];
 
 	/* Root resource for memory management */
 	struct resource *mem;
