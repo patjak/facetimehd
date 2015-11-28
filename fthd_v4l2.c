@@ -33,6 +33,11 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 
+#define FTHD_MAX_WIDTH 2560
+#define FTHD_MAX_HEIGHT 1600
+#define FTHD_MIN_WIDTH 320
+#define FTHD_MIN_HEIGHT 240
+
 #define FTHD_FMT(_desc, _x, _y, _sizeimage, _planes, _pixfmt)		\
 	{								\
 		.fmt.width = (_x),                                      \
@@ -521,10 +526,10 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		return -EINVAL;
 
 	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-	sizes->stepwise.min_width = 320;
-	sizes->stepwise.max_width = 2560;
-	sizes->stepwise.min_height = 240;
-	sizes->stepwise.max_height = 1600;
+	sizes->stepwise.min_width = FTHD_MIN_WIDTH;
+	sizes->stepwise.max_width = FTHD_MAX_WIDTH;
+	sizes->stepwise.min_height = FTHD_MIN_HEIGHT;
+	sizes->stepwise.max_height = FTHD_MAX_HEIGHT;
 	sizes->stepwise.step_width = 8;
 	sizes->stepwise.step_height = 1;
 	return 0;
@@ -543,13 +548,19 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	    interval->pixel_format != V4L2_PIX_FMT_NV16)
 		return -EINVAL;
 
+	if (interval->width & 7
+	    || interval->width > FTHD_MAX_WIDTH
+	    || interval->height > FTHD_MAX_HEIGHT)
+		return -EINVAL;
+
 	interval->type = V4L2_FRMIVAL_TYPE_STEPWISE;
+	interval->stepwise.step.numerator = 1;
+	interval->stepwise.step.denominator = 1000;
 	interval->stepwise.min.numerator = 33;
 	interval->stepwise.min.denominator = 1000;
 	interval->stepwise.max.numerator = 500;
 	interval->stepwise.max.denominator = 1000;
-
-	return -ENODEV;
+	return 0;
 }
 
 static struct v4l2_ioctl_ops fthd_ioctl_ops = {
