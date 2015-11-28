@@ -209,12 +209,13 @@ static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int 
 	int i;
 
 	if (!num_channels)
-		return 0;
+		return -EINVAL;
 
-	dev_priv->num_channels = num_channels;
 	dev_priv->channels = kzalloc(num_channels * sizeof(struct fw_channel *), GFP_KERNEL);
 	if (!dev_priv->channels)
 		goto out;
+
+	dev_priv->num_channels = num_channels;
 
 	for(i = 0; i < num_channels; i++) {
 		FTHD_S2_MEMCPY_FROMIO(&info, offset + i * 256, sizeof(info));
