@@ -501,7 +501,7 @@ static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	parm->parm.capture.readbuffers = 2;
+	parm->parm.capture.readbuffers = FTHD_BUFFERS;
 	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	parm->parm.capture.timeperframe = timeperframe;
 	return 0;
