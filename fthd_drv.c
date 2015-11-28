@@ -80,13 +80,13 @@ static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 	dev_priv->isp_io = ioremap_nocache(start, len);
 	dev_priv->isp_io_len = len;
 
-	pr_debug("Allocated S2 regs (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated S2 regs (BAR %d). %u bytes at 0x%p\n",
 		 FTHD_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
 
-	pr_debug("Allocated S2 mem (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated S2 mem (BAR %d). %u bytes at 0x%p\n",
 		 FTHD_PCI_S2_MEM, dev_priv->s2_mem_len, dev_priv->s2_mem);
 
-	pr_debug("Allocated ISP regs (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated ISP regs (BAR %d). %u bytes at 0x%p\n",
 		 FTHD_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
 
 	return 0;
