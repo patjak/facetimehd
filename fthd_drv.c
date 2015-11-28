@@ -517,25 +517,7 @@ static struct pci_driver fthd_pci_driver = {
 #endif
 };
 
-static int __init fthd_init(void)
-{
-	int ret = 0;
-
-	ret = pci_register_driver(&fthd_pci_driver);
-
-	if (ret)
-		pr_err("Couldn't find any devices (ret=%d)\n", ret);
-
-	return ret;
-}
-
-static void __exit fthd_exit(void)
-{
-	pci_unregister_driver(&fthd_pci_driver);
-}
-
-module_init(fthd_init);
-module_exit(fthd_exit);
+module_pci_driver(fthd_pci_driver);
 
 MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
 MODULE_DESCRIPTION("Broadcom PCIe 1570 webcam driver");
