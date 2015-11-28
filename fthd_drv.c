@@ -1,5 +1,5 @@
 /*
- * Broadcom PCIe 1570 webcam driver
+ * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
  *
@@ -425,7 +425,7 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	struct fthd_private *dev_priv;
 	int ret;
 
-	dev_info(&pdev->dev, "Found Broadcom PCIe webcam with device id: %x\n",
+	dev_info(&pdev->dev, "Found FaceTime HD camera with device id: %x\n",
 		 pdev->device);
 
 	dev_priv = kzalloc(sizeof(struct fthd_private), GFP_KERNEL);
@@ -520,5 +520,5 @@ static struct pci_driver fthd_pci_driver = {
 module_pci_driver(fthd_pci_driver);
 
 MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
-MODULE_DESCRIPTION("Broadcom PCIe 1570 webcam driver");
+MODULE_DESCRIPTION("FacetimeHD camera driver");
 MODULE_LICENSE("GPL");
