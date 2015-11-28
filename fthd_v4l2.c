@@ -533,6 +533,9 @@ static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		struct v4l2_frmsizeenum *sizes)
 {
+	if (sizes->index)
+		return -EINVAL;
+
 	sizes->type = V4L2_FRMSIZE_TYPE_CONTINUOUS;
 	sizes->stepwise.min_width = 320;
 	sizes->stepwise.max_width = 2560;
@@ -547,6 +550,9 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		struct v4l2_frmivalenum *interval)
 {
 	pr_debug("%s\n", __FUNCTION__);
+
+	if (interval->index)
+		return -EINVAL;
 
 	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
 	    interval->pixel_format != V4L2_PIX_FMT_YVYU &&
