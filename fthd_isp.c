@@ -1001,6 +1001,34 @@ int fthd_isp_cmd_channel_contrast_set(struct fthd_private *dev_priv, int channel
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_CONTRAST_SET, &cmd, sizeof(cmd), &len);
 }
 
+int fthd_isp_cmd_channel_saturation_set(struct fthd_private *dev_priv, int channel, int saturation)
+{
+	struct isp_cmd_channel_saturation_set cmd;
+	int len;
+
+	pr_debug("set saturation %d\n", saturation);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.contrast = saturation;
+	len = sizeof(cmd);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_SATURATION_SET, &cmd, sizeof(cmd), &len);
+}
+
+int fthd_isp_cmd_channel_hue_set(struct fthd_private *dev_priv, int channel, int hue)
+{
+	struct isp_cmd_channel_hue_set cmd;
+	int len;
+
+	pr_debug("set hue %d\n", hue);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.contrast = hue;
+	len = sizeof(cmd);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_HUE_SET, &cmd, sizeof(cmd), &len);
+}
+
 int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 {
 	int ret, x1 = 0, x2 = 0, pixelformat;

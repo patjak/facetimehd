@@ -661,6 +661,16 @@ struct isp_cmd_channel_contrast_set {
 	u32 contrast;
 };
 
+struct isp_cmd_channel_saturation_set {
+	u32 channel;
+	u32 contrast;
+};
+
+struct isp_cmd_channel_hue_set {
+	u32 channel;
+	u32 contrast;
+};
+
 struct isp_cmd_channel_buffer_return {
 	u32 channel;
 };
@@ -714,6 +724,8 @@ extern int fthd_isp_cmd_channel_motion_history_stop(struct fthd_private *dev_pri
 extern int fthd_isp_cmd_channel_ae_metering_mode_set(struct fthd_private *dev_priv, int channel, int mode);
 extern int fthd_isp_cmd_channel_brightness_set(struct fthd_private *dev_priv, int channel, int brightness);
 extern int fthd_isp_cmd_channel_contrast_set(struct fthd_private *dev_priv, int channel, int contrast);
+extern int fthd_isp_cmd_channel_saturation_set(struct fthd_private *dev_priv, int channel, int saturation);
+extern int fthd_isp_cmd_channel_hue_set(struct fthd_private *dev_priv, int channel, int hue);
 extern int fthd_isp_cmd_channel_buffer_return(struct fthd_private *dev_priv, int channel);
 extern int fthd_start_channel(struct fthd_private *dev_priv, int channel);
 extern int fthd_stop_channel(struct fthd_private *dev_priv, int channel);
