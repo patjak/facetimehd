@@ -17,6 +17,7 @@
  *
  */
 
+#include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/acpi.h>
 #include <linux/firmware.h>
@@ -276,7 +277,7 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	memset(&cmd, 0, sizeof(cmd));
 
 	if (response_len) {
-		len = MAX(request_len, *response_len);
+		len = max(request_len, *response_len);
 	} else {
 		len = request_len;
 	}
