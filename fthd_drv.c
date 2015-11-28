@@ -100,19 +100,19 @@ static void fthd_irq_disable(struct fthd_private *dev_priv)
 
 static void sharedmalloc_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
-				 struct fthd_ringbuf_entry *entry)
+				 u32 entry)
 {
 	u32 request_size, response_size, address;
-	struct isp_mem_obj *obj, **p;
+	struct isp_mem_obj *obj;
 
-	request_size = entry->request_size;
-	response_size = entry->response_size;
-	address = entry->address_flags & ~ 3;
+	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
+	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
+	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~ 3;
 
 	if (address) {
 		pr_debug("Firmware wants to free memory at %08x\n", address);
-		p = dev_priv->s2_mem + address - 64;
-		isp_mem_destroy(*p);
+		FTHD_S2_MEMCPY_FROMIO(&obj, address - 64, sizeof(obj));
+		isp_mem_destroy(obj);
 
 		fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 	} else {
@@ -125,8 +125,7 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 		pr_debug("Firmware allocated %d bytes at %08lx (tag %c%c%c%c)\n", request_size, obj->offset,
 			 response_size >> 24,response_size >> 16,
 			 response_size >> 8, response_size);
-		p = dev_priv->s2_mem + obj->offset;
-		*p = obj;
+		FTHD_S2_MEMCPY_TOIO(obj->offset, &obj, sizeof(obj));
 		fthd_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0);
 	}
 
@@ -135,59 +134,63 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 
 static void terminal_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
-				 struct fthd_ringbuf_entry *entry)
+				 u32 entry)
 {
 	u32 request_size, response_size, address;
+	char buf[512];
 
-	request_size = entry->request_size;
-	response_size = entry->response_size;
-	address = entry->address_flags & ~ 3;
+	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
+	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
+	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~ 3;
 
 	if (!address || !request_size)
 		return;
 
-	pr_info("FWMSG: %.*s", request_size, (char *)(dev_priv->s2_mem + address));
-
+	if (request_size > 512)
+		request_size = 512;
+	FTHD_S2_MEMCPY_FROMIO(buf, address, request_size);
+	pr_info("FWMSG: %.*s", request_size, buf);
 }
 
 static void buf_t2h_handler(struct fthd_private *dev_priv,
 			    struct fw_channel *chan,
-			    struct fthd_ringbuf_entry *entry)
+			    u32 entry)
 {
 	u32 request_size, response_size, address;
 
-	request_size = entry->request_size;
-	response_size = entry->response_size;
-	address = entry->address_flags & ~ 3;
+	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
+	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
+	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
 
-	if (entry->address_flags & 1)
+	if (address & 1)
 		return;
 
-	fthd_buffer_return_handler(dev_priv, dev_priv->s2_mem + address, request_size);
+
+	fthd_buffer_return_handler(dev_priv, address & ~3, request_size);
 	fthd_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
 				  0, 0x80000000);
 }
 
 static void io_t2h_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
-				 struct fthd_ringbuf_entry *entry)
+				 u32 entry)
 {
 	fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
 }
 
 static void buf_h2t_handler(struct fthd_private *dev_priv,
 			    struct fw_channel *chan,
-			    struct fthd_ringbuf_entry *entry)
+			    u32 entry)
 {
-	fthd_buffer_queued_handler(dev_priv, (struct dma_descriptor_list *)(dev_priv->s2_mem + (entry->address_flags & ~3)));
+	fthd_buffer_queued_handler(dev_priv, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~3);
 }
 
 static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
-	struct fthd_ringbuf_entry *entry;
+	u32 entry;
 
-	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan))) {
-		pr_debug("channel %s: message available, address %08x\n", chan->name, entry->address_flags);
+	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
+		pr_debug("channel %s: message available, address %08x\n", chan->name, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS));
 		if (chan == dev_priv->channel_shared_malloc) {
 			sharedmalloc_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_terminal) {

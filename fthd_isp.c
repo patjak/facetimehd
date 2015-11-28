@@ -90,7 +90,7 @@ int isp_mem_destroy(struct isp_mem_obj *obj)
 	return 0;
 }
 
-int isp_acpi_set_power(struct fthd_private *dev_priv, int power)
+static int isp_acpi_set_power(struct fthd_private *dev_priv, int power)
 {
 	acpi_status status;
 	acpi_handle handle;
@@ -163,8 +163,7 @@ static int isp_load_firmware(struct fthd_private *dev_priv)
 		return -EBUSY;
 	}
 
-	memcpy(dev_priv->s2_mem + dev_priv->firmware->offset, fw->data,
-	       fw->size);
+	FTHD_S2_MEMCPY_TOIO(dev_priv->firmware->offset, fw->data, fw->size);
 
 	/* Might need a flush here if we map ISP memory cached */
 
@@ -203,40 +202,40 @@ static struct fw_channel *isp_get_chan_index(struct fthd_private *priv, const ch
 	return NULL;
 }
 
-static int isp_fill_channel_info(struct fthd_private *priv, int offset, int num_channels)
+static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int num_channels)
 {
-	struct isp_channel_info *info;
+	struct isp_channel_info info;
 	struct fw_channel *chan;
 	int i;
 
 	if (!num_channels)
 		return 0;
 
-	priv->num_channels = num_channels;
-	priv->channels = kzalloc(num_channels * sizeof(struct fw_channel *), GFP_KERNEL);
-	if (!priv->channels)
+	dev_priv->num_channels = num_channels;
+	dev_priv->channels = kzalloc(num_channels * sizeof(struct fw_channel *), GFP_KERNEL);
+	if (!dev_priv->channels)
 		goto out;
 
 	for(i = 0; i < num_channels; i++) {
-		info = (struct isp_channel_info *)(priv->s2_mem + offset + i * 256);
+		FTHD_S2_MEMCPY_FROMIO(&info, offset + i * 256, sizeof(info));
 
 		chan = kzalloc(sizeof(struct fw_channel), GFP_KERNEL);
 		if (!chan)
 			goto out;
 
-		priv->channels[i] = chan;
+		dev_priv->channels[i] = chan;
 
 		pr_debug("Channel %d: %s, type %d, source %d, size %d, offset %x\n",
-			 i, info->name, info->type, info->source, info->size, info->offset);
+			 i, info.name, info.type, info.source, info.size, info.offset);
 
-		chan->name = kstrdup(info->name, GFP_KERNEL);
+		chan->name = kstrdup(info.name, GFP_KERNEL);
 		if (!chan->name)
 			goto out;
 
-		chan->type = info->type;
-		chan->source = info->source;
-		chan->size = info->size;
-		chan->offset = info->offset;
+		chan->type = info.type;
+		chan->source = info.source;
+		chan->size = info.size;
+		chan->offset = info.offset;
 		if (chan->type == FW_CHAN_TYPE_OUT)
 			chan->rx_lock = 1;
 		if (chan->type == FW_CHAN_TYPE_IN)
@@ -244,34 +243,37 @@ static int isp_fill_channel_info(struct fthd_private *priv, int offset, int num_
 		spin_lock_init(&chan->lock);
 	}
 
-	priv->channel_terminal = isp_get_chan_index(priv, "TERMINAL");
-	priv->channel_debug = isp_get_chan_index(priv, "DEBUG");
-	priv->channel_shared_malloc = isp_get_chan_index(priv, "SHAREDMALLOC");
-	priv->channel_io = isp_get_chan_index(priv, "IO");
-	priv->channel_buf_h2t = isp_get_chan_index(priv, "BUF_H2T");
-	priv->channel_buf_t2h = isp_get_chan_index(priv, "BUF_T2H");
-	priv->channel_io_t2h = isp_get_chan_index(priv, "IO_T2H");
+	dev_priv->channel_terminal = isp_get_chan_index(dev_priv, "TERMINAL");
+	dev_priv->channel_debug = isp_get_chan_index(dev_priv, "DEBUG");
+	dev_priv->channel_shared_malloc = isp_get_chan_index(dev_priv, "SHAREDMALLOC");
+	dev_priv->channel_io = isp_get_chan_index(dev_priv, "IO");
+	dev_priv->channel_buf_h2t = isp_get_chan_index(dev_priv, "BUF_H2T");
+	dev_priv->channel_buf_t2h = isp_get_chan_index(dev_priv, "BUF_T2H");
+	dev_priv->channel_io_t2h = isp_get_chan_index(dev_priv, "IO_T2H");
 
-	if (!priv->channel_terminal || !priv->channel_debug
-	    || !priv->channel_shared_malloc || !priv->channel_io
-	    || !priv->channel_buf_h2t || !priv->channel_buf_t2h
-	    || !priv->channel_io_t2h) {
-		dev_err(&priv->pdev->dev, "did not find all of the required channels\n");
+	if (!dev_priv->channel_terminal || !dev_priv->channel_debug
+	    || !dev_priv->channel_shared_malloc || !dev_priv->channel_io
+	    || !dev_priv->channel_buf_h2t || !dev_priv->channel_buf_t2h
+	    || !dev_priv->channel_io_t2h) {
+		dev_err(&dev_priv->pdev->dev, "did not find all of the required channels\n");
 		goto out;
 	}
 	return 0;
 out:
-	isp_free_channel_info(priv);
+	isp_free_channel_info(dev_priv);
 	return -ENOMEM;
 }
 
-int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
+static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
 			int request_len, int *response_len)
 {
 	struct isp_mem_obj *request;
-	struct isp_cmd_hdr *cmd;
-	struct fthd_ringbuf_entry *entry;
+	struct isp_cmd_hdr cmd;
+	u32 address, request_size, response_size;
+	u32 entry;
 	int len, ret;
+
+	memset(&cmd, 0, sizeof(cmd));
 
 	if (response_len) {
 		len = MAX(request_len, *response_len);
@@ -288,20 +290,20 @@ int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void
 		return -ENOMEM;
 	}
 
-	cmd = dev_priv->s2_mem + request->offset;
-	memset(cmd, 0, len);
-	cmd->opcode = command;
+	cmd.opcode = command;
 
+	FTHD_S2_MEMCPY_TOIO(request->offset, &cmd, sizeof(struct isp_cmd_hdr));
 	if (request_len)
-		memcpy((char *)cmd + sizeof(struct isp_cmd_hdr), buf, request_len);
+		FTHD_S2_MEMCPY_TOIO(request->offset + sizeof(struct isp_cmd_hdr), buf, request_len);
 
 	entry = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
 		request->offset, request_len + 8, (response_len ? *response_len : 0) + 8);
 
-	if (!entry) {
+	if (entry == (u32)-1) {
 		ret = -EIO;
 		goto out;
 	}
+
 	if (command == CISP_CMD_POWER_DOWN) {
 		/* powerdown doesn't seem to generate a response */
 		ret = 0;
@@ -309,21 +311,29 @@ int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void
 	}
 
 	if (wait_event_interruptible_timeout(dev_priv->cmd_wq, dev_priv->cmd_ready, HZ) <= 0) {
-		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd->opcode);
+		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd.opcode);
 		fthd_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
 		if (response_len)
 			*response_len = 0;
 		ret = -ETIMEDOUT;
 		goto out;
 	}
+
 	dev_priv->cmd_ready = 0;
+
+	FTHD_S2_MEMCPY_FROMIO(&cmd, request->offset, sizeof(struct isp_cmd_hdr));
+	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
+	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
+	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
+
 	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
 	        verification done? */
 	if (response_len && *response_len)
-		memcpy(buf, (entry->address_flags & ~3) + dev_priv->s2_mem + sizeof(struct isp_cmd_hdr), *response_len);
+		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
+				     *response_len);
 
-	pr_debug("status %04x, request_len %d response len %d address_flags %x\n", cmd->status,
-		entry->request_size, entry->response_size, entry->address_flags);
+	pr_debug("status %04x, request_len %d response len %d address_flags %x\n", cmd.status,
+		request_size, response_size, address);
 
 	ret = 0;
 out:
@@ -362,7 +372,7 @@ int fthd_isp_cmd_stop(struct fthd_private *dev_priv)
 	return fthd_isp_cmd(dev_priv, CISP_CMD_STOP, NULL, 0, NULL);
 }
 
-int fthd_isp_cmd_powerdown(struct fthd_private *dev_priv)
+static int fthd_isp_cmd_powerdown(struct fthd_private *dev_priv)
 {
 	return fthd_isp_cmd(dev_priv, CISP_CMD_POWER_DOWN, NULL, 0, NULL);
 }
@@ -509,7 +519,7 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	BUG_ON(dev_priv->set_file);
 
 	file = isp_mem_create(dev_priv, FTHD_MEM_SET_FILE, fw->size);
-	memcpy(dev_priv->s2_mem + file->offset, fw->data, fw->size);
+	FTHD_S2_MEMCPY_TOIO(file->offset, fw->data, fw->size);
 
 	release_firmware(fw);
 
@@ -1138,7 +1148,7 @@ int fthd_stop_channel(struct fthd_private *dev_priv, int channel)
 int isp_init(struct fthd_private *dev_priv)
 {
 	struct isp_mem_obj *ipc_queue, *heap, *fw_args;
-	struct isp_fw_args *fw_args_data;
+	struct isp_fw_args fw_args_data;
 	u32 num_channels, queue_size, heap_size, reg, offset;
 	int i, retries, ret;
 
@@ -1261,11 +1271,11 @@ int isp_init(struct fthd_private *dev_priv)
 		if (!fw_args)
 			return -ENOMEM;
 
-		fw_args_data = dev_priv->s2_mem + fw_args->offset;
+		FTHD_S2_MEMCPY_TOIO(fw_args->offset, &fw_args_data, sizeof(fw_args_data));
 
-		fw_args_data->__unknown = 2;
-		fw_args_data->fw_arg = 0;
-		fw_args_data->full_stats_mode = 0;
+		fw_args_data.__unknown = 2;
+		fw_args_data.fw_arg = 0;
+		fw_args_data.full_stats_mode = 0;
 
 		FTHD_ISP_REG_WRITE(fw_args->offset, ISP_REG_C301C);
 

@@ -27,16 +27,15 @@
 #include "fthd_ringbuf.h"
 #include "fthd_isp.h"
 
-static struct fthd_ringbuf_entry *get_entry_addr(struct fthd_private *dev_priv,
-					       struct fw_channel *chan, int num)
+static u32 get_entry_addr(struct fthd_private *dev_priv,
+			  struct fw_channel *chan, int num)
 {
-	return (struct fthd_ringbuf_entry *)(chan->ringbuf.virt_addr \
-					     + num * sizeof(struct fthd_ringbuf_entry));
+	return chan->offset + num * FTHD_RINGBUF_ENTRY_SIZE;
 }
 
 void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
-	struct fthd_ringbuf_entry *entry;
+	u32 entry;
 	char pos;
 	int i;
 
@@ -45,41 +44,42 @@ void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel 
 			pos = '*';
 		else
 			pos = ' ';
-	    entry = dev_priv->s2_mem + chan->offset + i * sizeof(struct fthd_ringbuf_entry);
-	    pr_debug("%s: %c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n", chan->name,
-		     pos, i, entry->address_flags, entry->request_size, entry->response_size);
-
+		entry = get_entry_addr(dev_priv, chan, i);
+	    pr_debug("%s: %c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
+		     chan->name, pos, i,
+		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS),
+		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
+		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE));
 	}
 }
 
 void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
-	struct fthd_ringbuf_entry *entry;
+	u32 entry;
 	int i;
 
 	chan->ringbuf.idx = 0;
-	chan->ringbuf.phys_offset = chan->offset;
-	chan->ringbuf.virt_addr = dev_priv->s2_mem + chan->offset;
 
 	if (chan->type == RINGBUF_TYPE_H2T) {
-		entry = (struct fthd_ringbuf_entry *)chan->ringbuf.virt_addr;
-		pr_debug("clearing ringbuf %s at %p (size %d)\n", chan->name, entry, chan->size);
+		pr_debug("clearing ringbuf %s at %08x (size %d)\n",
+			 chan->name, chan->offset, chan->size);
 
 		spin_lock_irq(&chan->lock);
 		for(i = 0; i < chan->size; i++) {
-			entry->address_flags = 1;
-			entry->request_size = 0;
-			entry->response_size = 0;
-			entry++;
+			entry = get_entry_addr(dev_priv, chan, i);
+			FTHD_S2_MEM_WRITE(1, entry + FTHD_RINGBUF_ADDRESS_FLAGS);
+			FTHD_S2_MEM_WRITE(0, entry + FTHD_RINGBUF_REQUEST_SIZE);
+			FTHD_S2_MEM_WRITE(0, entry + FTHD_RINGBUF_RESPONSE_SIZE);
+			entry += FTHD_RINGBUF_ENTRY_SIZE;
 		}
 		spin_unlock_irq(&chan->lock);
 	}
 }
 
-struct fthd_ringbuf_entry *fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
+u32 fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
 			      u32 data_offset, u32 request_size, u32 response_size)
 {
-	struct fthd_ringbuf_entry *entry;
+	u32 entry;
 
 	pr_debug("send %08x\n", data_offset);
 
@@ -88,7 +88,7 @@ struct fthd_ringbuf_entry *fthd_channel_ringbuf_send(struct fthd_private *dev_pr
 
 	if (chan->tx_lock) {
 		spin_unlock_irq(&chan->lock);
-		return NULL;
+		return (u32)-1;
 	}
 
 	if (chan->type != FW_CHAN_TYPE_OUT && ++chan->ringbuf.idx >= chan->size)
@@ -97,10 +97,11 @@ struct fthd_ringbuf_entry *fthd_channel_ringbuf_send(struct fthd_private *dev_pr
 	chan->tx_lock = 1;
 	chan->rx_lock = 0;
 
-	entry->request_size = request_size;
-	entry->response_size = response_size;
+	FTHD_S2_MEM_WRITE(request_size, entry + FTHD_RINGBUF_REQUEST_SIZE);
+	FTHD_S2_MEM_WRITE(response_size, entry + FTHD_RINGBUF_RESPONSE_SIZE);
 	wmb();
-	entry->address_flags = data_offset | (chan->type == 0 ? 0 : 1);
+	FTHD_S2_MEM_WRITE(data_offset | (chan->type == 0 ? 0 : 1),
+			  entry + FTHD_RINGBUF_ADDRESS_FLAGS);
 	spin_unlock_irq(&chan->lock);
 
 	spin_lock_irq(&dev_priv->io_lock);
@@ -109,10 +110,10 @@ struct fthd_ringbuf_entry *fthd_channel_ringbuf_send(struct fthd_private *dev_pr
 	return entry;
 }
 
-struct fthd_ringbuf_entry *fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
+u32 fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
 							struct fw_channel *chan)
 {
-	struct fthd_ringbuf_entry *entry, *ret = NULL;
+	u32 entry, ret = (u32)-1;
 
 	spin_lock_irq(&chan->lock);
 	if (chan->rx_lock)
@@ -120,7 +121,8 @@ struct fthd_ringbuf_entry *fthd_channel_ringbuf_receive(struct fthd_private *dev
 
 	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx);
 
-	if (!(entry->address_flags & 1) ^ (chan->type != 0))
+
+	if (!(FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1) ^ (chan->type != 0))
 		goto out;
 
 	ret = entry;

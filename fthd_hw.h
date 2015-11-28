@@ -33,6 +33,8 @@ static inline void fthd_hw_pci_post(struct fthd_private *dev_priv)
 
 #define FTHD_S2_MEM_READ(offset) _FTHD_S2_MEM_READ(dev_priv, (offset))
 #define FTHD_S2_MEM_WRITE(val, offset) _FTHD_S2_MEM_WRITE(dev_priv, (val), (offset))
+#define FTHD_S2_MEMCPY_TOIO(offset, buf, len) _FTHD_S2_MEMCPY_TOIO(dev_priv, (buf), (offset), (len))
+#define FTHD_S2_MEMCPY_FROMIO(buf, offset, len) _FTHD_S2_MEMCPY_FROMIO(dev_priv, (buf), (offset), (len))
 
 #define FTHD_ISP_REG_READ(offset) _FTHD_ISP_REG_READ(dev_priv, (offset))
 #define FTHD_ISP_REG_WRITE(val, offset) _FTHD_ISP_REG_WRITE(dev_priv, (val), (offset))
@@ -86,6 +88,19 @@ static inline void _FTHD_S2_MEM_WRITE(struct fthd_private *dev_priv, u32 val,
 
 	// dev_info(&dev_priv->pdev->dev, "S2 IO write at %u\n", offset);
 	iowrite32(val, dev_priv->s2_mem + offset);
+}
+
+static inline void _FTHD_S2_MEMCPY_TOIO(struct fthd_private *dev_priv, const void *buf,
+					u32 offset, int len)
+{
+	memcpy_toio(dev_priv->s2_mem + offset, buf, len);
+}
+
+
+static inline void _FTHD_S2_MEMCPY_FROMIO(struct fthd_private *dev_priv, void *buf,
+					  u32 offset, int len)
+{
+	memcpy_fromio(buf, dev_priv->s2_mem + offset, len);
 }
 
 static inline u32 _FTHD_ISP_REG_READ(struct fthd_private *dev_priv, u32 offset)

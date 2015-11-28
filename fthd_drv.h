@@ -78,13 +78,13 @@ struct fthd_private {
 	wait_queue_head_t cmd_wq;
 	int cmd_ready;
 	/* Mapped PCI resources */
-	void *s2_io;
+	void __iomem *s2_io;
 	u32 s2_io_len;
 
-	void *s2_mem;
+	void __iomem *s2_mem;
 	u32 s2_mem_len;
 
-	void *isp_io;
+	void __iomem *isp_io;
 	u32 isp_io_len;
 
 	struct work_struct irq_work;

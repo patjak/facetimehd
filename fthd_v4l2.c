@@ -42,7 +42,7 @@
 		.desc = (_desc),                                        \
 	}
 
-struct fthd_fmt fthd_formats[] = {
+static struct fthd_fmt fthd_formats[] = {
 	FTHD_FMT("1280x720 YUYV (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YUYV),
 	FTHD_FMT("1280x720 YVYU (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YVYU),
 	FTHD_FMT("1280x720 NV16", 1280, 720, 1280 * 720, 2, V4L2_PIX_FMT_NV16),
@@ -102,6 +102,7 @@ static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 	struct h2t_buf_ctx *ctx = NULL;
 	int i;
 
+	pr_debug("%p\n", vb);
 	for(i = 0; i < FTHD_BUFFERS; i++) {
 		if (dev_priv->h2t_bufs[i].vb == vb) {
 			ctx = dev_priv->h2t_bufs + i;
@@ -123,14 +124,17 @@ static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 
 static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ctx *ctx)
 {
-	volatile struct fthd_ringbuf_entry *entry;
+	u32 entry;
 
-	//	pr_debug("sending buffer %p\n", ctx->vb);
+	pr_debug("sending buffer %p size %ld, ctx %p\n", ctx->vb, sizeof(ctx->dma_desc_list), ctx);
+	FTHD_S2_MEMCPY_TOIO(ctx->dma_desc_obj->offset, &ctx->dma_desc_list, sizeof(ctx->dma_desc_list));
 	entry = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
 					  ctx->dma_desc_obj->offset, 0x180, 0x30000000);
 
-	if (!entry)
+	if (entry == (u32)-1) {
+		pr_debug("send failed\n");
 		return -EIO;
+	}
 
 	if (wait_event_interruptible_timeout(ctx->wq, ctx->done, HZ) <= 0) {
 		dev_err(&dev_priv->pdev->dev, "timeout wait for buffer %p\n", ctx->vb);
@@ -140,9 +144,18 @@ static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ct
 	return 0;
 }
 
-void fthd_buffer_queued_handler(struct fthd_private *dev_priv, struct dma_descriptor_list *list)
+void fthd_buffer_queued_handler(struct fthd_private *dev_priv, u32 offset)
 {
-	struct h2t_buf_ctx *ctx = (struct h2t_buf_ctx *)list->desc[0].tag;
+
+	struct dma_descriptor_list list;
+	struct h2t_buf_ctx *ctx;
+
+
+	FTHD_S2_MEMCPY_FROMIO(&list, offset, sizeof(list));
+
+	ctx = (struct h2t_buf_ctx *)list.desc[0].tag;
+	pr_debug("vb %p, ctx = %p\n", ctx->vb, ctx);
+	memcpy(&ctx->dma_desc_list, &list, sizeof(ctx->dma_desc_list));
 	ctx->done = 1;
 	wake_up_interruptible(&ctx->wq);
 }
@@ -171,7 +184,7 @@ static void fthd_buffer_queue(struct vb2_buffer *vb)
 	if (!vb->vb2_queue->streaming) {
 		ctx->state = BUF_DRV_QUEUED;
 	} else {
-		list = ctx->dma_desc_list;
+		list = &ctx->dma_desc_list;
 		list->field0 = 1;
 		ctx->state = BUF_HW_QUEUED;
 		wmb();
@@ -194,6 +207,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	struct dma_descriptor_list *dma_list;
 	int i;
 
+	pr_debug("%p\n", vb);
 	for(i = 0; i < FTHD_BUFFERS; i++) {
 		if (dev_priv->h2t_bufs[i].state == BUF_FREE ||
 		    (dev_priv->h2t_bufs[i].state == BUF_ALLOC && dev_priv->h2t_bufs[i].vb == vb)) {
@@ -211,7 +225,6 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 		if (!ctx->dma_desc_obj)
 			return -ENOMEM;
 
-		ctx->dma_desc_list = dev_priv->s2_mem + ctx->dma_desc_obj->offset;
 		ctx->vb = vb;
 		ctx->state = BUF_ALLOC;
 
@@ -225,7 +238,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 
 	vb2_set_plane_payload(vb, 0, dev_priv->fmt.fmt.sizeimage);
 
-	dma_list = ctx->dma_desc_list;
+	dma_list = &ctx->dma_desc_list;
 	memset(dma_list, 0, 0x180);
 
 	dma_list->field0 = 1;
@@ -244,15 +257,18 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	return 0;
 }
 
-void fthd_buffer_return_handler(struct fthd_private *dev_priv, struct dma_descriptor_list *list, int size)
+void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size)
 {
+	struct dma_descriptor_list list;
 	struct h2t_buf_ctx *ctx;
 	int i;
 
-	for(i = 0; i < list->count; i++) {
-		ctx = (struct h2t_buf_ctx *)list->desc[i].tag;
-		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p\n", i, list->field0,
-			 list->desc[i].count, list->desc[i].pool, list->desc[i].addr0, list->desc[i].addr1, list->desc[i].tag, ctx->vb);
+	FTHD_S2_MEMCPY_FROMIO(&list, offset, sizeof(list));
+
+	for(i = 0; i < list.count; i++) {
+		ctx = (struct h2t_buf_ctx *)list.desc[i].tag;
+		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p, ctx = %p\n", i, list.field0,
+			 list.desc[i].count, list.desc[i].pool, list.desc[i].addr0, list.desc[i].addr1, list.desc[i].tag, ctx->vb, ctx);
 
 		if (ctx->state == BUF_HW_QUEUED || ctx->state == BUF_DRV_QUEUED) {
 			ctx->state = BUF_ALLOC;
