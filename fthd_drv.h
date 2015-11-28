@@ -26,6 +26,7 @@
 #include <linux/mutex.h>
 #include <media/videobuf2-dma-sg.h>
 #include <media/v4l2-device.h>
+#include <media/v4l2-ctrls.h>
 #include "fthd_reg.h"
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
@@ -133,6 +134,7 @@ struct fthd_private {
 	struct vb2_alloc_ctx *alloc_ctx;
 	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
 
+	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	int frametime;
 };
 
