@@ -390,7 +390,7 @@ static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
 
-	strcpy(cap->driver, "bcwc");
+	strcpy(cap->driver, "facetimehd");
 	strcpy(cap->card, "Apple Facetime HD");
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI:%s",
 		 pci_name(dev_priv->pdev));

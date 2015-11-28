@@ -147,7 +147,7 @@ static int isp_load_firmware(struct fthd_private *dev_priv)
 	const struct firmware *fw;
 	int ret = 0;
 
-	ret = request_firmware(&fw, "bcwc/firmware.bin", &dev_priv->pdev->dev);
+	ret = request_firmware(&fw, "facetimehd/firmware.bin", &dev_priv->pdev->dev);
 	if (ret)
 		return ret;
 
@@ -465,40 +465,40 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 
 	switch(dev_priv->sensor_id1) {
 	case 0x164:
-		filename = "bcwc/8221_01XX.dat";
+		filename = "facetimehd/8221_01XX.dat";
 		break;
 	case 0x190:
-		filename = "bcwc/1222_01XX.dat";
+		filename = "facetimehd/1222_01XX.dat";
 		break;
 	case 0x8830:
-		filename = "bcwc/9112_01XX.dat";
+		filename = "facetimehd/9112_01XX.dat";
 		break;
 	case 0x9770:
 		if (vendor && board && !strcmp(vendor, "Apple Inc.") &&
 		    !strncmp(board, "MacBookAir", sizeof("MacBookAir")-1)) {
-			filename = "bcwc/1771_01XX.dat";
+			filename = "facetimehd/1771_01XX.dat";
 			break;
 		}
 
 		switch(dev_priv->sensor_id0) {
 		case 4:
-			filename = "bcwc/1874_01XX.dat";
+			filename = "facetimehd/1874_01XX.dat";
 			break;
 		default:
-			filename = "bcwc/1871_01XX.dat";
+			filename = "facetimehd/1871_01XX.dat";
 			break;
 		}
 		break;
 	case 0x9774:
 		switch(dev_priv->sensor_id0) {
 		case 4:
-			filename = "bcwc/1674_01XX.dat";
+			filename = "facetimehd/1674_01XX.dat";
 			break;
 		case 5:
-			filename = "bcwc/1675_01XX.dat";
+			filename = "facetimehd/1675_01XX.dat";
 			break;
 		default:
-			filename = "bcwc/1671_01XX.dat";
+			filename = "facetimehd/1671_01XX.dat";
 			break;
 		}
 		break;
