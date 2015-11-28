@@ -25,6 +25,7 @@
 #include <linux/videodev2.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
+#include <media/v4l2-ctrls.h>
 #include <media/videobuf2-dma-sg.h>
 #include "fthd_drv.h"
 #include "fthd_hw.h"
@@ -387,8 +388,13 @@ static int fthd_v4l2_ioctl_g_std(struct file *filp, void *priv, v4l2_std_id *std
 static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 				    struct v4l2_capability *cap)
 {
+	struct fthd_private *dev_priv = video_drvdata(filp);
+
 	strcpy(cap->driver, "bcwc");
 	strcpy(cap->card, "Apple Facetime HD");
+	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI:%s",
+		 pci_name(dev_priv->pdev));
+
 	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE |
 		V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_TIMEPERFRAME;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
@@ -411,8 +417,7 @@ static int fthd_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
 
-
-	pr_info("%s: %dx%d\n", __FUNCTION__, fmt->fmt.pix.width, fmt->fmt.pix.height);
+	pr_debug("%s: %dx%d\n", __FUNCTION__, fmt->fmt.pix.width, fmt->fmt.pix.height);
 
 	dev_priv->fmt.fmt = fmt->fmt.pix;
 
@@ -501,7 +506,7 @@ static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	parm->parm.capture.readbuffers = 2;
+	parm->parm.capture.readbuffers = FTHD_BUFFERS;
 	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	parm->parm.capture.timeperframe = timeperframe;
 	return 0;
@@ -533,6 +538,9 @@ static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		struct v4l2_frmsizeenum *sizes)
 {
+	if (sizes->index)
+		return -EINVAL;
+
 	sizes->type = V4L2_FRMSIZE_TYPE_CONTINUOUS;
 	sizes->stepwise.min_width = 320;
 	sizes->stepwise.max_width = 2560;
@@ -547,6 +555,9 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		struct v4l2_frmivalenum *interval)
 {
 	pr_debug("%s\n", __FUNCTION__);
+
+	if (interval->index)
+		return -EINVAL;
 
 	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
 	    interval->pixel_format != V4L2_PIX_FMT_YVYU &&
@@ -591,6 +602,46 @@ static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_enum_frameintervals = fthd_v4l2_ioctl_enum_frameintervals,
 };
 
+static int fthd_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+{
+	pr_debug("id = %x\n", ctrl->id);
+	return -EINVAL;
+}
+
+static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
+{
+	struct fthd_private *dev_priv = container_of(ctrl->handler, struct fthd_private, v4l2_ctrl_handler);
+	int ret = -EINVAL;
+
+	pr_info("id = %x, val = %d\n", ctrl->id, ctrl->val);
+
+	switch(ctrl->id) {
+	case V4L2_CID_CONTRAST:
+		ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, ctrl->val);
+		break;
+	case V4L2_CID_BRIGHTNESS:
+		ret = fthd_isp_cmd_channel_brightness_set(dev_priv, 0, ctrl->val);
+		break;
+	case V4L2_CID_SATURATION:
+		ret = fthd_isp_cmd_channel_saturation_set(dev_priv, 0, ctrl->val);
+		break;
+	case V4L2_CID_HUE:
+		ret = fthd_isp_cmd_channel_hue_set(dev_priv, 0, ctrl->val);
+		break;
+
+	default:
+		break;
+
+	}
+	pr_debug("ret = %d\n", ret);
+	return ret;
+}
+
+static const struct v4l2_ctrl_ops fthd_ctrl_ops = {
+	.g_volatile_ctrl = fthd_g_volatile_ctrl,
+	.s_ctrl = fthd_s_ctrl,
+};
+
 int fthd_v4l2_register(struct fthd_private *dev_priv)
 {
 	struct v4l2_device *v4l2_dev = &dev_priv->v4l2_dev;
@@ -626,6 +677,21 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	if (ret)
 		goto fail;
 
+	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 4);
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_BRIGHTNESS, 0, 0xff, 1, 0x80);
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_CONTRAST, 0, 0xff, 1, 0x80);
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_SATURATION, 0, 0xff, 1, 0x80);
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_HUE, 0, 0xff, 1, 0x80);
+
+	if (dev_priv->v4l2_ctrl_handler.error) {
+		pr_err("failed to setup control handlers\n");
+		v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
+		goto fail;
+	}
 	dev_priv->alloc_ctx = vb2_dma_sg_init_ctx(&dev_priv->pdev->dev);
 	vdev->v4l2_dev = v4l2_dev;
 	strcpy(vdev->name, "Apple Facetime HD"); // XXX: Length?
@@ -634,19 +700,22 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	vdev->ioctl_ops = &fthd_ioctl_ops;
 	vdev->queue = q;
 	vdev->release = video_device_release;
-
+	vdev->ctrl_handler = &dev_priv->v4l2_ctrl_handler;
 	video_set_drvdata(vdev, dev_priv);
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
 	if (ret) {
 		video_device_release(vdev);
-		goto fail;
+		goto fail_vdev;
 	}
 	dev_priv->fmt.fmt.sizeimage = 1280 * 720 * 2;
 	dev_priv->fmt.fmt.pixelformat = V4L2_PIX_FMT_YUYV;
 	dev_priv->fmt.fmt.width = 1280;
 	dev_priv->fmt.fmt.height = 720;
 
+
 	return 0;
+fail_vdev:
+	v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
 fail:
 	v4l2_device_unregister(&dev_priv->v4l2_dev);
 	return ret;
@@ -655,6 +724,7 @@ fail:
 void fthd_v4l2_unregister(struct fthd_private *dev_priv)
 {
 
+	v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
 	vb2_dma_sg_cleanup_ctx(dev_priv->alloc_ctx);
 	video_unregister_device(dev_priv->videodev);
 	v4l2_device_unregister(&dev_priv->v4l2_dev);
