@@ -388,8 +388,13 @@ static int fthd_v4l2_ioctl_g_std(struct file *filp, void *priv, v4l2_std_id *std
 static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 				    struct v4l2_capability *cap)
 {
+	struct fthd_private *dev_priv = video_drvdata(filp);
+
 	strcpy(cap->driver, "bcwc");
 	strcpy(cap->card, "Apple Facetime HD");
+	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI:%s",
+		 pci_name(dev_priv->pdev));
+
 	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE |
 		V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_TIMEPERFRAME;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
