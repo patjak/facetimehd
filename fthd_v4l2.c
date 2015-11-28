@@ -411,8 +411,7 @@ static int fthd_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
 
-
-	pr_info("%s: %dx%d\n", __FUNCTION__, fmt->fmt.pix.width, fmt->fmt.pix.height);
+	pr_debug("%s: %dx%d\n", __FUNCTION__, fmt->fmt.pix.width, fmt->fmt.pix.height);
 
 	dev_priv->fmt.fmt = fmt->fmt.pix;
 
