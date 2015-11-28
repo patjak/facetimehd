@@ -76,8 +76,8 @@ void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel 
 	}
 }
 
-u32 fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
-			      u32 data_offset, u32 request_size, u32 response_size)
+int fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
+			      u32 data_offset, u32 request_size, u32 response_size, u32 *entryp)
 {
 	u32 entry;
 
@@ -88,11 +88,16 @@ u32 fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *
 
 	if (chan->tx_lock) {
 		spin_unlock_irq(&chan->lock);
-		return (u32)-1;
+		return -EBUSY;
 	}
 
 	if (chan->type != FW_CHAN_TYPE_OUT && ++chan->ringbuf.idx >= chan->size)
 		chan->ringbuf.idx = 0;
+
+	if (!(FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1) ^ (chan->type != 0)) {
+		spin_unlock_irq(&chan->lock);
+		return -EAGAIN;
+	}
 
 	chan->tx_lock = 1;
 	chan->rx_lock = 0;
@@ -107,7 +112,9 @@ u32 fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *
 	spin_lock_irq(&dev_priv->io_lock);
 	FTHD_ISP_REG_WRITE(0x10 << chan->source, ISP_REG_41020);
 	spin_unlock_irq(&dev_priv->io_lock);
-	return entry;
+	if (entryp)
+		*entryp = entry;
+	return 0;
 }
 
 u32 fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,

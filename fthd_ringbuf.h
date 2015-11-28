@@ -42,8 +42,8 @@ struct fthd_private;
 extern void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel *chan);
 extern void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel *chan);
 extern u32 fthd_channel_ringbuf_get_entry(struct fthd_private *, struct fw_channel *);
-extern u32 fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
-				     u32 data_offset, u32 request_size, u32 response_size);
+extern int fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
+				     u32 data_offset, u32 request_size, u32 response_size, u32 *entry);
 
 extern u32 fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
 					struct fw_channel *chan);

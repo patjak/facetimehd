@@ -296,8 +296,10 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	if (request_len)
 		FTHD_S2_MEMCPY_TOIO(request->offset + sizeof(struct isp_cmd_hdr), buf, request_len);
 
-	entry = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
-		request->offset, request_len + 8, (response_len ? *response_len : 0) + 8);
+	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
+					  request->offset, request_len + 8, (response_len ? *response_len : 0) + 8, &entry);
+	if (ret)
+		goto out;
 
 	if (entry == (u32)-1) {
 		ret = -EIO;

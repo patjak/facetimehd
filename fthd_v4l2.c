@@ -126,15 +126,16 @@ static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ctx *ctx)
 {
 	u32 entry;
+	int ret;
 
 	pr_debug("sending buffer %p size %ld, ctx %p\n", ctx->vb, sizeof(ctx->dma_desc_list), ctx);
 	FTHD_S2_MEMCPY_TOIO(ctx->dma_desc_obj->offset, &ctx->dma_desc_list, sizeof(ctx->dma_desc_list));
-	entry = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
-					  ctx->dma_desc_obj->offset, 0x180, 0x30000000);
+	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
+					ctx->dma_desc_obj->offset, 0x180, 0x30000000, &entry);
 
-	if (entry == (u32)-1) {
-		pr_debug("send failed\n");
-		return -EIO;
+	if (ret) {
+		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+		return ret;
 	}
 
 	if (wait_event_interruptible_timeout(ctx->wq, ctx->done, HZ) <= 0) {
