@@ -33,6 +33,11 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 
+#define FTHD_MAX_WIDTH 2560
+#define FTHD_MAX_HEIGHT 1600
+#define FTHD_MIN_WIDTH 320
+#define FTHD_MIN_HEIGHT 240
+
 #define FTHD_FMT(_desc, _x, _y, _sizeimage, _planes, _pixfmt)		\
 	{								\
 		.fmt.width = (_x),                                      \
@@ -126,39 +131,18 @@ static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ctx *ctx)
 {
 	u32 entry;
+	int ret;
 
 	pr_debug("sending buffer %p size %ld, ctx %p\n", ctx->vb, sizeof(ctx->dma_desc_list), ctx);
 	FTHD_S2_MEMCPY_TOIO(ctx->dma_desc_obj->offset, &ctx->dma_desc_list, sizeof(ctx->dma_desc_list));
-	entry = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
-					  ctx->dma_desc_obj->offset, 0x180, 0x30000000);
+	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
+					ctx->dma_desc_obj->offset, 0x180, 0x30000000, &entry);
 
-	if (entry == (u32)-1) {
-		pr_debug("send failed\n");
-		return -EIO;
+	if (ret) {
+		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+		return ret;
 	}
-
-	if (wait_event_interruptible_timeout(ctx->wq, ctx->done, HZ) <= 0) {
-		dev_err(&dev_priv->pdev->dev, "timeout wait for buffer %p\n", ctx->vb);
-		return -ETIMEDOUT;
-	}
-	ctx->done = 0;
-	return 0;
-}
-
-void fthd_buffer_queued_handler(struct fthd_private *dev_priv, u32 offset)
-{
-
-	struct dma_descriptor_list list;
-	struct h2t_buf_ctx *ctx;
-
-
-	FTHD_S2_MEMCPY_FROMIO(&list, offset, sizeof(list));
-
-	ctx = (struct h2t_buf_ctx *)list.desc[0].tag;
-	pr_debug("vb %p, ctx = %p\n", ctx->vb, ctx);
-	memcpy(&ctx->dma_desc_list, &list, sizeof(ctx->dma_desc_list));
-	ctx->done = 1;
-	wake_up_interruptible(&ctx->wq);
+	return fthd_channel_wait_ready(dev_priv, dev_priv->channel_buf_h2t, entry, 2000);
 }
 
 static void fthd_buffer_queue(struct vb2_buffer *vb)
@@ -541,11 +525,11 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	if (sizes->index)
 		return -EINVAL;
 
-	sizes->type = V4L2_FRMSIZE_TYPE_CONTINUOUS;
-	sizes->stepwise.min_width = 320;
-	sizes->stepwise.max_width = 2560;
-	sizes->stepwise.min_height = 240;
-	sizes->stepwise.max_height = 1600;
+	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	sizes->stepwise.min_width = FTHD_MIN_WIDTH;
+	sizes->stepwise.max_width = FTHD_MAX_WIDTH;
+	sizes->stepwise.min_height = FTHD_MIN_HEIGHT;
+	sizes->stepwise.max_height = FTHD_MAX_HEIGHT;
 	sizes->stepwise.step_width = 8;
 	sizes->stepwise.step_height = 1;
 	return 0;
@@ -564,13 +548,19 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	    interval->pixel_format != V4L2_PIX_FMT_NV16)
 		return -EINVAL;
 
+	if (interval->width & 7
+	    || interval->width > FTHD_MAX_WIDTH
+	    || interval->height > FTHD_MAX_HEIGHT)
+		return -EINVAL;
+
 	interval->type = V4L2_FRMIVAL_TYPE_STEPWISE;
+	interval->stepwise.step.numerator = 1;
+	interval->stepwise.step.denominator = 1000;
 	interval->stepwise.min.numerator = 33;
 	interval->stepwise.min.denominator = 1000;
 	interval->stepwise.max.numerator = 500;
 	interval->stepwise.max.denominator = 1000;
-
-	return -ENODEV;
+	return 0;
 }
 
 static struct v4l2_ioctl_ops fthd_ioctl_ops = {

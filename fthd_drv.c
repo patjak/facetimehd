@@ -80,13 +80,13 @@ static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 	dev_priv->isp_io = ioremap_nocache(start, len);
 	dev_priv->isp_io_len = len;
 
-	pr_debug("Allocated S2 regs (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated S2 regs (BAR %d). %u bytes at 0x%p\n",
 		 FTHD_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
 
-	pr_debug("Allocated S2 mem (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated S2 mem (BAR %d). %u bytes at 0x%p\n",
 		 FTHD_PCI_S2_MEM, dev_priv->s2_mem_len, dev_priv->s2_mem);
 
-	pr_debug("Allocated ISP regs (BAR %d). %u bytes at 0x%p",
+	pr_debug("Allocated ISP regs (BAR %d). %u bytes at 0x%p\n",
 		 FTHD_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
 
 	return 0;
@@ -104,6 +104,7 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 {
 	u32 request_size, response_size, address;
 	struct isp_mem_obj *obj;
+	int ret;
 
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
@@ -114,7 +115,9 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 		FTHD_S2_MEMCPY_FROMIO(&obj, address - 64, sizeof(obj));
 		isp_mem_destroy(obj);
 
-		fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
+		ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
+		if (ret)
+			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
 	} else {
 		if (!request_size)
 			return;
@@ -126,7 +129,10 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 			 response_size >> 24,response_size >> 16,
 			 response_size >> 8, response_size);
 		FTHD_S2_MEMCPY_TOIO(obj->offset, &obj, sizeof(obj));
-		fthd_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0);
+		ret = fthd_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0, NULL);
+		if (ret)
+			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+
 	}
 
 }
@@ -157,7 +163,7 @@ static void buf_t2h_handler(struct fthd_private *dev_priv,
 			    u32 entry)
 {
 	u32 request_size, response_size, address;
-
+	int ret;
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
 	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
@@ -167,27 +173,42 @@ static void buf_t2h_handler(struct fthd_private *dev_priv,
 
 
 	fthd_buffer_return_handler(dev_priv, address & ~3, request_size);
-	fthd_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
-				  0, 0x80000000);
+	ret = fthd_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
+					0, 0x80000000, NULL);
+	if (ret)
+		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+
 }
 
 static void io_t2h_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
 				 u32 entry)
 {
-	fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
-}
+	int ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
+	if (ret)
+		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
 
-static void buf_h2t_handler(struct fthd_private *dev_priv,
-			    struct fw_channel *chan,
-			    u32 entry)
-{
-	fthd_buffer_queued_handler(dev_priv, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~3);
 }
 
 static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *chan)
 {
 	u32 entry;
+	int ret;
+
+	if (chan == dev_priv->channel_io) {
+		pr_debug("IO channel ready\n");
+		wake_up_interruptible(&chan->wq);
+		return;
+	}
+
+	if (chan == dev_priv->channel_buf_h2t) {
+		pr_debug("H2T channel ready\n");
+		wake_up_interruptible(&chan->wq);
+		return;
+	}
+
+	if (chan == dev_priv->channel_debug)
+		return;
 
 	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
 		pr_debug("channel %s: message available, address %08x\n", chan->name, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS));
@@ -195,15 +216,13 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 			sharedmalloc_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_terminal) {
 			terminal_handler(dev_priv, chan, entry);
-			fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0);
+			ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
+			if (ret)
+				pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
 		} else if (chan == dev_priv->channel_buf_t2h) {
 			buf_t2h_handler(dev_priv, chan, entry);
-		} else if (chan == dev_priv->channel_io) {
-			wake_up_interruptible(&dev_priv->cmd_wq);
 		} else if (chan == dev_priv->channel_io_t2h) {
 			io_t2h_handler(dev_priv, chan, entry);
-		} else if (chan == dev_priv->channel_buf_h2t) {
-			buf_h2t_handler(dev_priv, chan, entry);
 		}
 	}
 }
@@ -441,7 +460,6 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	mutex_init(&dev_priv->vb2_queue_lock);
 
 	mutex_init(&dev_priv->ioctl_lock);
-	init_waitqueue_head(&dev_priv->cmd_wq);
 	INIT_LIST_HEAD(&dev_priv->buffer_queue);
 	INIT_WORK(&dev_priv->irq_work, fthd_irq_work);
 

@@ -49,11 +49,10 @@ struct fw_channel {
 	u32 size;
 	u32 source;
 	u32 type;
-	int tx_lock;
-	int rx_lock;
 	struct fthd_ringbuf ringbuf;
 	spinlock_t lock;
-
+	/* waitqueue for signaling completion */
+	wait_queue_head_t wq;
 	char *name;
 };
 
@@ -67,9 +66,6 @@ struct fthd_private {
 	int users;
 	/* lock for synchronizing with irq/workqueue */
 	spinlock_t io_lock;
-
-	/* waitqueue for signaling command completion */
-	wait_queue_head_t cmd_wq;
 
 	/* Mapped PCI resources */
 	void __iomem *s2_io;

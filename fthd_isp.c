@@ -210,12 +210,13 @@ static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int 
 	int i;
 
 	if (!num_channels)
-		return 0;
+		return -EINVAL;
 
-	dev_priv->num_channels = num_channels;
 	dev_priv->channels = kzalloc(num_channels * sizeof(struct fw_channel *), GFP_KERNEL);
 	if (!dev_priv->channels)
 		goto out;
+
+	dev_priv->num_channels = num_channels;
 
 	for(i = 0; i < num_channels; i++) {
 		FTHD_S2_MEMCPY_FROMIO(&info, offset + i * 256, sizeof(info));
@@ -237,11 +238,8 @@ static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int 
 		chan->source = info.source;
 		chan->size = info.size;
 		chan->offset = info.offset;
-		if (chan->type == FW_CHAN_TYPE_OUT)
-			chan->rx_lock = 1;
-		if (chan->type == FW_CHAN_TYPE_IN)
-			chan->tx_lock = 1;
 		spin_lock_init(&chan->lock);
+		init_waitqueue_head(&chan->wq);
 	}
 
 	dev_priv->channel_terminal = isp_get_chan_index(dev_priv, "TERMINAL");
@@ -297,8 +295,10 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	if (request_len)
 		FTHD_S2_MEMCPY_TOIO(request->offset + sizeof(struct isp_cmd_hdr), buf, request_len);
 
-	entry = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
-		request->offset, request_len + 8, (response_len ? *response_len : 0) + 8);
+	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
+					  request->offset, request_len + 8, (response_len ? *response_len : 0) + 8, &entry);
+	if (ret)
+		goto out;
 
 	if (entry == (u32)-1) {
 		ret = -EIO;
@@ -311,13 +311,10 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 		goto out;
 	}
 
-	if (wait_event_interruptible_timeout(dev_priv->cmd_wq,
-		FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1, HZ) <= 0) {
-		dev_err(&dev_priv->pdev->dev, "timeout wait for command %d\n", cmd.opcode);
-		fthd_channel_ringbuf_dump(dev_priv, dev_priv->channel_io);
+        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_io, entry, 2000);
+	if (ret) {
 		if (response_len)
 			*response_len = 0;
-		ret = -ETIMEDOUT;
 		goto out;
 	}
 
