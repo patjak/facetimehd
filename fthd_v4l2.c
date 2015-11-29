@@ -37,42 +37,7 @@
 #define FTHD_MAX_HEIGHT 1600
 #define FTHD_MIN_WIDTH 320
 #define FTHD_MIN_HEIGHT 240
-
-#define FTHD_FMT(_desc, _x, _y, _sizeimage, _planes, _pixfmt)		\
-	{								\
-		.fmt.width = (_x),                                      \
-		.fmt.height = (_y),                                     \
-		.fmt.sizeimage = (_sizeimage),                          \
-		.fmt.pixelformat = (_pixfmt),                           \
-		.planes = (_planes),					\
-		.desc = (_desc),                                        \
-	}
-
-static struct fthd_fmt fthd_formats[] = {
-	FTHD_FMT("1280x720 YUYV (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YUYV),
-	FTHD_FMT("1280x720 YVYU (4:2:2)", 1280, 720, 1280 * 720 * 2, 1, V4L2_PIX_FMT_YVYU),
-	FTHD_FMT("1280x720 NV16", 1280, 720, 1280 * 720, 2, V4L2_PIX_FMT_NV16),
-
-	FTHD_FMT("1024x576 YUYV (4:2:2)", 1024, 576, 1024 * 576 * 2, 1, V4L2_PIX_FMT_YUYV),
-	FTHD_FMT("1024x576 YVYU (4:2:2)", 1024, 576, 1024 * 576 * 2, 1, V4L2_PIX_FMT_YVYU),
-	FTHD_FMT("1024x576 NV16", 1024, 576, 1024 * 576, 2, V4L2_PIX_FMT_NV16),
-
-	FTHD_FMT("1024x720 YUYV (4:2:2)", 1024, 720, 1024 * 720 * 2, 1, V4L2_PIX_FMT_YUYV),
-	FTHD_FMT("1024x720 YVYU (4:2:2)", 1024, 720, 1024 * 720 * 2, 1, V4L2_PIX_FMT_YVYU),
-	FTHD_FMT("1024x720 NV16", 1024, 720, 1024 * 720, 2, V4L2_PIX_FMT_NV16),
-
-	FTHD_FMT("640x480 YUYV (4:2:2)", 640,  480, 640 * 480 * 2, 1, V4L2_PIX_FMT_YUYV),
-	FTHD_FMT("640x480 YVYU (4:2:2)", 640,  480, 640 * 480 * 2, 1, V4L2_PIX_FMT_YVYU),
-	FTHD_FMT("640x480 NV16", 640,  480, 640 * 480, 2, V4L2_PIX_FMT_NV16),
-
-	FTHD_FMT("320x240 YUYV (4:2:2)", 320,  240, 320 * 240 * 2, 1, V4L2_PIX_FMT_YUYV),
-	FTHD_FMT("320x240 YVYU (4:2:2)", 320,  240, 320 * 240 * 2, 1, V4L2_PIX_FMT_YVYU),
-	FTHD_FMT("320x240 NV16", 320,  240, 320 * 240, 2, V4L2_PIX_FMT_NV16),
-
-	FTHD_FMT("384x288 YUYV (4:2:2)", 384,  288, 384 * 288 * 2, 1, V4L2_PIX_FMT_YUYV),
-	FTHD_FMT("384x288 YVYU (4:2:2)", 384,  288, 384 * 288 * 2, 1, V4L2_PIX_FMT_YVYU),
-	FTHD_FMT("384x288 NV16", 384,  288, 384 * 288, 2, V4L2_PIX_FMT_NV16),
-};
+#define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
 
 static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 				   const struct v4l2_format *fmt,
@@ -377,11 +342,30 @@ static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 				   struct v4l2_fmtdesc *fmt)
 {
-	if (fmt->index >= ARRAY_SIZE(fthd_formats))
+	char *desc = NULL;
+
+	switch (fmt->index) {
+	case 0:
+		fmt->pixelformat = V4L2_PIX_FMT_YUYV;
+		desc = "YUYV";
+		break;
+	case 1:
+		fmt->pixelformat = V4L2_PIX_FMT_YVYU;
+		desc = "YVYU";
+		break;
+	/* We don't support the mplane yet
+	case 2:
+		fmt->pixelformat = V4L2_PIX_FMT_NV16;
+		desc = "NV16";
+		break;
+	*/
+	default:
 		return -EINVAL;
-	strlcpy(fmt->description, fthd_formats[fmt->index].desc,
-		sizeof(fmt->description));
-	fmt->pixelformat = fthd_formats[fmt->index].fmt.pixelformat;
+	}
+
+	fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	strncpy(fmt->description, desc, sizeof(fmt->description));
+
 	return 0;
 }
 
