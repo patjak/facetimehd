@@ -340,7 +340,7 @@ static int fthd_v4l2_ioctl_enum_input(struct file *filp, void *priv,
 		return -EINVAL;
 
 	input->type = V4L2_INPUT_TYPE_CAMERA;
-	input->std = V4L2_STD_ALL;
+	input->std = 0;
 	strcpy(input->name, "Apple Facetime HD");
 	return 0;
 }
@@ -355,17 +355,6 @@ static int fthd_v4l2_ioctl_s_input(struct file *filp, void *priv, unsigned int i
 {
 	if (i != 0)
 		return -EINVAL;
-	return 0;
-}
-
-static int fthd_v4l2_ioctl_s_std(struct file *filp, void *priv, v4l2_std_id std)
-{
-	return 0;
-}
-
-static int fthd_v4l2_ioctl_g_std(struct file *filp, void *priv, v4l2_std_id *std)
-{
-	*std = V4L2_STD_NTSC_M;
 	return 0;
 }
 
@@ -567,8 +556,6 @@ static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_enum_input      = fthd_v4l2_ioctl_enum_input,
 	.vidioc_g_input         = fthd_v4l2_ioctl_g_input,
 	.vidioc_s_input         = fthd_v4l2_ioctl_s_input,
-	.vidioc_s_std           = fthd_v4l2_ioctl_s_std,
-	.vidioc_g_std           = fthd_v4l2_ioctl_g_std,
 	.vidioc_enum_fmt_vid_cap = fthd_v4l2_ioctl_enum_fmt_vid_cap,
 	.vidioc_try_fmt_vid_cap = fthd_v4l2_ioctl_try_fmt_vid_cap,
 
