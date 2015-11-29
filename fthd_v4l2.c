@@ -26,6 +26,7 @@
 #include <media/v4l2-dev.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-ctrls.h>
+#include <media/v4l2-event.h>
 #include <media/videobuf2-dma-sg.h>
 #include "fthd_drv.h"
 #include "fthd_hw.h"
@@ -536,6 +537,17 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	return 0;
 }
 
+static int fthd_v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
+		const struct v4l2_event_subscription *sub)
+{
+	switch (sub->type) {
+	case V4L2_EVENT_CTRL:
+		return v4l2_ctrl_subscribe_event(fh, sub);
+	}
+
+	return -EINVAL;
+}
+
 static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_enum_input      = fthd_v4l2_ioctl_enum_input,
 	.vidioc_g_input         = fthd_v4l2_ioctl_g_input,
@@ -561,6 +573,9 @@ static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_s_parm          = fthd_v4l2_ioctl_s_parm,
 	.vidioc_enum_framesizes = fthd_v4l2_ioctl_enum_framesizes,
 	.vidioc_enum_frameintervals = fthd_v4l2_ioctl_enum_frameintervals,
+
+	.vidioc_subscribe_event	= fthd_v4l2_ioctl_subscribe_event,
+	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
 static int fthd_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
