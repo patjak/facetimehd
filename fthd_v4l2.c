@@ -370,6 +370,45 @@ static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 	return 0;
 }
 
+static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
+				   struct v4l2_pix_format *pix)
+{
+
+	if (pix->pixelformat != V4L2_PIX_FMT_YUYV &&
+	    pix->pixelformat != V4L2_PIX_FMT_YVYU)
+		pix->pixelformat = V4L2_PIX_FMT_YUYV;
+
+	if (pix->width < FTHD_MIN_WIDTH)
+		pix->width = FTHD_MIN_WIDTH;
+	if (pix->width > FTHD_MAX_WIDTH)
+		pix->width = FTHD_MAX_WIDTH;
+	if (pix->height < FTHD_MIN_HEIGHT)
+		pix->height = FTHD_MIN_HEIGHT;
+	if (pix->height > FTHD_MAX_HEIGHT)
+		pix->height = FTHD_MAX_HEIGHT;
+
+	pix->colorspace = V4L2_COLORSPACE_SRGB;
+	pix->field = V4L2_FIELD_NONE;
+	pix->width = ALIGN(pix->width, 7);
+
+	switch (pix->pixelformat) {
+/*
+	case V4L2_PIX_FMT_NV16:
+		pix->sizeimage = pix->width * pix->height;
+		pix->bytesperline = pix->width;
+		break;
+*/
+	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_YVYU:
+	default:
+		pix->bytesperline = pix->width * 2;
+		pix->sizeimage = pix->bytesperline * pix->height;
+		break;
+	}
+
+	return 0;
+}
+
 static int fthd_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
 					   struct v4l2_format *fmt)
 {
@@ -377,37 +416,21 @@ static int fthd_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
 
 	pr_debug("%s: %dx%d\n", __FUNCTION__, fmt->fmt.pix.width, fmt->fmt.pix.height);
 
-	dev_priv->fmt.fmt = fmt->fmt.pix;
-
-	switch(fmt->fmt.pix.pixelformat) {
-	case V4L2_PIX_FMT_YUYV:
-	case V4L2_PIX_FMT_YVYU:
-		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height * 2;
-		dev_priv->fmt.fmt.bytesperline = fmt->fmt.pix.width * 2;
-		dev_priv->fmt.planes = 1;
-		break;
-	case V4L2_PIX_FMT_NV16:
-		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height;
-		dev_priv->fmt.fmt.bytesperline = fmt->fmt.pix.width;
-		dev_priv->fmt.planes = 2;
-		break;
-	default:
-		pr_err("unknown pixelformat %c%c%c%c\n",
-		       fmt->fmt.pix.pixelformat,
-		       fmt->fmt.pix.pixelformat >> 8,
-		       fmt->fmt.pix.pixelformat >> 16,
-		       fmt->fmt.pix.pixelformat >> 24);
+	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
-	}
-	return 0;
+
+	return fthd_v4l2_adjust_format(dev_priv, &fmt->fmt.pix);
 }
 
 static int fthd_v4l2_ioctl_g_fmt_vid_cap(struct file *filp, void *priv,
 					 struct v4l2_format *fmt)
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
+
 	pr_debug("%s\n", __FUNCTION__);
+	fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	fmt->fmt.pix = dev_priv->fmt.fmt;
+
 	return 0;
 }
 
@@ -415,39 +438,32 @@ static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 					 struct v4l2_format *fmt)
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
+	int ret;
 
-	if (fmt->fmt.pix.width < 320 ||
-	    fmt->fmt.pix.height < 240 ||
-	    (fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_YUYV &&
-	     fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_YVYU &&
-	     fmt->fmt.pix.pixelformat != V4L2_PIX_FMT_NV16)) {
-		fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-		fmt->fmt.pix.height = 720;
-		fmt->fmt.pix.width = 1280;
-		return 0;
-	}
+	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
 
-	fmt->fmt.pix.width &= ~7;
+	/* FIXME: Check if hardware is busy */
+
+	ret = fthd_v4l2_adjust_format(dev_priv, &fmt->fmt.pix);
+	if (ret)
+		return ret;
+
 	pr_debug("%c%c%c%c\n", fmt->fmt.pix.pixelformat, fmt->fmt.pix.pixelformat >> 8,
 		 fmt->fmt.pix.pixelformat >> 16, fmt->fmt.pix.pixelformat >> 24);
-	switch(fmt->fmt.pix.pixelformat) {
+
+	dev_priv->fmt.fmt = fmt->fmt.pix;
+
+	switch (fmt->fmt.pix.pixelformat) {
 	case V4L2_PIX_FMT_NV16:
-		dev_priv->fmt.fmt = fmt->fmt.pix;
-		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height;
 		dev_priv->fmt.planes = 2;
 		break;
-	case V4L2_PIX_FMT_YVYU:
 	case V4L2_PIX_FMT_YUYV:
-		dev_priv->fmt.fmt = fmt->fmt.pix;
-		dev_priv->fmt.fmt.sizeimage = fmt->fmt.pix.width * fmt->fmt.pix.height * 2;
+	case V4L2_PIX_FMT_YVYU:
 		dev_priv->fmt.planes = 1;
 		break;
-	case 0:
-		fmt->fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-		break;
-	default:
-		return -EINVAL;
 	}
+
 	return 0;
 }
 
@@ -688,6 +704,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	dev_priv->fmt.fmt.width = 1280;
 	dev_priv->fmt.fmt.height = 720;
 
+	fthd_v4l2_adjust_format(dev_priv, &dev_priv->fmt.fmt);
 
 	return 0;
 fail_vdev:
