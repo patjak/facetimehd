@@ -765,4 +765,7 @@ extern int fthd_isp_cmd_channel_hue_set(struct fthd_private *dev_priv, int chann
 extern int fthd_isp_cmd_channel_buffer_return(struct fthd_private *dev_priv, int channel);
 extern int fthd_start_channel(struct fthd_private *dev_priv, int channel);
 extern int fthd_stop_channel(struct fthd_private *dev_priv, int channel);
+extern int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
+			      int request_len, int *response_len);
+
 #endif
