@@ -707,6 +707,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	dev_priv->fmt.fmt.pixelformat = V4L2_PIX_FMT_YUYV;
 	dev_priv->fmt.fmt.width = 1280;
 	dev_priv->fmt.fmt.height = 720;
+	dev_priv->fmt.planes = 1;
 
 	fthd_v4l2_adjust_format(dev_priv, &dev_priv->fmt.fmt);
 
