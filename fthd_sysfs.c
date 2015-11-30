@@ -31,12 +31,7 @@
 #include "fthd_sysfs.h"
 #include "fthd_isp.h"
 #include "fthd_ringbuf.h"
-
-static ssize_t fthd_show_debug(struct device *dev, struct device_attribute *attr,
-			       char *buf)
-{
-	return -EINVAL;
-}
+#include "fthd_hw.h"
 
 static ssize_t fthd_store_debug(struct device *dev, struct device_attribute *attr,
 				const char *buf, size_t count)
@@ -103,11 +98,106 @@ static ssize_t fthd_store_debug(struct device *dev, struct device_attribute *att
 	return count;
 }
 
-static DEVICE_ATTR(debug, S_IWUSR | S_IRUGO, fthd_show_debug,
-		   fthd_store_debug);
+
+static ssize_t fthd_dump_channel(struct device *dev, struct fw_channel *chan,
+				 char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	int i;
+	char pos;
+	u32 entry;
+	ssize_t ret = 0, len;
+	spin_lock_irq(&chan->lock);
+	for( i = 0; i < chan->size; i++) {
+		if (chan->ringbuf.idx == i)
+			pos = '*';
+		else
+			pos = ' ';
+		entry = get_entry_addr(dev_priv, chan, i);
+		len = sprintf(buf+ret, "%c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
+			 pos, i,
+			 FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS),
+			 FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
+			 FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE));
+		if (len < 0) {
+			ret = len;
+			break;
+		} else {
+			ret += len;
+		}
+	}
+	spin_unlock_irq(&chan->lock);
+	return ret;
+}
+
+static ssize_t channel_terminal_show(struct device *dev, struct device_attribute *attr,
+				     char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	return fthd_dump_channel(dev, dev_priv->channel_io, buf);
+}
+
+static ssize_t channel_sharedmalloc_show(struct device *dev, struct device_attribute *attr,
+					 char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	return fthd_dump_channel(dev, dev_priv->channel_shared_malloc, buf);
+}
+
+static ssize_t channel_io_show(struct device *dev, struct device_attribute *attr,
+					 char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	return fthd_dump_channel(dev, dev_priv->channel_io, buf);
+}
+
+static ssize_t channel_debug_show(struct device *dev, struct device_attribute *attr,
+				  char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	return fthd_dump_channel(dev, dev_priv->channel_debug, buf);
+}
+
+static ssize_t channel_buf_h2t_show(struct device *dev, struct device_attribute *attr,
+				    char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	return fthd_dump_channel(dev, dev_priv->channel_buf_h2t, buf);
+}
+
+static ssize_t channel_buf_t2h_show(struct device *dev, struct device_attribute *attr,
+				    char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	return fthd_dump_channel(dev, dev_priv->channel_buf_t2h, buf);
+}
+
+static ssize_t channel_io_t2h_show(struct device *dev, struct device_attribute *attr,
+				   char *buf)
+{
+	struct fthd_private *dev_priv = dev_get_drvdata(dev);
+	return fthd_dump_channel(dev, dev_priv->channel_io_t2h, buf);
+}
+
+static DEVICE_ATTR(debug, S_IWUSR | S_IRUGO, NULL, fthd_store_debug);
+static DEVICE_ATTR_RO(channel_terminal);
+static DEVICE_ATTR_RO(channel_sharedmalloc);
+static DEVICE_ATTR_RO(channel_io);
+static DEVICE_ATTR_RO(channel_debug);
+static DEVICE_ATTR_RO(channel_buf_h2t);
+static DEVICE_ATTR_RO(channel_buf_t2h);
+static DEVICE_ATTR_RO(channel_io_t2h);
 
 static struct attribute *fthd_attributes[] = {
 	&dev_attr_debug.attr,
+	&dev_attr_channel_terminal.attr,
+	&dev_attr_channel_sharedmalloc.attr,
+	&dev_attr_channel_io.attr,
+	&dev_attr_channel_debug.attr,
+	&dev_attr_channel_buf_h2t.attr,
+	&dev_attr_channel_buf_t2h.attr,
+	&dev_attr_channel_io_t2h.attr,
+	NULL,
 };
 
 static struct attribute_group fthd_attribute_group = {
