@@ -332,7 +332,7 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	pr_debug("status %04x, request_len %d response len %d address_flags %x\n", cmd.status,
 		request_size, response_size, address);
 
-	ret = 0;
+	ret = cmd.status ? -EIO : 0;
 out:
 	isp_mem_destroy(request);
 	return ret;
