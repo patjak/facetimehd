@@ -515,6 +515,10 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	if (sizes->index)
 		return -EINVAL;
 
+	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV &&
+	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
+		return -EINVAL;
+
 	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
 	sizes->stepwise.min_width = FTHD_MIN_WIDTH;
 	sizes->stepwise.max_width = FTHD_MAX_WIDTH;
