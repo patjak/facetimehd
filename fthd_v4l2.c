@@ -379,7 +379,7 @@ static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI:%s",
 		 pci_name(dev_priv->pdev));
 
-	cap->device_caps =
+	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE |
 		V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_TIMEPERFRAME;
 	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
 	return 0;
