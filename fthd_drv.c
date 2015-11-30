@@ -34,6 +34,7 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 #include "fthd_v4l2.h"
+#include "fthd_sysfs.h"
 
 static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 {
@@ -207,8 +208,11 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 		return;
 	}
 
-	if (chan == dev_priv->channel_debug)
+	if (chan == dev_priv->channel_debug) {
+		pr_debug("DEBUG channel ready\n");
+		wake_up_interruptible(&chan->wq);
 		return;
+	}
 
 	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
 		pr_debug("channel %s: message available, address %08x\n", chan->name, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS));
@@ -329,6 +333,8 @@ static void fthd_pci_remove(struct pci_dev *pdev)
 	dev_priv = pci_get_drvdata(pdev);
 	if (!dev_priv)
 		goto out;
+
+	fthd_sysfs_exit(dev_priv);
 
 	fthd_v4l2_unregister(dev_priv);
 
@@ -485,7 +491,12 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		goto fail_firmware;
 
+	ret = fthd_sysfs_init(dev_priv);
+	if (ret)
+		goto fail_v4l2;
 	return 0;
+fail_v4l2:
+	fthd_v4l2_unregister(dev_priv);
 fail_firmware:
 	fthd_stop_firmware(dev_priv);
 fail_hw:

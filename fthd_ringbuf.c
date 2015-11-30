@@ -27,7 +27,7 @@
 #include "fthd_ringbuf.h"
 #include "fthd_isp.h"
 
-static u32 get_entry_addr(struct fthd_private *dev_priv,
+u32 get_entry_addr(struct fthd_private *dev_priv,
 			  struct fw_channel *chan, int num)
 {
 	return chan->offset + num * FTHD_RINGBUF_ENTRY_SIZE;

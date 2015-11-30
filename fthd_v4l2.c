@@ -305,9 +305,11 @@ static int fthd_v4l2_ioctl_enum_input(struct file *filp, void *priv,
 	if (input->index != 0)
 		return -EINVAL;
 
+	memset(input, 0, sizeof(*input));
+	strcpy(input->name, "Camera");
 	input->type = V4L2_INPUT_TYPE_CAMERA;
 	input->std = 0;
-	strcpy(input->name, "Apple Facetime HD");
+
 	return 0;
 }
 

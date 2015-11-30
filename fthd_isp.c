@@ -332,6 +332,75 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	pr_debug("status %04x, request_len %d response len %d address_flags %x\n", cmd.status,
 		request_size, response_size, address);
 
+	ret = cmd.status ? -EIO : 0;
+out:
+	isp_mem_destroy(request);
+	return ret;
+}
+
+int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
+			int request_len, int *response_len)
+{
+	struct isp_mem_obj *request;
+	struct isp_cmd_hdr cmd;
+	u32 address, request_size, response_size;
+	u32 entry;
+	int len, ret;
+
+	memset(&cmd, 0, sizeof(cmd));
+
+	if (response_len) {
+		len = max(request_len, *response_len);
+	} else {
+		len = request_len;
+	}
+	len += sizeof(struct isp_cmd_hdr);
+
+	pr_debug("sending debug cmd %d to firmware\n", command);
+
+	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, len);
+	if (!request) {
+		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
+		return -ENOMEM;
+	}
+
+	cmd.opcode = command;
+
+	FTHD_S2_MEMCPY_TOIO(request->offset, &cmd, sizeof(struct isp_cmd_hdr));
+	if (request_len)
+		FTHD_S2_MEMCPY_TOIO(request->offset + sizeof(struct isp_cmd_hdr), buf, request_len);
+
+	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_debug,
+					  request->offset, request_len + 8, (response_len ? *response_len : 0) + 8, &entry);
+	if (ret)
+		goto out;
+
+	if (entry == (u32)-1) {
+		ret = -EIO;
+		goto out;
+	}
+
+        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_debug, entry, 20000);
+	if (ret) {
+		if (response_len)
+			*response_len = 0;
+		goto out;
+	}
+
+	FTHD_S2_MEMCPY_FROMIO(&cmd, request->offset, sizeof(struct isp_cmd_hdr));
+	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
+	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
+	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
+
+	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
+	        verification done? */
+	if (response_len && *response_len)
+		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
+				     *response_len);
+
+	pr_info("status %04x, request_len %d response len %d address_flags %x\n", cmd.status,
+		request_size, response_size, address);
+
 	ret = 0;
 out:
 	isp_mem_destroy(request);
