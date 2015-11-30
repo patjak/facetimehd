@@ -49,4 +49,6 @@ extern u32 fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
 					struct fw_channel *chan);
 
 extern int fthd_channel_wait_ready(struct fthd_private *dev_priv, struct fw_channel *chan, u32 entry, int timeout);
+extern u32 get_entry_addr(struct fthd_private *dev_priv,
+			  struct fw_channel *chan, int num);
 #endif
