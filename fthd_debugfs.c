@@ -19,15 +19,7 @@
 
 #include <linux/kernel.h>
 #include <linux/spinlock.h>
-#include <linux/sched.h>
-#include <linux/wait.h>
-#include <linux/delay.h>
-#include <linux/videodev2.h>
 #include <linux/debugfs.h>
-#include <media/v4l2-dev.h>
-#include <media/v4l2-ioctl.h>
-#include <media/v4l2-ctrls.h>
-#include <media/videobuf2-dma-sg.h>
 #include "fthd_drv.h"
 #include "fthd_debugfs.h"
 #include "fthd_isp.h"
@@ -120,7 +112,7 @@ static int seq_channel_read(struct seq_file *seq, struct fthd_private *dev_priv,
 		seq_printf(seq, "%c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
 			   pos, i,
 			   FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS),
-			 FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
+			   FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
 			   FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE));
 	}
 	spin_unlock_irq(&chan->lock);
