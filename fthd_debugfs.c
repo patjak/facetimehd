@@ -178,11 +178,17 @@ static const struct file_operations fops_debug = {
 
 int fthd_debugfs_init(struct fthd_private *dev_priv)
 {
-	struct dentry *d;
+	struct dentry *d, *top;
 
-	d = debugfs_create_dir("facetimehd", NULL);
-	if (IS_ERR(d))
+	top = debugfs_create_dir("facetimehd", NULL);
+	if (IS_ERR(top))
+		return PTR_ERR(top);
+
+	d = debugfs_create_dir(dev_name(&dev_priv->pdev->dev), top);
+	if (IS_ERR(d)) {
+		debugfs_remove_recursive(top);
 		return PTR_ERR(d);
+	}
 
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_terminal", d, seq_channel_terminal_read);
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_sharedmalloc", d, seq_channel_sharedmalloc_read);
@@ -192,7 +198,7 @@ int fthd_debugfs_init(struct fthd_private *dev_priv)
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_buf_t2h", d, seq_channel_buf_t2h_read);
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_debug", d, seq_channel_debug_read);
 	debugfs_create_file("debug", S_IRUSR | S_IWUSR, d, dev_priv, &fops_debug);
-	dev_priv->debugfs = d;
+	dev_priv->debugfs = top;
 	return 0;
 }
 
