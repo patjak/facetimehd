@@ -123,6 +123,7 @@ struct fthd_private {
 
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	int frametime;
+	struct dentry *debugfs;
 };
 
 #endif
