@@ -22,6 +22,6 @@
 
 struct fthd_private;
 
-int fthd_sysfs_init(struct fthd_private *priv);
-void fthd_sysfs_exit(struct fthd_private *priv);
+int fthd_debugfs_init(struct fthd_private *priv);
+void fthd_debugfs_exit(struct fthd_private *priv);
 #endif

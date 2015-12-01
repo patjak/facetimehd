@@ -34,7 +34,7 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 #include "fthd_v4l2.h"
-#include "fthd_sysfs.h"
+#include "fthd_debugfs.h"
 
 static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 {
@@ -334,7 +334,7 @@ static void fthd_pci_remove(struct pci_dev *pdev)
 	if (!dev_priv)
 		goto out;
 
-	fthd_sysfs_exit(dev_priv);
+	fthd_debugfs_exit(dev_priv);
 
 	fthd_v4l2_unregister(dev_priv);
 
@@ -491,7 +491,7 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		goto fail_firmware;
 
-	ret = fthd_sysfs_init(dev_priv);
+	ret = fthd_debugfs_init(dev_priv);
 	if (ret)
 		goto fail_v4l2;
 	return 0;
