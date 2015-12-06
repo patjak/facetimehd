@@ -702,9 +702,14 @@ struct isp_cmd_channel_hue_set {
 	u32 contrast;
 };
 
+struct isp_cmd_channel {
+	u32 channel;
+};
+
 struct isp_cmd_channel_buffer_return {
 	u32 channel;
 };
+
 
 struct fthd_isp_debug_cmd {
 	u32 show_errors;
@@ -762,6 +767,7 @@ extern int fthd_isp_cmd_channel_brightness_set(struct fthd_private *dev_priv, in
 extern int fthd_isp_cmd_channel_contrast_set(struct fthd_private *dev_priv, int channel, int contrast);
 extern int fthd_isp_cmd_channel_saturation_set(struct fthd_private *dev_priv, int channel, int saturation);
 extern int fthd_isp_cmd_channel_hue_set(struct fthd_private *dev_priv, int channel, int hue);
+extern int fthd_isp_cmd_channel_awb(struct fthd_private *dev_priv, int channel, int hue);
 extern int fthd_isp_cmd_channel_buffer_return(struct fthd_private *dev_priv, int channel);
 extern int fthd_start_channel(struct fthd_private *dev_priv, int channel);
 extern int fthd_stop_channel(struct fthd_private *dev_priv, int channel);

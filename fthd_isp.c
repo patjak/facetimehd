@@ -1100,6 +1100,20 @@ int fthd_isp_cmd_channel_hue_set(struct fthd_private *dev_priv, int channel, int
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_HUE_SET, &cmd, sizeof(cmd), &len);
 }
 
+int fthd_isp_cmd_channel_awb(struct fthd_private *dev_priv, int channel, int enable)
+{
+	struct isp_cmd_channel cmd;
+	enum fthd_isp_cmds op;
+	int len;
+
+	pr_debug("set awb %s\n", enable ? "on" : "off");
+
+	cmd.channel = channel;
+	op = enable ? CISP_CMD_CH_AWB_START : CISP_CMD_CH_AWB_STOP;
+	len = sizeof(cmd);
+	return fthd_isp_cmd(dev_priv, op, &cmd, sizeof(cmd), &len);
+}
+
 int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 {
 	int ret, x1 = 0, x2 = 0, pixelformat;
