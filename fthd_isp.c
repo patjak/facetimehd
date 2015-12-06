@@ -445,7 +445,8 @@ static int fthd_isp_cmd_powerdown(struct fthd_private *dev_priv)
 
 static void isp_free_set_file(struct fthd_private *dev_priv)
 {
-	isp_mem_destroy(dev_priv->set_file);
+	if (dev_priv->set_file)
+		isp_mem_destroy(dev_priv->set_file);
 }
 
 int isp_powerdown(struct fthd_private *dev_priv)
@@ -572,14 +573,17 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		break;
 
 	}
+
 	if (!filename) {
 		pr_err("no set file for sensorid %04x %04x found\n",
 		       dev_priv->sensor_id0, dev_priv->sensor_id1);
 		return -EINVAL;
 	}
+
+	/* The set file is allowed to be missing but we don't get calibration */
 	ret = request_firmware(&fw, filename, &dev_priv->pdev->dev);
 	if (ret)
-		return ret;
+		return 0;
 
 	/* Firmware memory is preallocated at init time */
 	BUG_ON(dev_priv->set_file);
