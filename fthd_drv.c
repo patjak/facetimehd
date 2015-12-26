@@ -93,12 +93,6 @@ static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 	return 0;
 }
 
-static void fthd_irq_disable(struct fthd_private *dev_priv)
-{
-	//fthd_hw_irq_disable(dev_priv);
-	free_irq(dev_priv->pdev->irq, dev_priv);
-}
-
 static void sharedmalloc_handler(struct fthd_private *dev_priv,
 				 struct fw_channel *chan,
 				 u32 entry)
@@ -231,6 +225,11 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 	}
 }
 
+static void fthd_irq_uninstall(struct fthd_private *dev_priv)
+{
+	free_irq(dev_priv->pdev->irq, dev_priv);
+}
+
 static void fthd_irq_work(struct work_struct *work)
 {
 	struct fthd_private *dev_priv = container_of(work, struct fthd_private, irq_work);
@@ -266,7 +265,7 @@ static void fthd_irq_work(struct work_struct *work)
 
 	if (i >= 500) {
 		dev_err(&dev_priv->pdev->dev, "irq stuck, disabling\n");
-		fthd_irq_disable(dev_priv);
+		fthd_irq_uninstall(dev_priv);
 	}
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
 }
@@ -289,7 +288,7 @@ static irqreturn_t fthd_irq_handler(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
-static int fthd_irq_enable(struct fthd_private *dev_priv)
+static int fthd_irq_install(struct fthd_private *dev_priv)
 {
 	int ret;
 
@@ -301,7 +300,6 @@ static int fthd_irq_enable(struct fthd_private *dev_priv)
 
 	return ret;
 }
-
 
 static int fthd_pci_set_dma_mask(struct fthd_private *dev_priv,
 				 unsigned int mask)
@@ -340,7 +338,7 @@ static void fthd_pci_remove(struct pci_dev *pdev)
 
 	fthd_stop_firmware(dev_priv);
 
-	fthd_irq_disable(dev_priv);
+	fthd_irq_uninstall(dev_priv);
 
 	cancel_work_sync(&dev_priv->irq_work);
 
@@ -388,7 +386,7 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 		goto fail_reserve;
 	}
 
-	ret = fthd_irq_enable(dev_priv);
+	ret = fthd_irq_install(dev_priv);
 	if (ret)
 		goto fail_msi;
 
@@ -407,7 +405,7 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 	return 0;
 
 fail_irq:
-	fthd_irq_disable(dev_priv);
+	fthd_irq_uninstall(dev_priv);
 fail_msi:
 	pci_disable_msi(pdev);
 fail_reserve:
@@ -504,7 +502,7 @@ fail_hw:
 fail_buffer:
 	fthd_buffer_exit(dev_priv);
 fail_pci:
-	fthd_irq_disable(dev_priv);
+	fthd_irq_uninstall(dev_priv);
 	pci_disable_msi(pdev);
 	pci_release_region(pdev, FTHD_PCI_S2_IO);
 	pci_release_region(pdev, FTHD_PCI_S2_MEM);

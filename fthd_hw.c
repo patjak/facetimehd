@@ -640,7 +640,7 @@ void fthd_ddr_phy_restore_regs(struct fthd_private *dev_priv)
 	}
 }
 
-static int fthd_hw_irq_enable(struct fthd_private *dev_priv)
+int fthd_irq_enable(struct fthd_private *dev_priv)
 {
 	FTHD_ISP_REG_WRITE(0xf8, ISP_IRQ_ENABLE);
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
@@ -648,10 +648,11 @@ static int fthd_hw_irq_enable(struct fthd_private *dev_priv)
 	return 0;
 }
 
-static int fthd_hw_irq_disable(struct fthd_private *dev_priv)
+int fthd_irq_disable(struct fthd_private *dev_priv)
 {
 	FTHD_ISP_REG_WRITE(0, ISP_IRQ_ENABLE);
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x0);
+
 	return 0;
 }
 
@@ -708,7 +709,7 @@ int fthd_hw_init(struct fthd_private *dev_priv)
 	    goto out;
 
 	dev_info(&dev_priv->pdev->dev, "Enabling interrupts\n");
-	fthd_hw_irq_enable(dev_priv);
+	fthd_irq_enable(dev_priv);
 out:
 	return ret;
 }
@@ -717,5 +718,5 @@ void fthd_hw_deinit(struct fthd_private *dev_priv)
 {
 	dev_info(&dev_priv->pdev->dev, "%s", __FUNCTION__);
 	FTHD_ISP_REG_WRITE(0, ISP_REG_41020);
-	fthd_hw_irq_disable(dev_priv);
+	fthd_irq_disable(dev_priv);
 }
