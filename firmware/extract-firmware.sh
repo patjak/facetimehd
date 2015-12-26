@@ -1,72 +1,128 @@
 #!/bin/bash
 
-# Known driver and firmware hashes
-
+# Known driver hashes
+#
 # NOTE: use sha256 checksums as they are more robust that md5 against collisions
 hash_drv_wnd_105='6ec37d48c0764ed059dd49f472456a4f70150297d6397b7cc7965034cf78627e'
 hash_drv_wnd_138='7044344593bfc08ab9b41ab691213bca568c8d924d0e05136b537f66b3c46f31'
-hash_drv_osx_143='4667e6828f6bfc690a39cf9d561369a525f44394f48d0a98d750931b2f3f278b'
+hash_drv_osx_143_1='4667e6828f6bfc690a39cf9d561369a525f44394f48d0a98d750931b2f3f278b'
+hash_drv_osx_143_2='d4650346c940dafdc50e5fcbeeeffe074ec359726773e79c0cfa601cec6b1f08'
 
 hash_fw_wnd_105='dabb8cf8e874451ebc85c51ef524bd83ddfa237c9ba2e191f8532b896594e50e'
 hash_fw_wnd_138='ed75dc37b1a0e19949e9e046a629cb55deb6eec0f13ba8fd8dd49b5ccd5a800e'
-hash_fw_osx_143='e3e6034a67dfdaa27672dd547698bbc5b33f47f1fc7f5572a2fb68ea09d32d3d'
+hash_fw_osx_143_1='e3e6034a67dfdaa27672dd547698bbc5b33f47f1fc7f5572a2fb68ea09d32d3d'
+hash_fw_osx_143_2='e3e6034a67dfdaa27672dd547698bbc5b33f47f1fc7f5572a2fb68ea09d32d3d'
 
 # Driver names
 declare -A known_hashes=(
   ["$hash_drv_wnd_105"]='Windows Boot Camp 5.1.5722'
   ["$hash_drv_wnd_138"]='Windows Boot Camp Update Jul 29, 2015'
-  ["$hash_drv_osx_143"]='OS X, El Capitan'
+  ["$hash_drv_osx_143_1"]='OS X, El Capitan'
+  ["$hash_drv_osx_143_2"]='OS X, El Capitan 10.11.2'
 )
 
 # Offset in bytes of the firmware inside the driver
 declare -A firmw_offsets=(
   ["$hash_drv_wnd_105"]=78208
   ["$hash_drv_wnd_138"]=85296
-  ["$hash_drv_osx_143"]=81920
+  ["$hash_drv_osx_143_1"]=81920
+  ["$hash_drv_osx_143_2"]=81920
 )
 
 # Size in bytes of the firmware inside the driver 
 declare -A firmw_sizes=(
   ["$hash_drv_wnd_105"]=1523716
   ["$hash_drv_wnd_138"]=1421316
-  ["$hash_drv_osx_143"]=603715
+  ["$hash_drv_osx_143_1"]=603715
+  ["$hash_drv_osx_143_2"]=603715
 )
 
 # Compression method used to store the firmware inside the driver
 declare -A compression=(
   ["$hash_drv_wnd_105"]='cat'
   ["$hash_drv_wnd_138"]='cat'
-  ["$hash_drv_osx_143"]='gzip'
+  ["$hash_drv_osx_143_1"]='gzip'
+  ["$hash_drv_osx_143_2"]='gzip'
 )
 
 declare -A firmw_hashes=(
   ["$hash_fw_wnd_105"]='1.05'
   ["$hash_fw_wnd_138"]='1.38'
-  ["$hash_fw_osx_143"]='1.43'
+  ["$hash_fw_osx_143_1"]='1.43.1'
+  ["$hash_fw_osx_143_2"]='1.43.2'
 )
 
 printHelp()
 {
   cat <<HELP_DOC
-Usage: extract-firmware [OPTIONS] FILE
+Usage: extract-firmware [OPTIONS]
 
 OPTION:
 
   -h  --help          Print this help message and exit.
 
-FILE:
+  --dmg DMG_FILE      Decompress the dmg file DMG_FILE, and extract the
+                      OS X camrea driver.
 
-  The url of the file containing the driver. At the moment only two drivers
-  are currently available:
+  -x DRV_FILE         Extract the firmware from the driver DRV_FILE
+
+NOTES:
+
+  At the moment only two drivers are currently available:
 
    - AppleCameraInterface: this is the OS X native driver, it can be found
      in a OS X installation under the following system directory
      /System/Library/Extensions/AppleCameraInterface.kext/Contents/MacOS/
 
    - AppleCamera.sys: this comes within the bootcamp windows driver package.
-     You can download it from http://support.apple.com/downloads/DL1831/"
+     You can download it from http://support.apple.com/downloads/DL1831/".
+
+  Currently only the OS X firmware is working
 
 HELP_DOC
+}
+
+msg()
+{
+  echo "==> $*"
+}
+
+msg2()
+{
+  echo " --> $*"
+}
+
+err()
+{
+  echo "Error: $*"
+}
+
+hasProgram()
+{
+  if ! which "$1" &> /dev/null; then
+    err "'$1' needed but not found!"
+    exit 1
+  fi
+}
+
+checkDmgPrerequisites()
+{
+  hasProgram "7z"
+  hasProgram "cpio"
+  hasProgram "head"
+  hasProgram "mkdir"
+  hasProgram "pbzx"
+  hasProgram "sha256sum"
+  hasProgram "tail"
+  hasProgram "xar"
+}
+
+checkPrerequisites()
+{
+  hasProgram "awk"
+  hasProgram "dd"
+  hasProgram "sha256sum"
+  hasProgram "zcat"
 }
 
 getCheckSum()
@@ -87,9 +143,9 @@ checkDriverHash()
     fi
   done
 
-  echo "Mismatching driver hash for $1"
-  echo "The uknown hash is ${driver_hash}"
-	echo "No firmware extracted!"
+  err "Mismatching driver hash for $1"
+  err "The uknown hash is ${driver_hash}"
+	err "No firmware extracted!"
   exit 1
 }
 
@@ -101,22 +157,22 @@ checkFirmwareHash()
   # checking if it is among the known hashes
   for cur_hash in "${!firmw_hashes[@]}"; do
     if [[ "$fw_hash" == "$cur_hash" ]]; then
-      echo "Extracted firmware version ${firmw_hashes[$cur_hash]}"
+      msg2 "Extracted firmware version ${firmw_hashes[$cur_hash]}"
       return 0
     fi
   done
 
-  echo "Mismatching firmware hash ${firm_hash}"
-	echo "No firmware extracted!"
+  err "Mismatching firmware hash ${firm_hash}"
+	err "No firmware extracted!"
   return 1
 }
 
 extractFirmware()
 {
-  echo "Extracting firmware..."
+  msg "Extracting firmware..."
   dd bs=1 skip=$3 count=$4 if=$1 of="$2.tmp" &> /dev/null
 
-  echo "Decompressing the firmware using $5..."
+  msg2 "Decompressing the firmware using $5..."
   case "$5" in
     "gzip")
       zcat "$2.tmp" > "$2"
@@ -126,39 +182,98 @@ extractFirmware()
       ;;
   esac
 
-  echo "Deleting temporary files..."
+  msg2 "Deleting temporary files..."
   rm "$2.tmp"
 }
 
-main()
+decompress_dmg()
 {
-  echo ""
-  if [[ -z "$1" ]]; then
-    echo "No input file specified!"
-    printHelp
-    exit 1
-  elif [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
-    printHelp
-    exit 0
-  elif [[ ! -f "$1" ]]; then
-    echo "'$1' is not a file or it does not exist!"
-    exit 1
-  fi
+  msg "Extracting the driver from $1..."
 
-  outf="firmware.bin"
+  msg2 "Creating temporary directories..."
+  mkdir -p "${_main_dir}/temp"
+  cd "${_main_dir}/temp"
 
+  msg2 "Decompressing the image..."
+  7z e -y "${_main_dir}/$1" "5.hfs" > /dev/null
+
+  msg2 "Extracting upadate package..."
+  tail -c +189001729 "5.hfs" | head -c 1469917156 > OSXUpd.xar
+  rm -f "5.hfs"
+  exit 1
+  msg2 "Uncompressing XAR archive..."
+  xar -x -f "OSXUpd.xar"
+  rm -f "OSXUpd.xar"
+
+  msg2 "Decoding Payload..."
+  pbzx "OSXUpd"*.pkg"/Payload" > /dev/null
+  rm "OSXUpdCombo10.11.2.pkg/Payload"
+
+  msg2 "Decompressing archives..."
+  cd "OSXUpdCombo10.11.2.pkg" 
+  find . -name "Payload.part*.xz" -exec xz --decompress --verbose {} \;
+  cat "Payload.part"* | cpio -id &> /dev/null
+  cp "./System/Library/Extensions/AppleCameraInterface.kext/Contents/MacOS/AppleCameraInterface" \
+     "${_main_dir}"
+  msg2 "Cleaning up..."
+  rm -rf "${_main_dir}/temp"
+}
+
+extract_from_osx()
+{
+ 
+  echo "" 
   checkDriverHash "$1"
 
   offset="${firmw_offsets[$driver_hash]}"
   size="${firmw_sizes[$driver_hash]}"
   comp_method="${compression[$driver_hash]}"
 
-  extractFirmware "$1" "$outf" "$offset" "$size" "$comp_method"
+  extractFirmware "$1" "firmware.bin" "$offset" "$size" "$comp_method"
 
-  checkFirmwareHash "$outf"
+  checkFirmwareHash "firmware.bin"
+}
+
+main()
+{
+  echo ""
+
+  # Parsing arguments
+  while [[ $# > 1 ]]; do
+    case $1 in
+      -h|--help)
+        printHelp
+        exit 1
+        ;;
+      --dmg)
+        dmg_file="$2"
+        shift
+        ;;
+      -x)
+        drv_file="$2"
+        shift
+        ;;
+    esac
+    shift
+  done
+
+  checkPrerequisites
+
+  if [[ ! -z "$dmg_file" ]]; then
+    checkDmgPrerequisites
+    decompress_dmg "$dmg_file" 
+  fi
+
+  cd "${_main_dir}"
+
+  if [[ ! -z "$drv_file" ]]; then
+    extract_from_osx "$drv_file"
+  fi
 
   echo ""
   exit 0
 }
+
+_main_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 main "$@"
