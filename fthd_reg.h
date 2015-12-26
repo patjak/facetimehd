@@ -173,8 +173,8 @@ static const u32 fthd_ddr_phy_reg_map[] = {
 #define S2_3208				0x3208
 
 /* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
-#define ISP_IPC_NUM_CHAN	0xc3000
-#define ISP_IPC_QUEUE_SIZE	0xc3004
+#define ISP_FW_CHAN_CTRL	0xc3000
+#define ISP_FW_QUEUE_CTRL	0xc3004
 #define ISP_FW_SIZE		0xc3008
 #define ISP_FW_HEAP_SIZE	0xc300c
 #define ISP_FW_HEAP_ADDR	0xc3010
@@ -188,7 +188,7 @@ static const u32 fthd_ddr_phy_reg_map[] = {
 #define ISP_REG_41020		0x41020
 #define ISP_IRQ_CLEAR		0x41024
 
-#define ISP_IPC_CHAN_START	0x0128
-#define ISP_IPC_CHAN_END	0x0220
+#define ISP_FW_CHAN_START	0x0128
+#define ISP_FW_CHAN_END		0x0220
 
 #endif

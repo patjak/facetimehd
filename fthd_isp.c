@@ -1259,7 +1259,7 @@ int fthd_stop_channel(struct fthd_private *dev_priv, int channel)
 
 int isp_init(struct fthd_private *dev_priv)
 {
-	struct isp_mem_obj *ipc_queue, *heap, *fw_args;
+	struct isp_mem_obj *fw_queue, *heap, *fw_args;
 	struct isp_fw_args fw_args_data;
 	u32 num_channels, queue_size, heap_size, reg, offset;
 	int i, retries, ret;
@@ -1279,8 +1279,8 @@ int isp_init(struct fthd_private *dev_priv)
 	mdelay(10);
 
 	isp_enable_sensor(dev_priv);
-	FTHD_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
-	FTHD_ISP_REG_WRITE(0, ISP_IPC_QUEUE_SIZE);
+	FTHD_ISP_REG_WRITE(0, ISP_FW_CHAN_CTRL);
+	FTHD_ISP_REG_WRITE(0, ISP_FW_QUEUE_CTRL);
 	FTHD_ISP_REG_WRITE(0, ISP_FW_SIZE);
 	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE);
 	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
@@ -1294,7 +1294,7 @@ int isp_init(struct fthd_private *dev_priv)
 	 * Probably the IPC queue
 	 * FIXME: Check if we can do 64bit writes on PCIe
 	 */
-	for (i = ISP_IPC_CHAN_START; i <= ISP_IPC_CHAN_END; i += 8) {
+	for (i = ISP_FW_CHAN_START; i <= ISP_FW_CHAN_END; i += 8) {
 		FTHD_ISP_REG_WRITE(0xffffffff, i);
 		FTHD_ISP_REG_WRITE(0, i + 4);
 	}
@@ -1319,8 +1319,8 @@ int isp_init(struct fthd_private *dev_priv)
 
 	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
 
-	num_channels = FTHD_ISP_REG_READ(ISP_IPC_NUM_CHAN);
-	queue_size = FTHD_ISP_REG_READ(ISP_IPC_QUEUE_SIZE) + 1;
+	num_channels = FTHD_ISP_REG_READ(ISP_FW_CHAN_CTRL);
+	queue_size = FTHD_ISP_REG_READ(ISP_FW_QUEUE_CTRL) + 1;
 
 	dev_info(&dev_priv->pdev->dev,
 		 "Number of IPC channels: %u, queue size: %u\n",
@@ -1332,16 +1332,16 @@ int isp_init(struct fthd_private *dev_priv)
 		return -EIO;
 	}
 
-	ipc_queue = isp_mem_create(dev_priv, FTHD_MEM_IPC_QUEUE, queue_size);
-	if (!ipc_queue)
+	fw_queue = isp_mem_create(dev_priv, FTHD_MEM_FW_QUEUE, queue_size);
+	if (!fw_queue)
 		return -ENOMEM;
 
 	/* Firmware heap max size is 4mb */
 	heap_size = FTHD_ISP_REG_READ(ISP_FW_HEAP_SIZE);
 
 	if (heap_size == 0) {
-		FTHD_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
-		FTHD_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
+		FTHD_ISP_REG_WRITE(0, ISP_FW_CHAN_CTRL);
+		FTHD_ISP_REG_WRITE(fw_queue->offset, ISP_FW_QUEUE_CTRL);
 		FTHD_ISP_REG_WRITE(dev_priv->firmware->size_aligned, ISP_FW_SIZE);
 		FTHD_ISP_REG_WRITE(0x10000000 - dev_priv->firmware->size_aligned,
 				   ISP_FW_HEAP_SIZE);
@@ -1365,10 +1365,10 @@ int isp_init(struct fthd_private *dev_priv)
 		if (!heap)
 			return -ENOMEM;
 
-		FTHD_ISP_REG_WRITE(0, ISP_IPC_NUM_CHAN);
+		FTHD_ISP_REG_WRITE(0, ISP_FW_CHAN_CTRL);
 
 		/* Set IPC queue base addr */
-		FTHD_ISP_REG_WRITE(ipc_queue->offset, ISP_IPC_QUEUE_SIZE);
+		FTHD_ISP_REG_WRITE(fw_queue->offset, ISP_FW_QUEUE_CTRL);
 
 		FTHD_ISP_REG_WRITE(FTHD_MEM_FW_SIZE, ISP_FW_SIZE);
 
@@ -1408,7 +1408,7 @@ int isp_init(struct fthd_private *dev_priv)
 		dev_info(&dev_priv->pdev->dev, "ISP second int after %dms\n",
 			 (retries - 1) * 10);
 
-		offset = FTHD_ISP_REG_READ(ISP_IPC_NUM_CHAN);
+		offset = FTHD_ISP_REG_READ(ISP_FW_CHAN_CTRL);
 		dev_info(&dev_priv->pdev->dev, "Channel description table at %08x\n", offset);
 		ret = isp_fill_channel_info(dev_priv, offset, num_channels);
 		if (ret)

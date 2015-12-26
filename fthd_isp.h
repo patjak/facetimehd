@@ -23,7 +23,7 @@
 /* ISP memory types */
 #define FTHD_MEM_FIRMWARE	1
 #define FTHD_MEM_HEAP		2
-#define FTHD_MEM_IPC_QUEUE	3
+#define FTHD_MEM_FW_QUEUE	3
 #define FTHD_MEM_FW_ARGS        4
 #define FTHD_MEM_CMD            5
 #define FTHD_MEM_SHAREDMALLOC   6
