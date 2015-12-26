@@ -183,10 +183,10 @@ static const u32 fthd_ddr_phy_reg_map[] = {
 #define ISP_REG_C301C		0xc301c
 #define ISP_REG_40004		0x40004
 #define ISP_REG_40008		0x40008
-#define ISP_REG_41000		0x41000
-#define ISP_REG_41004		0x41004
+#define ISP_IRQ_STATUS		0x41000
+#define ISP_IRQ_ENABLE		0x41004
 #define ISP_REG_41020		0x41020
-#define ISP_REG_41024		0x41024
+#define ISP_IRQ_CLEAR		0x41024
 
 #define ISP_IPC_CHAN_START	0x0128
 #define ISP_IPC_CHAN_END	0x0220

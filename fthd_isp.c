@@ -474,7 +474,7 @@ int isp_powerdown(struct fthd_private *dev_priv)
 int isp_uninit(struct fthd_private *dev_priv)
 {
 	FTHD_ISP_REG_WRITE(0x00000000, 0x40004);
-	FTHD_ISP_REG_WRITE(0x00000000, 0x41004);
+	FTHD_ISP_REG_WRITE(0x00000000, ISP_IRQ_ENABLE);
 	FTHD_ISP_REG_WRITE(0xffffffff, 0xc0008);
 	FTHD_ISP_REG_WRITE(0xffffffff, 0xc000c);
 	FTHD_ISP_REG_WRITE(0xffffffff, 0xc0010);
@@ -496,7 +496,7 @@ int isp_uninit(struct fthd_private *dev_priv)
 	FTHD_ISP_REG_WRITE(0, 0xc0020);
 	FTHD_ISP_REG_WRITE(0, 0xc0024);
 
-	FTHD_ISP_REG_WRITE(0xffffffff, 0x41024);
+	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
 	isp_free_channel_info(dev_priv);
 	isp_free_set_file(dev_priv);
 	isp_mem_destroy(dev_priv->firmware);
@@ -1288,7 +1288,7 @@ int isp_init(struct fthd_private *dev_priv)
 	FTHD_ISP_REG_WRITE(0, ISP_REG_C3018);
 	FTHD_ISP_REG_WRITE(0, ISP_REG_C301C);
 
-	FTHD_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
+	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
 
 	/*
 	 * Probably the IPC queue
@@ -1303,7 +1303,7 @@ int isp_init(struct fthd_private *dev_priv)
 	FTHD_ISP_REG_WRITE(0x1, ISP_REG_40004);
 
 	for (retries = 0; retries < 1000; retries++) {
-		reg = FTHD_ISP_REG_READ(ISP_REG_41000);
+		reg = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
 		if ((reg & 0xf0) > 0)
 			break;
 		mdelay(10);
@@ -1317,7 +1317,7 @@ int isp_init(struct fthd_private *dev_priv)
 	dev_info(&dev_priv->pdev->dev, "ISP woke up after %dms\n",
 		 (retries - 1) * 10);
 
-	FTHD_ISP_REG_WRITE(0xffffffff, ISP_REG_41024);
+	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
 
 	num_channels = FTHD_ISP_REG_READ(ISP_IPC_NUM_CHAN);
 	queue_size = FTHD_ISP_REG_READ(ISP_IPC_QUEUE_SIZE) + 1;
@@ -1394,7 +1394,7 @@ int isp_init(struct fthd_private *dev_priv)
 		FTHD_ISP_REG_WRITE(0x10, ISP_REG_41020);
 
 		for (retries = 0; retries < 1000; retries++) {
-			reg = FTHD_ISP_REG_READ(ISP_REG_41000);
+			reg = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
 			if ((reg & 0xf0) > 0)
 				break;
 			mdelay(10);

@@ -642,7 +642,7 @@ void fthd_ddr_phy_restore_regs(struct fthd_private *dev_priv)
 
 static int fthd_hw_irq_enable(struct fthd_private *dev_priv)
 {
-	FTHD_ISP_REG_WRITE(0xf8, ISP_REG_41004);
+	FTHD_ISP_REG_WRITE(0xf8, ISP_IRQ_ENABLE);
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
 
 	return 0;
@@ -650,7 +650,7 @@ static int fthd_hw_irq_enable(struct fthd_private *dev_priv)
 
 static int fthd_hw_irq_disable(struct fthd_private *dev_priv)
 {
-	FTHD_ISP_REG_WRITE(0, ISP_REG_41004);
+	FTHD_ISP_REG_WRITE(0, ISP_IRQ_ENABLE);
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x0);
 	return 0;
 }

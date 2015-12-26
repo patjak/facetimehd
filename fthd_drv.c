@@ -241,7 +241,7 @@ static void fthd_irq_work(struct work_struct *work)
 
 	while(i++ < 500) {
 		spin_lock_irq(&dev_priv->io_lock);
-		pending = FTHD_ISP_REG_READ(ISP_REG_41000);
+		pending = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
 		spin_unlock_irq(&dev_priv->io_lock);
 
 		if (!(pending & 0xf0))
@@ -249,7 +249,7 @@ static void fthd_irq_work(struct work_struct *work)
 
 		pci_write_config_dword(dev_priv->pdev, 0x94, 0);
 		spin_lock_irq(&dev_priv->io_lock);
-		FTHD_ISP_REG_WRITE(pending, ISP_REG_41024);
+		FTHD_ISP_REG_WRITE(pending, ISP_IRQ_CLEAR);
 		spin_unlock_irq(&dev_priv->io_lock);
 		pci_write_config_dword(dev_priv->pdev, 0x90, 0x200);
 
@@ -278,7 +278,7 @@ static irqreturn_t fthd_irq_handler(int irq, void *arg)
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev_priv->io_lock, flags);
-	pending = FTHD_ISP_REG_READ(ISP_REG_41000);
+	pending = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
 	spin_unlock_irqrestore(&dev_priv->io_lock, flags);
 
 	if (!(pending & 0xf0))
