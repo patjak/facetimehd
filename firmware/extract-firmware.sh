@@ -200,7 +200,7 @@ decompress_dmg()
   msg2 "Extracting upadate package..."
   tail -c +189001729 "5.hfs" | head -c 1469917156 > OSXUpd.xar
   rm -f "5.hfs"
-  exit 1
+
   msg2 "Uncompressing XAR archive..."
   xar -x -f "OSXUpd.xar"
   rm -f "OSXUpd.xar"
