@@ -518,17 +518,21 @@ fail_work:
 #ifdef CONFIG_PM
 static int fthd_pci_suspend(struct pci_dev *pdev, pm_message_t state)
 {
+	fthd_pci_remove(pdev);
+
 	return 0;
 }
 
 static int fthd_pci_resume(struct pci_dev *pdev)
 {
+	fthd_pci_probe(pdev, NULL);
+
 	return 0;
 }
 #endif /* CONFIG_PM */
 
 static const struct pci_device_id fthd_pci_id_table[] = {
-	{ PCI_VDEVICE(BROADCOM, 0x1570), 4 },
+	{ PCI_DEVICE(0x14e4, 0x1570), 4 },
 	{ 0, },
 };
 
