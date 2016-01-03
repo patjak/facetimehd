@@ -1,5 +1,5 @@
 /*
- * Broadcom PCIe 1570 webcam driver
+ * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
  *
@@ -17,8 +17,8 @@
  *
  */
 
-#ifndef _FTHD_PCIE_H
-#define _PCWC_PCIE_H
+#ifndef _FTHD_DRV_H
+#define _FTHD_DRV_H
 
 #include <linux/pci.h>
 #include <linux/spinlock.h>
