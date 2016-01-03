@@ -293,6 +293,7 @@ static struct v4l2_file_operations fthd_vdev_fops = {
 	.owner          = THIS_MODULE,
 	.open           = v4l2_fh_open,
 
+	.read		= vb2_fop_read,
 	.release        = vb2_fop_release,
 	.poll           = vb2_fop_poll,
 	.mmap           = vb2_fop_mmap,
@@ -664,7 +665,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 
 	q = &dev_priv->vb2_queue;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF;
+	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
 	q->drv_priv = dev_priv;
 	q->ops = &vb2_queue_ops;
 	q->mem_ops = &vb2_dma_sg_memops;
