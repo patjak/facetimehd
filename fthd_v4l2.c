@@ -34,8 +34,8 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 
-#define FTHD_MAX_WIDTH 2560
-#define FTHD_MAX_HEIGHT 1600
+#define FTHD_MAX_WIDTH 1280
+#define FTHD_MAX_HEIGHT 720
 #define FTHD_MIN_WIDTH 320
 #define FTHD_MIN_HEIGHT 240
 #define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
