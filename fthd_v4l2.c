@@ -46,6 +46,7 @@ static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 				   unsigned int sizes[], void *alloc_ctxs[])
 {
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
+	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
 	int i, total_size = 0;
 
 	*nplanes = dev_priv->fmt.planes;
@@ -53,8 +54,13 @@ static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 	if (!*nplanes)
 		return -EINVAL;
 
-	for(i = 0; i < *nplanes; i++) {
-		sizes[i] = dev_priv->fmt.fmt.sizeimage;
+	/* FIXME: We assume single plane format here but not below */
+	if (fmt && fmt->fmt.pix.sizeimage <
+	    (cur_fmt->bytesperline * cur_fmt->height))
+		return -EINVAL;
+
+	for (i = 0; i < *nplanes; i++) {
+		sizes[i] = cur_fmt->sizeimage;
 		alloc_ctxs[i] = dev_priv->alloc_ctx;
 		total_size += sizes[i];
 	}
@@ -65,6 +71,7 @@ static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 	if (*nbuffers <= 1)
 		return -ENOMEM;
 	pr_debug("using %d buffers\n", *nbuffers);
+
 	return 0;
 }
 
