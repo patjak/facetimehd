@@ -144,7 +144,7 @@ checkDriverHash()
   done
 
   err "Mismatching driver hash for $1"
-  err "The uknown hash is ${driver_hash}"
+  err "The unknown hash is ${driver_hash}"
 	err "No firmware extracted!"
   exit 1
 }
@@ -197,7 +197,7 @@ decompress_dmg()
   msg2 "Decompressing the image..."
   7z e -y "${_main_dir}/$1" "5.hfs" > /dev/null
 
-  msg2 "Extracting upadate package..."
+  msg2 "Extracting update package..."
   tail -c +189001729 "5.hfs" | head -c 1469917156 > OSXUpd.xar
   rm -f "5.hfs"
 

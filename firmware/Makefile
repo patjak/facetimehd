@@ -22,7 +22,7 @@ all: $(OSX_DRV)
 
 $(OSX_DRV):
 	@# Ty to wvengen, see: https://github.com/patjak/bcwc_pcie/issues/14#issuecomment-167446787
-	@echo "Dowloading the driver, please wait..."
+	@echo "Downloading the driver, please wait..."
 	@(curl -s -L -r "$(RANGE)" "$(URL)" | xzcat -q | cpio --format odc -i -d "./$(FILE)") &> /dev/null || true
 	@mv "$(FILE)" .
 	@rmdir -p "$(OSX_DRV_DIR)"
