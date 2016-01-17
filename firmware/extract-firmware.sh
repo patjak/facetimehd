@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# firmware header bytestring [bytes 04-32]
+fw_bytes_header="feffffeafeffffeafeffffeafeffffeafeffffeafeffffeafeffffea"
+fw_bytes_footer="00000000ffffffff"
+
 # Known driver hashes
 #
 # NOTE: use sha256 checksums as they are more robust that md5 against collisions
@@ -7,11 +11,12 @@ hash_drv_wnd_105='6ec37d48c0764ed059dd49f472456a4f70150297d6397b7cc7965034cf7862
 hash_drv_wnd_138='7044344593bfc08ab9b41ab691213bca568c8d924d0e05136b537f66b3c46f31'
 hash_drv_osx_143_1='4667e6828f6bfc690a39cf9d561369a525f44394f48d0a98d750931b2f3f278b'
 hash_drv_osx_143_2='d4650346c940dafdc50e5fcbeeeffe074ec359726773e79c0cfa601cec6b1f08'
+hash_drv_osx_143_3='387097b5133e980196ac51504a60ae1ad8bab736eb0070a55774925ca0194892'
 
 hash_fw_wnd_105='dabb8cf8e874451ebc85c51ef524bd83ddfa237c9ba2e191f8532b896594e50e'
 hash_fw_wnd_138='ed75dc37b1a0e19949e9e046a629cb55deb6eec0f13ba8fd8dd49b5ccd5a800e'
 hash_fw_osx_143_1='e3e6034a67dfdaa27672dd547698bbc5b33f47f1fc7f5572a2fb68ea09d32d3d'
-hash_fw_osx_143_2='e3e6034a67dfdaa27672dd547698bbc5b33f47f1fc7f5572a2fb68ea09d32d3d'
+hash_fw_osx_143_2='504fcf1565bf10d61b31a12511226ae51991fb55d480f82de202a2f7ee9c966e'
 
 # Driver names
 declare -A known_hashes=(
@@ -48,8 +53,8 @@ declare -A compression=(
 declare -A firmw_hashes=(
   ["$hash_fw_wnd_105"]='1.05'
   ["$hash_fw_wnd_138"]='1.38'
-  ["$hash_fw_osx_143_1"]='1.43.1'
-  ["$hash_fw_osx_143_2"]='1.43.2'
+  ["$hash_fw_osx_143_1"]='1.43.0-a'
+  ["$hash_fw_osx_143_2"]='1.43.0-b'
 )
 
 printHelp()
@@ -63,6 +68,9 @@ OPTION:
 
   --dmg DMG_FILE      Decompress the dmg file DMG_FILE, and extract the
                       OS X camrea driver.
+
+  -i  --ignore-hashes Ignore the firmware checksums and verify only the
+                      binary header and footer of the extracted firmeare.
 
   -x DRV_FILE         Extract the firmware from the driver DRV_FILE
 
@@ -144,7 +152,7 @@ checkDriverHash()
   done
 
   err "Mismatching driver hash for $1"
-  err "The uknown hash is ${driver_hash}"
+  err "The unknown hash is ${driver_hash}"
 	err "No firmware extracted!"
   exit 1
 }
@@ -163,8 +171,29 @@ checkFirmwareHash()
   done
 
   err "Mismatching firmware hash ${firm_hash}"
-	err "No firmware extracted!"
   return 1
+}
+
+checkFirmwareHexdump()
+{
+  if ! which hexdump &> /dev/null; then
+    err "You need to install 'hexdump' in order to check a firmware with unknown hash!"
+    return 1
+  fi
+
+  header=$(hexdump -v -e '"" /1 "%02x"' "$1" -s 4 -n 28)
+  footer=$(hexdump -v -e '"" /1 "%02x"' "$1" | tail -c 16)
+
+  if [[ "${header}" != "${fw_bytes_header}" ]]; then
+    err "The extracted firmware does not seem good (wrong header)"
+    return 1
+  elif [[ "${footer}" != "${fw_bytes_footer}" ]]; then
+    err "The extracted firmware does not seem good (wrong footer)"
+    return 1
+  else
+    msg2 "You're lucky, the firmware looks good, " \
+         "but it could also not work... use it at your own risk!"
+  fi
 }
 
 extractFirmware()
@@ -197,7 +226,7 @@ decompress_dmg()
   msg2 "Decompressing the image..."
   7z e -y "${_main_dir}/$1" "5.hfs" > /dev/null
 
-  msg2 "Extracting upadate package..."
+  msg2 "Extracting update package..."
   tail -c +189001729 "5.hfs" | head -c 1469917156 > OSXUpd.xar
   rm -f "5.hfs"
 
@@ -231,7 +260,15 @@ extract_from_osx()
 
   extractFirmware "$1" "firmware.bin" "$offset" "$size" "$comp_method"
 
-  checkFirmwareHash "firmware.bin"
+  if ! checkFirmwareHash "firmware.bin"; then
+    if [[ -z "$skip_sums" ]]; then
+	    err "No firmware extracted!"
+      exit 1
+    else
+      msg2 "Ignoring hashes and check the firmware header..."
+      checkFirmwareHexdump "firmware.bin" then
+    fi
+  fi
 }
 
 main()
@@ -239,7 +276,7 @@ main()
   echo ""
 
   # Parsing arguments
-  while [[ $# > 1 ]]; do
+  while [[ $# > 0 ]]; do
     case $1 in
       -h|--help)
         printHelp
@@ -253,6 +290,8 @@ main()
         drv_file="$2"
         shift
         ;;
+      -i|--ignore-hashes)
+        skip_sums="1"
     esac
     shift
   done
