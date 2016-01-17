@@ -69,7 +69,7 @@ OPTION:
   --dmg DMG_FILE      Decompress the dmg file DMG_FILE, and extract the
                       OS X camrea driver.
 
-  -i                  Ignore the firmware checksums and verify only the
+  -i  --ignore-hashes Ignore the firmware checksums and verify only the
                       binary header and footer of the extracted firmeare.
 
   -x DRV_FILE         Extract the firmware from the driver DRV_FILE
