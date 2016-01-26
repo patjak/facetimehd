@@ -246,9 +246,9 @@ static int fthd_hw_ddr_rewrite_mode_regs(struct fthd_private *dev_priv)
 		return ret;
 
 	if (dev_priv->ddr_speed == 450)
-		val = 0x16003000;
+		val = 0x17003000;
 	else
-		val = 0x16002000;
+		val = 0x17002000;
 
 	FTHD_S2_REG_WRITE(val, S2_DDR_2014);
 
