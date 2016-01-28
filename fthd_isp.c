@@ -1383,11 +1383,11 @@ int isp_init(struct fthd_private *dev_priv)
 		if (!fw_args)
 			return -ENOMEM;
 
-		FTHD_S2_MEMCPY_TOIO(fw_args->offset, &fw_args_data, sizeof(fw_args_data));
-
 		fw_args_data.__unknown = 2;
 		fw_args_data.fw_arg = 0;
 		fw_args_data.full_stats_mode = 0;
+
+		FTHD_S2_MEMCPY_TOIO(fw_args->offset, &fw_args_data, sizeof(fw_args_data));
 
 		FTHD_ISP_REG_WRITE(fw_args->offset, ISP_REG_C301C);
 
