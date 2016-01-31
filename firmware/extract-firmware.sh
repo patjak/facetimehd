@@ -9,19 +9,20 @@ fw_bytes_footer="00000000ffffffff"
 # NOTE: use sha256 checksums as they are more robust that md5 against collisions
 hash_drv_wnd_105='6ec37d48c0764ed059dd49f472456a4f70150297d6397b7cc7965034cf78627e'
 hash_drv_wnd_138='7044344593bfc08ab9b41ab691213bca568c8d924d0e05136b537f66b3c46f31'
+hash_drv_osx_140='387097b5133e980196ac51504a60ae1ad8bab736eb0070a55774925ca0194892'
 hash_drv_osx_143_1='4667e6828f6bfc690a39cf9d561369a525f44394f48d0a98d750931b2f3f278b'
 hash_drv_osx_143_2='d4650346c940dafdc50e5fcbeeeffe074ec359726773e79c0cfa601cec6b1f08'
-hash_drv_osx_143_3='387097b5133e980196ac51504a60ae1ad8bab736eb0070a55774925ca0194892'
 
 hash_fw_wnd_105='dabb8cf8e874451ebc85c51ef524bd83ddfa237c9ba2e191f8532b896594e50e'
 hash_fw_wnd_138='ed75dc37b1a0e19949e9e046a629cb55deb6eec0f13ba8fd8dd49b5ccd5a800e'
-hash_fw_osx_143_1='e3e6034a67dfdaa27672dd547698bbc5b33f47f1fc7f5572a2fb68ea09d32d3d'
-hash_fw_osx_143_2='504fcf1565bf10d61b31a12511226ae51991fb55d480f82de202a2f7ee9c966e'
+hash_fw_osx_140='504fcf1565bf10d61b31a12511226ae51991fb55d480f82de202a2f7ee9c966e'
+hash_fw_osx_143='e3e6034a67dfdaa27672dd547698bbc5b33f47f1fc7f5572a2fb68ea09d32d3d'
 
 # Driver names
 declare -A known_hashes=(
   ["$hash_drv_wnd_105"]='Windows Boot Camp 5.1.5722'
   ["$hash_drv_wnd_138"]='Windows Boot Camp Update Jul 29, 2015'
+  ["$hash_drv_osx_140"]='OS X, El Capitan'
   ["$hash_drv_osx_143_1"]='OS X, El Capitan'
   ["$hash_drv_osx_143_2"]='OS X, El Capitan 10.11.2'
 )
@@ -30,6 +31,7 @@ declare -A known_hashes=(
 declare -A firmw_offsets=(
   ["$hash_drv_wnd_105"]=78208
   ["$hash_drv_wnd_138"]=85296
+  ["$hash_drv_osx_140"]=81920
   ["$hash_drv_osx_143_1"]=81920
   ["$hash_drv_osx_143_2"]=81920
 )
@@ -38,6 +40,7 @@ declare -A firmw_offsets=(
 declare -A firmw_sizes=(
   ["$hash_drv_wnd_105"]=1523716
   ["$hash_drv_wnd_138"]=1421316
+  ["$hash_drv_osx_140"]=603715
   ["$hash_drv_osx_143_1"]=603715
   ["$hash_drv_osx_143_2"]=603715
 )
@@ -46,6 +49,7 @@ declare -A firmw_sizes=(
 declare -A compression=(
   ["$hash_drv_wnd_105"]='cat'
   ["$hash_drv_wnd_138"]='cat'
+  ["$hash_drv_osx_140"]='gzip'
   ["$hash_drv_osx_143_1"]='gzip'
   ["$hash_drv_osx_143_2"]='gzip'
 )
@@ -53,8 +57,8 @@ declare -A compression=(
 declare -A firmw_hashes=(
   ["$hash_fw_wnd_105"]='1.05'
   ["$hash_fw_wnd_138"]='1.38'
-  ["$hash_fw_osx_143_1"]='1.43.0-a'
-  ["$hash_fw_osx_143_2"]='1.43.0-b'
+  ["$hash_fw_osx_140"]='1.40.0'
+  ["$hash_fw_osx_143"]='1.43.0'
 )
 
 printHelp()
@@ -76,7 +80,7 @@ OPTION:
 
 NOTES:
 
-  At the moment only two drivers are currently available:
+  Only two drivers are currently available:
 
    - AppleCameraInterface: this is the OS X native driver, it can be found
      in a OS X installation under the following system directory
@@ -85,7 +89,7 @@ NOTES:
    - AppleCamera.sys: this comes within the bootcamp windows driver package.
      You can download it from http://support.apple.com/downloads/DL1831/".
 
-  Currently only the OS X firmware is working
+  However only the version 1.43.0 of the firmware from OS X actually works.
 
 HELP_DOC
 }
