@@ -10,3 +10,5 @@ firmware/AppleCameraInterface
 .tmp_versions
 description-pak
 doc-pak
+*.deb
+*.tgz
