@@ -5,3 +5,5 @@ Module.symvers
 *.ko
 *.mod.c
 modules.order
+firmware/firmware.bin
+firmware/AppleCameraInterface
