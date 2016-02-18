@@ -7,3 +7,6 @@ Module.symvers
 modules.order
 firmware/firmware.bin
 firmware/AppleCameraInterface
+.tmp_versions
+description-pak
+doc-pak
