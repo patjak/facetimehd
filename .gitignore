@@ -5,3 +5,10 @@ Module.symvers
 *.ko
 *.mod.c
 modules.order
+firmware/firmware.bin
+firmware/AppleCameraInterface
+.tmp_versions
+description-pak
+doc-pak
+*.deb
+*.tgz
