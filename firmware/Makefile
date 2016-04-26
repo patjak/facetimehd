@@ -1,12 +1,12 @@
 SHELL = /bin/bash
 
-DMG:=osxupd10.11.2.dmg
+DMG:=osxupd10.11.3.dmg
 OSX_DRV:=AppleCameraInterface
 OSX_DRV_DIR:=System/Library/Extensions/AppleCameraInterface.kext/Contents/MacOS
 
-RANGE:=420107885-421933300
+RANGE:=187085540-191012220
 
-URL:=https://support.apple.com/downloads/DL1849/en_US/$(DMG)
+URL:=https://support.apple.com/downloads/DL1858/en_US/$(DMG)
 FILE:=$(OSX_DRV_DIR)/$(OSX_DRV)
 
 ifneq ("$(wildcard /usr/lib/firmware)", "")
