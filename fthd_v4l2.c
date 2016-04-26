@@ -41,16 +41,26 @@
 #define FTHD_MIN_HEIGHT 240
 #define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
 
-static int fthd_buffer_queue_setup(struct vb2_queue *vq,
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,4,0)
-				   const struct v4l2_format *fmt,
+static int fthd_buffer_queue_setup(
+    struct vb2_queue *vq,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+    const struct v4l2_format *fmt,
 #endif
-				   unsigned int *nbuffers, unsigned int *nplanes,
-				   unsigned int sizes[], void *alloc_ctxs[])
-{
+#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(4,5,0))
+    const void *parg,
+#endif
+    unsigned int *nbuffers,
+    unsigned int *nplanes,
+    unsigned int sizes[],
+    void *alloc_ctxs[]
+) {
+
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
 	int i, total_size = 0;
+
+	if (*nplanes)
+		return sizes[0] < (cur_fmt->bytesperline * cur_fmt->height) ? -EINVAL : 0;
 
 	*nplanes = dev_priv->fmt.planes;
 
