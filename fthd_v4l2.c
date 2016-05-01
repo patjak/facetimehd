@@ -444,7 +444,9 @@ static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	/* FIXME: Check if hardware is busy */
+	/* It's not allowed to change format if buffers are in use */
+	if (vb2_is_busy(&dev_priv->vb2_queue))
+		return -EBUSY;
 
 	ret = fthd_v4l2_adjust_format(dev_priv, &fmt->fmt.pix);
 	if (ret)
