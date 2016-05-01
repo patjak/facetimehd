@@ -36,7 +36,7 @@
 #define FTHD_PCI_S2_MEM 2
 #define FTHD_PCI_ISP_IO 4
 
-#define FTHD_BUFFERS 4
+#define FTHD_NUM_BUFS 4
 
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,
@@ -119,7 +119,7 @@ struct fthd_private {
 	struct mutex vb2_queue_lock;
 	struct list_head buffer_queue;
 	struct vb2_alloc_ctx *alloc_ctx;
-	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
+	struct h2t_buf_ctx h2t_bufs[FTHD_NUM_BUFS];
 
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	int frametime;

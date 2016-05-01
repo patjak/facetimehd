@@ -73,12 +73,13 @@ static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 	int i;
 
 	pr_debug("%p\n", vb);
-	for (i = 0; i < FTHD_BUFFERS; i++) {
+	for (i = 0; i < FTHD_NUM_BUFS; i++) {
 		if (dev_priv->h2t_bufs[i].vb == vb) {
 			ctx = dev_priv->h2t_bufs + i;
 			break;
-		};
+		}
 	}
+
 	if (!ctx || ctx->state == BUF_FREE)
 		return;
 
@@ -120,7 +121,7 @@ static void fthd_buffer_queue(struct vb2_buffer *vb)
 
 	int i;
 	pr_debug("vb = %p\n", vb);
-	for (i = 0; i < FTHD_BUFFERS; i++) {
+	for (i = 0; i < FTHD_NUM_BUFS; i++) {
 		if (dev_priv->h2t_bufs[i].vb == vb) {
 			ctx = dev_priv->h2t_bufs + i;
 			break;
@@ -163,7 +164,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	int i;
 
 	pr_debug("%p\n", vb);
-	for (i = 0; i < FTHD_BUFFERS; i++) {
+	for (i = 0; i < FTHD_NUM_BUFS; i++) {
 		if (dev_priv->h2t_bufs[i].state == BUF_FREE ||
 		    (dev_priv->h2t_bufs[i].state == BUF_ALLOC &&
 		     dev_priv->h2t_bufs[i].vb == vb)) {
@@ -251,7 +252,7 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (ret)
 		return ret;
 
-	for (i = 0; i < FTHD_BUFFERS && count; i++, count--) {
+	for (i = 0; i < FTHD_NUM_BUFS && count; i++, count--) {
 		ctx = dev_priv->h2t_bufs + i;
 		if (ctx->state != BUF_DRV_QUEUED)
 			continue;
@@ -279,7 +280,7 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 		pr_debug("done\n");
 	} else {
 		/* Firmware doesn't respond. */
-		for (i = 0; i < FTHD_BUFFERS;i++) {
+		for (i = 0; i < FTHD_NUM_BUFS;i++) {
 			ctx = dev_priv->h2t_bufs + i;
 			if (ctx->state == BUF_DRV_QUEUED ||
 			    ctx->state == BUF_HW_QUEUED) {
@@ -500,7 +501,7 @@ static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
-	parm->parm.capture.readbuffers = FTHD_BUFFERS;
+	parm->parm.capture.readbuffers = FTHD_NUM_BUFS;
 	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
 	parm->parm.capture.timeperframe = timeperframe;
 
