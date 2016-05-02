@@ -12,6 +12,7 @@ hash_drv_wnd_138='7044344593bfc08ab9b41ab691213bca568c8d924d0e05136b537f66b3c46f
 hash_drv_osx_140='387097b5133e980196ac51504a60ae1ad8bab736eb0070a55774925ca0194892'
 hash_drv_osx_143_1='4667e6828f6bfc690a39cf9d561369a525f44394f48d0a98d750931b2f3f278b'
 hash_drv_osx_143_2='d4650346c940dafdc50e5fcbeeeffe074ec359726773e79c0cfa601cec6b1f08'
+hash_drv_osx_143_3='dfac86799c6cf0aceb59bb4e732be8f030e7943eb1146830c7136f62621c9853'
 
 hash_fw_wnd_105='dabb8cf8e874451ebc85c51ef524bd83ddfa237c9ba2e191f8532b896594e50e'
 hash_fw_wnd_138='ed75dc37b1a0e19949e9e046a629cb55deb6eec0f13ba8fd8dd49b5ccd5a800e'
@@ -25,6 +26,7 @@ declare -A known_hashes=(
   ["$hash_drv_osx_140"]='OS X, El Capitan'
   ["$hash_drv_osx_143_1"]='OS X, El Capitan'
   ["$hash_drv_osx_143_2"]='OS X, El Capitan 10.11.2'
+  ["$hash_drv_osx_143_3"]='OS X, El Capitan 10.11.3'
 )
 
 # Offset in bytes of the firmware inside the driver
@@ -34,6 +36,7 @@ declare -A firmw_offsets=(
   ["$hash_drv_osx_140"]=81920
   ["$hash_drv_osx_143_1"]=81920
   ["$hash_drv_osx_143_2"]=81920
+  ["$hash_drv_osx_143_3"]=81920
 )
 
 # Size in bytes of the firmware inside the driver 
@@ -43,6 +46,7 @@ declare -A firmw_sizes=(
   ["$hash_drv_osx_140"]=603715
   ["$hash_drv_osx_143_1"]=603715
   ["$hash_drv_osx_143_2"]=603715
+  ["$hash_drv_osx_143_3"]=603715
 )
 
 # Compression method used to store the firmware inside the driver
@@ -52,6 +56,7 @@ declare -A compression=(
   ["$hash_drv_osx_140"]='gzip'
   ["$hash_drv_osx_143_1"]='gzip'
   ["$hash_drv_osx_143_2"]='gzip'
+  ["$hash_drv_osx_143_3"]='gzip'
 )
 
 declare -A firmw_hashes=(
@@ -231,7 +236,7 @@ decompress_dmg()
   7z e -y "${_main_dir}/$1" "5.hfs" > /dev/null
 
   msg2 "Extracting update package..."
-  tail -c +189001729 "5.hfs" | head -c 1469917156 > OSXUpd.xar
+  tail -c +189001729 "5.hfs" | head -c 661960661 > OSXUpd.xar
   rm -f "5.hfs"
 
   msg2 "Uncompressing XAR archive..."
@@ -240,10 +245,10 @@ decompress_dmg()
 
   msg2 "Decoding Payload..."
   pbzx "OSXUpd"*.pkg"/Payload" > /dev/null
-  rm "OSXUpdCombo10.11.2.pkg/Payload"
+  rm "OSXUpd10.11.3.pkg/Payload"
 
   msg2 "Decompressing archives..."
-  cd "OSXUpdCombo10.11.2.pkg" 
+  cd "OSXUpd10.11.3.pkg"
   find . -name "Payload.part*.xz" -exec xz --decompress --verbose {} \;
   cat "Payload.part"* | cpio -id &> /dev/null
   cp "./System/Library/Extensions/AppleCameraInterface.kext/Contents/MacOS/AppleCameraInterface" \
