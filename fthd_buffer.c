@@ -17,6 +17,7 @@
  *
  */
 
+#include <linux/kernel.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/printk.h>
@@ -24,8 +25,6 @@
 #include "fthd_isp.h"
 #include "fthd_hw.h"
 #include "fthd_buffer.h"
-
-#define GET_IOMMU_PAGES(_x) (((_x) + 4095)/4096)
 
 struct buf_ctx {
 	struct fthd_plane plane[4];
@@ -39,7 +38,7 @@ static int iommu_allocator_init(struct fthd_private *dev_priv)
 	    return -ENOMEM;
 
 	dev_priv->iommu->start = 0;
-	dev_priv->iommu->end = 4095;
+	dev_priv->iommu->end = PAGE_SIZE - 1;
 	return 0;
 }
 
@@ -58,9 +57,8 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 	if (!total_len)
 		return NULL;
 
-	total_len += 4095;
-	total_len /= 4096;
-	
+	total_len = roundup(total_len, PAGE_SIZE);
+
 	obj = kzalloc(sizeof(struct iommu_obj), GFP_KERNEL);
 	if (!obj)
 		return NULL;
@@ -86,7 +84,7 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 		WARN_ON(sg->offset);
 		dma_addr = sg_dma_address(sg);
 		WARN_ON(dma_addr & 0xfff);
-		dma_addr >>= 12;
+		dma_addr >>= PAGE_SHIFT;
 		
 		for(dma_length = 0; dma_length < sg_dma_len(sg); dma_length += 0x1000) {
 		  //			pr_debug("IOMMU %08x -> %08llx (dma length %d)\n", pos, dma_addr, dma_length);
