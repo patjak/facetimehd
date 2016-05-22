@@ -89,18 +89,18 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv,
 		
 		for (dma_length = 0; dma_length < sg_dma_len(sg);
 		     dma_length += 0x1000) {
-			// pr_debug("IOMMU %08x -> %08llx (dma length %d)\n", pos, dma_addr, dma_length);
 			FTHD_S2_REG_WRITE(dma_addr++, pos);
 			pos += 4;
 		}
 	}
 
-	pr_debug("allocated %d pages @ %p / offset %d\n", obj->size, obj, obj->offset);
+	pr_debug("allocated %d pages @ %p / offset %d\n", obj->size,
+		 obj, obj->offset);
 
 	return obj;
 }
 
-void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj)
+void fthd_iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj)
 {
 	int i;
 	pr_debug("freeing %p\n", obj);

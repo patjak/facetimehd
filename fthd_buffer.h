@@ -79,5 +79,5 @@ extern void fthd_buffer_exit(struct fthd_private *dev_priv);
 extern void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size);
 extern void fthd_buffer_queued_handler(struct fthd_private *dev_priv, u32 offset);
 extern struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct sg_table *);
-extern void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj);
+extern void fthd_iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj);
 #endif

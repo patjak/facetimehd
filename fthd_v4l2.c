@@ -87,7 +87,7 @@ static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 	ctx->vb = NULL;
 	isp_mem_destroy(ctx->dma_desc_obj);
 	for (i = 0; i < dev_priv->fmt.planes; i++) {
-		iommu_free(dev_priv, ctx->plane[i]);
+		fthd_iommu_free(dev_priv, ctx->plane[i]);
 		ctx->plane[i] = NULL;
 	}
 	ctx->dma_desc_obj = NULL;
