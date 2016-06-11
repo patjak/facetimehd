@@ -208,9 +208,9 @@ int fthd_debugfs_init(struct fthd_private *dev_priv)
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev,
 				    "channel_buf_t2h", d,
 				    seq_channel_buf_t2h_read);
-	debugfs_create_devm_seqfile(&dev_priv->pdev->dev,"
-				    channel_debug",
-				    d, seq_channel_debug_read);
+	debugfs_create_devm_seqfile(&dev_priv->pdev->dev,
+				    "channel_debug", d,
+				    seq_channel_debug_read);
 	debugfs_create_file("debug", S_IRUSR | S_IWUSR, d, dev_priv,
 			    &fops_debug);
 	dev_priv->debugfs = top;
