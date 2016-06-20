@@ -172,6 +172,8 @@ static const u32 fthd_ddr_phy_reg_map[] = {
 #define S2_3204				0x3204
 #define S2_3208				0x3208
 
+#define S2_IOMMU_BASE_ADDR		0x9000
+
 /* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
 #define ISP_FW_CHAN_CTRL	0xc3000
 #define ISP_FW_QUEUE_CTRL	0xc3004

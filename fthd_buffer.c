@@ -80,7 +80,7 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv,
 	obj->offset = obj->base.start - root->start;
 	obj->size = total_len;
 
-	pos = 0x9000 + obj->offset * 4;
+	pos = S2_IOMMU_BASE_ADDR + obj->offset * 4;
 	for (i = 0; i < sgtable->nents; i++) {
 		sg = sgtable->sgl + i;
 		WARN_ON(sg->offset);
