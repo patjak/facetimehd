@@ -38,6 +38,9 @@
 
 #define FTHD_NUM_BUFS 4
 
+#define S2_PAGE_SIZE 4096
+#define S2_PAGE_SHIFT 12
+
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,
 	FW_CHAN_TYPE_IN=1,

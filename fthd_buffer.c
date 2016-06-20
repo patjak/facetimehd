@@ -38,7 +38,8 @@ static int iommu_allocator_init(struct fthd_private *dev_priv)
 	    return -ENOMEM;
 
 	dev_priv->iommu->start = 0;
-	dev_priv->iommu->end = PAGE_SIZE - 1;
+	dev_priv->iommu->end = S2_PAGE_SIZE - 1;
+
 	return 0;
 }
 
@@ -58,8 +59,8 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv,
 	if (!total_len)
 		return NULL;
 
-	total_len = roundup(total_len, PAGE_SIZE);
-
+	total_len = roundup(total_len, S2_PAGE_SIZE) / S2_PAGE_SIZE;
+	
 	obj = kzalloc(sizeof(struct iommu_obj), GFP_KERNEL);
 	if (!obj)
 		return NULL;
@@ -84,11 +85,14 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv,
 		sg = sgtable->sgl + i;
 		WARN_ON(sg->offset);
 		dma_addr = sg_dma_address(sg);
+
 		WARN_ON(dma_addr & 0xfff);
-		dma_addr >>= PAGE_SHIFT;
+		dma_addr >>= S2_PAGE_SHIFT;
 		
 		for (dma_length = 0; dma_length < sg_dma_len(sg);
-		     dma_length += 0x1000) {
+		     dma_length += S2_PAGE_SIZE) {
+
+			/* FIXME: How do we handle 64-bit dma_addr_t? */
 			FTHD_S2_REG_WRITE(dma_addr++, pos);
 			pos += 4;
 		}
