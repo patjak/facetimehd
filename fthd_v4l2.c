@@ -151,8 +151,6 @@ static void fthd_buffer_queue(struct vb2_buffer *vb)
 			ctx->state = BUF_ALLOC;
 		}
 	}
-
-	return;
 }
 
 static int fthd_buffer_prepare(struct vb2_buffer *vb)
@@ -188,7 +186,8 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 
 		for (i = 0; i < dev_priv->fmt.planes; i++) {
 			sgtable = vb2_dma_sg_plane_desc(vb, i);
-			ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
+			ctx->plane[i] =
+				fthd_iommu_alloc_sgtable(dev_priv, sgtable);
 
 			if(!ctx->plane[i])
 				return -ENOMEM;

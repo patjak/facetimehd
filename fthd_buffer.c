@@ -43,8 +43,8 @@ static int iommu_allocator_init(struct fthd_private *dev_priv)
 	return 0;
 }
 
-struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv,
-					 struct sg_table *sgtable)
+struct iommu_obj *fthd_iommu_alloc_sgtable(struct fthd_private *dev_priv,
+					   struct sg_table *sgtable)
 {
 	struct iommu_obj *obj;
 	struct resource *root = dev_priv->iommu;
@@ -66,14 +66,15 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv,
 		return NULL;
 
 	obj->base.name = "S2 IOMMU";
-	ret = allocate_resource(root, &obj->base, total_len, root->start, root->end,
-				1, NULL, NULL);
+	ret = allocate_resource(root, &obj->base, total_len, root->start,
+				root->end, 1, NULL, NULL);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
 			"Failed to allocate resource (size: %d, start: %Ld, end: %Ld)\n",
 			total_len, root->start, root->end);
 		kfree(obj);
 		obj = NULL;
+
 		return NULL;
 	}
 
@@ -84,6 +85,7 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv,
 	for (i = 0; i < sgtable->nents; i++) {
 		sg = sgtable->sgl + i;
 		WARN_ON(sg->offset);
+
 		dma_addr = sg_dma_address(sg);
 
 		WARN_ON(dma_addr & 0xfff);

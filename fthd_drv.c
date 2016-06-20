@@ -120,16 +120,17 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 		if (!obj)
 			return;
 
-		pr_debug("Firmware allocated %d bytes at %08lx (tag %c%c%c%c)\n", request_size, obj->offset,
+		pr_debug("Firmware allocated %d bytes at %08lx (tag %c%c%c%c)\n",
+			 request_size, obj->offset,
 			 response_size >> 24,response_size >> 16,
 			 response_size >> 8, response_size);
 		FTHD_S2_MEMCPY_TOIO(obj->offset, &obj, sizeof(obj));
-		ret = fthd_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0, NULL);
+		ret = fthd_channel_ringbuf_send(dev_priv, chan,
+						obj->offset + 64, 0, 0, NULL);
 		if (ret)
 			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
 
 	}
-
 }
 
 
