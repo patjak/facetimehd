@@ -22,6 +22,9 @@
 
 #define FTHD_RINGBUF_ENTRY_SIZE 64
 
+#define FTHD_ENTRY_ADDR(chan, num) \
+	(chan)->offset + (num) * FTHD_RINGBUF_ENTRY_SIZE
+
 #define FTHD_RINGBUF_ADDRESS_FLAGS 0
 #define FTHD_RINGBUF_REQUEST_SIZE 4
 #define FTHD_RINGBUF_RESPONSE_SIZE 8
@@ -49,6 +52,5 @@ extern u32 fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
 					struct fw_channel *chan);
 
 extern int fthd_channel_wait_ready(struct fthd_private *dev_priv, struct fw_channel *chan, u32 entry, int timeout);
-extern u32 get_entry_addr(struct fthd_private *dev_priv,
-			  struct fw_channel *chan, int num);
+
 #endif

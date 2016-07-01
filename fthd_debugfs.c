@@ -108,7 +108,7 @@ static int seq_channel_read(struct seq_file *seq, struct fthd_private *dev_priv,
 			pos = '*';
 		else
 			pos = ' ';
-		entry = get_entry_addr(dev_priv, chan, i);
+		entry = FTHD_ENTRY_ADDR(chan, i);
 		seq_printf(seq,
 			   "%c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
 			   pos, i,
