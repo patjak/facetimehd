@@ -18,10 +18,36 @@
  */
 
 #include <linux/delay.h>
+#include <linux/random.h>
 #include "fthd_drv.h"
 #include "fthd_hw.h"
-#include "fthd_ddr.h"
 #include "fthd_isp.h"
+
+int fthd_ddr_verify_mem(struct fthd_private *dev_priv, u32 base, int count)
+{
+	u32 i, val, val_read;
+	int failed_bits = 0;
+	struct rnd_state state;
+
+	prandom_seed_state(&state, 0x12345678);
+
+	for (i = 0; i < count; i++) {
+		val = prandom_u32_state(&state);
+		FTHD_S2_MEM_WRITE(val, i * 4);
+	}
+
+	prandom_seed_state(&state, 0x12345678);
+
+	for (i = 0; i < count; i++) {
+		val = prandom_u32_state(&state);
+		val_read = FTHD_S2_MEM_READ(i * 4);
+
+		failed_bits |= val ^ val_read;
+	}
+
+	return ((failed_bits & 0xffff) | ((failed_bits >> 16) & 0xffff));
+}
+
 
 static int fthd_hw_s2_pll_reset(struct fthd_private *dev_priv)
 {
@@ -681,7 +707,7 @@ int fthd_hw_init(struct fthd_private *dev_priv)
 	}
 */
 
-	ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
+	ret = fthd_ddr_verify_mem(dev_priv, 0, 1024 * 1024);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
 			"Full memory verification failed! (%d)\n", ret);
