@@ -1,5 +1,9 @@
 SHELL = /bin/bash
 
+DEB_NAME:=facetimehd-firmware
+DEB_VER:=0.1-1
+DEB_BASE_DIR:=debian
+
 DMG:=osxupd10.11.3.dmg
 OSX_DRV:=AppleCameraInterface
 OSX_DRV_DIR:=System/Library/Extensions/AppleCameraInterface.kext/Contents/MacOS
@@ -19,6 +23,12 @@ FW_DIR:="$(FW_DIR_BASE)/facetimehd"
 
 all: $(OSX_DRV)
 	@./extract-firmware.sh -x "$(OSX_DRV)"
+
+deb: all
+	@install -D -m 644 "firmware.bin" "$(DEB_BASE_DIR)/$(DEB_NAME)_$(DEB_VER)/lib/firmware/facetimehd/firmware.bin"
+	@mkdir -p "$(DEB_BASE_DIR)/$(DEB_NAME)_$(DEB_VER)/DEBIAN"
+	@(sed -e "s|^Package:.*|Package: $(DEB_NAME)|g" -e "s|^Version:.*|Version: $(DEB_VER)|g" "$(DEB_BASE_DIR)/control.template" > "$(DEB_BASE_DIR)/$(DEB_NAME)_$(DEB_VER)/DEBIAN/control")
+	@dpkg-deb --build "$(DEB_BASE_DIR)/$(DEB_NAME)_$(DEB_VER)"
 
 $(OSX_DRV):
 	@echo ""
@@ -40,4 +50,5 @@ install:
 clean:
 	rm -f AppleCamera{Interface,.sys}
 	rm -f firmware.bin
-
+	rm -rf "$(DEB_BASE_DIR)/$(DEB_NAME)_$(DEB_VER)"
+	rm -f "$(DEB_BASE_DIR)"/*.deb
