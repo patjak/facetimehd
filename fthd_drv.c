@@ -45,13 +45,13 @@ static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 	/* Reserve resources */
 	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_S2_IO, "S2 IO");
 	if (ret) {
-		dev_err(&dev_priv->pdev->dev, "Failed to request S2 IO\n");
+		pr_err("Failed to request S2 IO\n");
 		return ret;
 	}
 
 	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_ISP_IO, "ISP IO");
 	if (ret) {
-		dev_err(&dev_priv->pdev->dev, "Failed to request ISP IO\n");
+		pr_err("Failed to request ISP IO\n");
 		pci_release_region(dev_priv->pdev, FTHD_PCI_S2_IO);
 		return ret;
 	}
@@ -265,7 +265,7 @@ static void fthd_irq_work(struct work_struct *work)
 	}
 
 	if (i >= 500) {
-		dev_err(&dev_priv->pdev->dev, "irq stuck, disabling\n");
+		pr_err("irq stuck, disabling\n");
 		fthd_irq_uninstall(dev_priv);
 	}
 	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
@@ -297,7 +297,7 @@ static int fthd_irq_install(struct fthd_private *dev_priv)
 			  KBUILD_MODNAME, (void *)dev_priv);
 
 	if (ret)
-		dev_err(&dev_priv->pdev->dev, "Failed to request IRQ\n");
+		pr_err("Failed to request IRQ\n");
 
 	return ret;
 }
@@ -309,7 +309,7 @@ static int fthd_pci_set_dma_mask(struct fthd_private *dev_priv,
 
 	ret = dma_set_mask_and_coherent(&dev_priv->pdev->dev, DMA_BIT_MASK(mask));
 	if (ret) {
-		dev_err(&dev_priv->pdev->dev, "Failed to set %u pci dma mask\n",
+		pr_err("Failed to set %u pci dma mask\n",
 			mask);
 		return ret;
 	}
@@ -373,7 +373,7 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 
 	ret = pci_enable_device(pdev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to enable device\n");
+		pr_err("Failed to enable device\n");
 		return ret;
 	}
 
@@ -383,7 +383,7 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 
 	ret = pci_enable_msi(pdev);
 	if (ret) {
-		dev_err(&pdev->dev, "Failed to enable MSI\n");
+		pr_err("Failed to enable MSI\n");
 		goto fail_reserve;
 	}
 
@@ -398,7 +398,7 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 	if (ret)
 		goto fail_irq;
 
-	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
+	pr_debug("Setting %ubit DMA mask\n", dev_priv->dma_mask);
 	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
 
 	pci_set_master(pdev);
@@ -448,12 +448,11 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	struct fthd_private *dev_priv;
 	int ret;
 
-	dev_info(&pdev->dev, "Found FaceTime HD camera with device id: %x\n",
-		 pdev->device);
+	pr_info("Found FaceTime HD camera with device id: %x\n", pdev->device);
 
 	dev_priv = kzalloc(sizeof(struct fthd_private), GFP_KERNEL);
 	if (!dev_priv) {
-		dev_err(&pdev->dev, "Failed to allocate memory\n");
+		pr_err("Failed to allocate memory\n");
 		return -ENOMEM;
 	}
 

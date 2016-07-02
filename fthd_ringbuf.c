@@ -133,10 +133,11 @@ out:
 int fthd_channel_wait_ready(struct fthd_private *dev_priv, struct fw_channel *chan, u32 entry, int timeout)
 {
 	if (wait_event_interruptible_timeout(chan->wq,
-					     (FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1) ^ (chan->type != 0),
-		msecs_to_jiffies(timeout)) <= 0) {
-		dev_err(&dev_priv->pdev->dev, "%s: timeout\n", chan->name);
+			(FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1) ^
+			(chan->type != RINGBUF_TYPE_H2T), msecs_to_jiffies(timeout)) <= 0) {
+		pr_err("%s: timeout\n", chan->name);
 		fthd_channel_ringbuf_dump(dev_priv, chan);
+
 		return -ETIMEDOUT;
 	}
 	return 0;

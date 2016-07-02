@@ -69,9 +69,8 @@ struct iommu_obj *fthd_iommu_alloc_sgtable(struct fthd_private *dev_priv,
 	ret = allocate_resource(root, &obj->base, total_len, root->start,
 				root->end, 1, NULL, NULL);
 	if (ret) {
-		dev_err(&dev_priv->pdev->dev,
-			"Failed to allocate resource (size: %d, start: %Ld, end: %Ld)\n",
-			total_len, root->start, root->end);
+		pr_err("Failed to allocate resource (size: %d, start: %Ld, end: %Ld)\n",
+		       total_len, root->start, root->end);
 		kfree(obj);
 		obj = NULL;
 

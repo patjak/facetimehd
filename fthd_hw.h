@@ -42,8 +42,7 @@ static inline void fthd_hw_pci_post(struct fthd_private *dev_priv)
 static inline u32 _FTHD_S2_REG_READ(struct fthd_private *dev_priv, u32 offset)
 {
 	if (offset >= dev_priv->s2_io_len) {
-		dev_err(&dev_priv->pdev->dev,
-			"S2 IO read out of range at %u\n", offset);
+		pr_err("S2 IO read out of range at %u\n", offset);
 		return 0;
 	}
 
@@ -54,8 +53,7 @@ static inline void _FTHD_S2_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 				      u32 offset)
 {
 	if (offset >= dev_priv->s2_io_len) {
-		dev_err(&dev_priv->pdev->dev,
-			"S2 IO write out of range at %u\n", offset);
+		pr_err("S2 IO write out of range at %u\n", offset);
 		return;
 	}
 
@@ -66,8 +64,7 @@ static inline void _FTHD_S2_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 static inline u32 _FTHD_S2_MEM_READ(struct fthd_private *dev_priv, u32 offset)
 {
 	if (offset >= dev_priv->s2_mem_len) {
-		dev_err(&dev_priv->pdev->dev,
-			"S2 MEM read out of range at %u\n", offset);
+		pr_err("S2 MEM read out of range at %u\n", offset);
 		return 0;
 	}
 
@@ -78,8 +75,7 @@ static inline void _FTHD_S2_MEM_WRITE(struct fthd_private *dev_priv, u32 val,
 				      u32 offset)
 {
 	if (offset >= dev_priv->s2_mem_len) {
-		dev_err(&dev_priv->pdev->dev,
-			"S2 MEM write out of range at %u\n", offset);
+		pr_err("S2 MEM write out of range at %u\n", offset);
 		return;
 	}
 
@@ -102,8 +98,7 @@ static inline void _FTHD_S2_MEMCPY_FROMIO(struct fthd_private *dev_priv, void *b
 static inline u32 _FTHD_ISP_REG_READ(struct fthd_private *dev_priv, u32 offset)
 {
 	if (offset >= dev_priv->isp_io_len) {
-		dev_err(&dev_priv->pdev->dev,
-			"ISP IO read out of range at %u\n", offset);
+		pr_err("ISP IO read out of range at %u\n", offset);
 		return 0;
 	}
 
@@ -114,8 +109,7 @@ static inline void _FTHD_ISP_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 				       u32 offset)
 {
 	if (offset >= dev_priv->isp_io_len) {
-		dev_err(&dev_priv->pdev->dev,
-			"ISP IO write out of range at %u\n", offset);
+		pr_err("ISP IO write out of range at %u\n", offset);
 		return;
 	}
 
