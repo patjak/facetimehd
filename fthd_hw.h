@@ -47,7 +47,6 @@ static inline u32 _FTHD_S2_REG_READ(struct fthd_private *dev_priv, u32 offset)
 		return 0;
 	}
 
-	// dev_info(&dev_priv->pdev->dev, "Link IO read at %u\n", offset);
 	return ioread32(dev_priv->s2_io + offset);
 }
 
@@ -60,7 +59,6 @@ static inline void _FTHD_S2_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 		return;
 	}
 
-	// dev_info(&dev_priv->pdev->dev, "S2 IO write at %u\n", offset);
 	iowrite32(val, dev_priv->s2_io + offset);
 	fthd_hw_pci_post(dev_priv);
 }
@@ -73,7 +71,6 @@ static inline u32 _FTHD_S2_MEM_READ(struct fthd_private *dev_priv, u32 offset)
 		return 0;
 	}
 
-	// dev_info(&dev_priv->pdev->dev, "Link IO read at %u\n", offset);
 	return ioread32(dev_priv->s2_mem + offset);
 }
 
@@ -86,7 +83,6 @@ static inline void _FTHD_S2_MEM_WRITE(struct fthd_private *dev_priv, u32 val,
 		return;
 	}
 
-	// dev_info(&dev_priv->pdev->dev, "S2 IO write at %u\n", offset);
 	iowrite32(val, dev_priv->s2_mem + offset);
 }
 
@@ -111,7 +107,6 @@ static inline u32 _FTHD_ISP_REG_READ(struct fthd_private *dev_priv, u32 offset)
 		return 0;
 	}
 
-	// dev_info(&dev_priv->pdev->dev, "ISP IO read at %u\n", offset);
 	return ioread32(dev_priv->isp_io + offset);
 }
 
@@ -124,7 +119,6 @@ static inline void _FTHD_ISP_REG_WRITE(struct fthd_private *dev_priv, u32 val,
 		return;
 	}
 
-	// dev_info(&dev_priv->pdev->dev, "Dev IO write at %u\n", offset);
 	iowrite32(val, dev_priv->isp_io + offset);
 	fthd_hw_pci_post(dev_priv);
 }

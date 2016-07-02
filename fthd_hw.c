@@ -693,30 +693,10 @@ int fthd_hw_init(struct fthd_private *dev_priv)
 	fthd_hw_s2_preinit_ddr_controller_soc(dev_priv);
 	fthd_hw_s2_init_ddr_controller_soc(dev_priv);
 
-/*
-	dev_info(&dev_priv->pdev->dev,
-		 "Dumping DDR PHY reg map before shmoo\n");
-
-	for (i = 0; i < DDR_PHY_NUM_REGS; i++) {
-		if (!(i % 3) && i >  0)
-			printk("\n");
-
-		val = FTHD_S2_REG_READ(ddr_phy_reg_map[i]);
-		printk(KERN_CONT "0x%.3x = 0x%.8x\t",
-			 ddr_phy_reg_map[i], val);
-	}
-*/
-
 	ret = fthd_ddr_verify_mem(dev_priv, 0, 1024 * 1024);
 	if (ret) {
 		dev_err(&dev_priv->pdev->dev,
 			"Full memory verification failed! (%d)\n", ret);
-		/*
-		 * Here we should do a shmoo calibration but it's not yet
-		 * fully implemented.
-		 */
-
-		/* fthd_ddr_calibrate(dev_priv); */
 	} else {
 		dev_info(&dev_priv->pdev->dev,
 			 "Full memory verification succeeded! (%d)\n", ret);
