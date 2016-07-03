@@ -2,6 +2,7 @@
  * FacetimeHD camera driver
  *
  * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
+ *		 2016 Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by

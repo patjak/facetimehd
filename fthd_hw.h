@@ -1,7 +1,8 @@
 /*
- * Broadcom PCIe 1570 webcam driver
+ * FacetimeHD camera driver
  *
- * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
+ * Copyright (C) 2014 Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
+ *		 2016 Sven Schnelle <svens@stackframe.org>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License version 2 as published by
