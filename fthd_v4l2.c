@@ -721,7 +721,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	dev_priv->alloc_ctx = vb2_dma_sg_init_ctx(&dev_priv->pdev->dev);
 
 	vdev->v4l2_dev = v4l2_dev;
-	strcpy(vdev->name, "Apple Facetime HD"); // XXX: Length?
+	strcpy(vdev->name, "Apple Facetime HD"); /* FIXME: Length? */
 	vdev->vfl_dir = VFL_DIR_RX;
 	vdev->fops = &fthd_vdev_fops;
 	vdev->ioctl_ops = &fthd_ioctl_ops;

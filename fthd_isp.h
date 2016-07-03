@@ -468,7 +468,8 @@ enum isp_debug_cmds {
 	CISP_CMD_DEBUG_GET_FSM_BY_NAME,
 	CISP_CMD_DEBUG_GET_FSM_DEBUG_LEVEL,
 	CISP_CMD_DEBUG_SET_FSM_DEBUG_LEVEL,
-	CISP_CMD_DEBUG_FSM_UNKNOWN, /* XXX: don't know what this cmd is doing yet */
+	/* FIXME: don't know what this cmd is doing yet */
+	CISP_CMD_DEBUG_FSM_UNKNOWN,
 	CISP_CMD_DEBUG_HEAP_STATISTICS,
 	CISP_CMD_DEBUG_IRQ_STATISTICS,
 	CISP_CMD_DEBUG_SHOW_SEMAPHORE_STATUS,
@@ -494,7 +495,7 @@ struct isp_fw_args {
 };
 
 struct isp_channel_info {
-	char name[64]; /* really that big? */
+	char name[64];
 	u32 type;
 	u32 source;
 	u32 size;

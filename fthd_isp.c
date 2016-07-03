@@ -319,8 +319,10 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
 
-	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
-	        verification done? */
+	/*
+	 * FIXME: response size in the ringbuf is zero after command completion,
+	 * how is buffer size verification done?
+	 */
 	if (response_len && *response_len)
 		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
 				     *response_len);
@@ -397,7 +399,7 @@ int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command
 	/*
  	 * FIXME: response size in the ringbuf is zero after command completion,
 	 * how is buffer size verification done?
-	 **/
+	 */
 	if (response_len && *response_len)
 		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
 				     *response_len);
@@ -1295,10 +1297,6 @@ int isp_init(struct fthd_private *dev_priv)
 
 	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
 
-	/*
-	 * Probably the IPC queue
-	 * FIXME: Check if we can do 64bit writes on PCIe
-	 */
 	for (i = ISP_FW_CHAN_START; i <= ISP_FW_CHAN_END; i += 8) {
 		FTHD_ISP_REG_WRITE(0xffffffff, i);
 		FTHD_ISP_REG_WRITE(0, i + 4);
