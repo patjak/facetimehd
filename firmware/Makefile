@@ -33,7 +33,7 @@ deb: all
 $(OSX_DRV):
 	@echo ""
 	@echo "Checking dependencies for driver download..."
-	@which curl xzcat cpio
+	@if [ 3 != "$(which curl cpio xzcat| wc -l)" ]; then echo -e "Missing commands, please check if your OS has curl, cpio and xzcat.\n" && exit 1; fi
 	@echo ""
 	@# Ty to wvengen, see: https://github.com/patjak/bcwc_pcie/issues/14#issuecomment-167446787
 	@echo "Downloading the driver, please wait..."
