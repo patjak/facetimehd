@@ -36,6 +36,12 @@
 #include "fthd_v4l2.h"
 #include "fthd_debugfs.h"
 
+bool firmware_verbose = FIRMWARE_VERBOSE;
+
+module_param(firmware_verbose, bool, 0644);
+MODULE_PARM_DESC(firmware_verbose,
+                   "Enable extremely verbose debugging messages from firmware to be emitted.");
+
 static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 {
 	unsigned long start;
@@ -150,7 +156,8 @@ static void terminal_handler(struct fthd_private *dev_priv,
 	if (request_size > 512)
 		request_size = 512;
 	FTHD_S2_MEMCPY_FROMIO(buf, address, request_size);
-	pr_info("FWMSG: %.*s", request_size, buf);
+	if (firmware_verbose)
+		pr_info("FWMSG: %.*s", request_size, buf);
 }
 
 static void buf_t2h_handler(struct fthd_private *dev_priv,
@@ -546,7 +553,6 @@ static struct pci_driver fthd_pci_driver = {
 	.resume = fthd_pci_resume,
 #endif
 };
-
 module_pci_driver(fthd_pci_driver);
 
 MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
