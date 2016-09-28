@@ -152,7 +152,7 @@ static void terminal_handler(struct fthd_private *dev_priv,
 	if (request_size > 512)
 		request_size = 512;
 	FTHD_S2_MEMCPY_FROMIO(buf, address, request_size);
-	pr_info("FWMSG: %.*s", request_size, buf);
+	pr_debug("FWMSG: %.*s", request_size, buf);
 }
 
 static void buf_t2h_handler(struct fthd_private *dev_priv,
