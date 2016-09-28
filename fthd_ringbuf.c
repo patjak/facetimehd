@@ -78,8 +78,6 @@ int fthd_channel_ringbuf_send(struct fthd_private *dev_priv,
 {
 	u32 entry;
 
-	pr_debug("send %08x\n", data_offset);
-
 	spin_lock_irq(&chan->lock);
 	entry = FTHD_ENTRY_ADDR(chan, chan->ringbuf.idx);
 

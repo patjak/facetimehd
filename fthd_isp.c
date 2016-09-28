@@ -164,7 +164,7 @@ static int isp_load_firmware(struct fthd_private *dev_priv)
 
 	/* Might need a flush here if we map ISP memory cached */
 
-	pr_debug("Loaded firmware, size: %lukb\n", fw->size / 1024);
+	pr_info("Loaded firmware, size: %lukb\n", fw->size / 1024);
 
 	release_firmware(fw);
 

@@ -109,9 +109,9 @@ static int fthd_hw_s2_pll_init(struct fthd_private *dev_priv, u32 ddr_speed)
 	ref_clk_25 = reg & S2_PLL_REFCLK_25MHZ ? 1 : 0;
 
 	if (ref_clk_25)
-		pr_info("Refclk: 25MHz (0x%x)\n", reg);
+		pr_debug("Refclk: 25MHz (0x%x)\n", reg);
 	else
-		pr_info("Refclk: 24MHz (0x%x\n", reg);
+		pr_debug("Refclk: 24MHz (0x%x\n", reg);
 
 	if (ddr_speed == 400) {
 		if (ref_clk_25) {
@@ -464,7 +464,7 @@ static int fthd_hw_s2_init_ddr_controller_soc(struct fthd_private *dev_priv)
 		return -ENODEV;
 	}
 
-	pr_info("DDR40 PLL is locked after %d us\n", i);
+	pr_debug("DDR40 PLL is locked after %d us\n", i);
 
 	/* Configure DDR40 VDL */
 	FTHD_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);

@@ -210,8 +210,7 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 		return;
 	}
 
-	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
-		pr_debug("channel %s: message available, address %08x\n", chan->name, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS));
+	while ((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
 		if (chan == dev_priv->channel_shared_malloc) {
 			sharedmalloc_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_terminal) {
@@ -257,8 +256,7 @@ static void fthd_irq_work(struct work_struct *work)
 		for(i = 0; i < dev_priv->num_channels; i++) {
 			chan = dev_priv->channels[i];
 
-
-			BUG_ON(chan->source > 3);
+			WARN_ON(chan->source > 3);
 			if (!((0x10 << chan->source) & pending))
 				continue;
 			fthd_handle_irq(dev_priv, chan);
