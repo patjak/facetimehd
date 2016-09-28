@@ -513,14 +513,7 @@ struct isp_cmd_print_enable {
 } __attribute__((packed));
 
 struct isp_cmd_config {
-	u32 field0;
-	u32 field4;
-	u32 field8;
-	u32 fieldc;
-	u32 field10;
-	u32 field14;
-	u32 field18;
-	u32 field1c;
+	u32 unknown[8];
 } __attribute__((packed));
 
 struct isp_cmd_set_loadfile {
