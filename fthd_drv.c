@@ -239,7 +239,7 @@ static void fthd_irq_work(struct work_struct *work)
 	u32 pending;
 	int i = 0;
 
-	while(i++ < 500) {
+	while (i++ < 500) {
 		spin_lock_irq(&dev_priv->io_lock);
 		pending = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
 		spin_unlock_irq(&dev_priv->io_lock);
@@ -253,7 +253,7 @@ static void fthd_irq_work(struct work_struct *work)
 		spin_unlock_irq(&dev_priv->io_lock);
 		pci_write_config_dword(dev_priv->pdev, 0x90, 0x200);
 
-		for(i = 0; i < dev_priv->num_channels; i++) {
+		for (i = 0; i < dev_priv->num_channels; i++) {
 			chan = dev_priv->channels[i];
 
 			WARN_ON(chan->source > 3);
