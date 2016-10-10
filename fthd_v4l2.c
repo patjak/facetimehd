@@ -43,7 +43,7 @@
 
 static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 				   unsigned int *nbuffers, unsigned int *nplanes,
-				   unsigned int sizes[], void *alloc_ctxs[])
+				   unsigned int sizes[], struct device *alloc_devs[])
 {
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
@@ -55,7 +55,6 @@ static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 
 	/* FIXME: We assume 1 plane format here */
 	sizes[0] = cur_fmt->sizeimage;
-	alloc_ctxs[0] = dev_priv->alloc_ctx;
 
 	*nbuffers = (4096 * 4096) / sizes[0];
 	if (*nbuffers > 4)
@@ -686,6 +685,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	dev_priv->videodev = vdev;
 
 	q = &dev_priv->vb2_queue;
+	q->dev = &dev_priv->pdev->dev;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
 	q->drv_priv = dev_priv;
@@ -717,8 +717,6 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 		v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
 		goto fail;
 	}
-
-	dev_priv->alloc_ctx = vb2_dma_sg_init_ctx(&dev_priv->pdev->dev);
 
 	vdev->v4l2_dev = v4l2_dev;
 	strcpy(vdev->name, "Apple Facetime HD"); /* FIXME: Length? */
@@ -758,7 +756,6 @@ void fthd_v4l2_unregister(struct fthd_private *dev_priv)
 {
 
 	v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
-	vb2_dma_sg_cleanup_ctx(dev_priv->alloc_ctx);
 	video_unregister_device(dev_priv->videodev);
 	v4l2_device_unregister(&dev_priv->v4l2_dev);
 }
