@@ -27,11 +27,6 @@
 #include "fthd_hw.h"
 #include "fthd_buffer.h"
 
-struct buf_ctx {
-	struct fthd_plane plane[4];
-	struct isp_mem_obj *isphdr;
-};
-
 static int iommu_allocator_init(struct fthd_private *dev_priv)
 {
         dev_priv->iommu = kzalloc(sizeof(struct resource), GFP_KERNEL);
