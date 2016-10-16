@@ -110,7 +110,7 @@ void fthd_iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj)
 		return;
 
  	for (i = obj->offset; i < obj->offset + obj->size; i++)
-		FTHD_S2_REG_WRITE(0, 0x9000 + i * 4);
+		FTHD_S2_REG_WRITE(0, S2_IOMMU_BASE_ADDR + i * 4);
 
 	release_resource(&obj->base);
 	kfree(obj);
@@ -127,7 +127,7 @@ int fthd_buffer_init(struct fthd_private *dev_priv)
 	int i;
 
 	for (i = 0; i < 0x1000; i++)
-		FTHD_S2_REG_WRITE(0, 0x9000 + i * 4);
+		FTHD_S2_REG_WRITE(0, S2_IOMMU_BASE_ADDR + i * 4);
 
 	return iommu_allocator_init(dev_priv);
 }
