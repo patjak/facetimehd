@@ -21,6 +21,15 @@
 #ifndef _FTHD_DRV_H
 #define _FTHD_DRV_H
 
+#define FTHD_PCI_S2_IO  0
+#define FTHD_PCI_S2_MEM 2
+#define FTHD_PCI_ISP_IO 4
+
+#define FTHD_NUM_BUFS 4
+
+#define S2_PAGE_SIZE 4096
+#define S2_PAGE_SHIFT 12
+
 #include <linux/pci.h>
 #include <linux/spinlock.h>
 #include <linux/wait.h>
@@ -32,15 +41,6 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 #include "fthd_v4l2.h"
-
-#define FTHD_PCI_S2_IO  0
-#define FTHD_PCI_S2_MEM 2
-#define FTHD_PCI_ISP_IO 4
-
-#define FTHD_NUM_BUFS 4
-
-#define S2_PAGE_SIZE 4096
-#define S2_PAGE_SHIFT 12
 
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,

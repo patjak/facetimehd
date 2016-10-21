@@ -126,7 +126,7 @@ int fthd_buffer_init(struct fthd_private *dev_priv)
 {
 	int i;
 
-	for (i = 0; i < 0x1000; i++)
+	for (i = 0; i < S2_PAGE_SIZE; i++)
 		FTHD_S2_REG_WRITE(0, S2_IOMMU_BASE_ADDR + i * 4);
 
 	return iommu_allocator_init(dev_priv);

@@ -21,6 +21,7 @@
 #define FTHD_BUFFER_H
 
 #include <linux/scatterlist.h>
+#include "fthd_drv.h"
 #include "fthd_buffer.h"
 
 enum fthd_buffer_state {
@@ -45,7 +46,7 @@ struct dma_descriptor {
 struct dma_descriptor_list {
 	u32 field0;
     	u32 count;
-	struct dma_descriptor desc[4];
+	struct dma_descriptor desc[FTHD_NUM_BUFS];
 	char unknown[216];
 } __attribute__((packed));
 
@@ -66,7 +67,7 @@ struct fthd_plane {
 struct h2t_buf_ctx {
 	enum fthd_buffer_state state;
 	struct vb2_buffer *vb;
-	struct iommu_obj *plane[4];
+	struct iommu_obj *plane[FTHD_NUM_BUFS];
 	struct isp_mem_obj *dma_desc_obj;
 	struct dma_descriptor_list dma_desc_list;
 	/* waitqueue for signaling buffer completion */
