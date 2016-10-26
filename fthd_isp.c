@@ -133,11 +133,6 @@ out:
 	return ret;
 }
 
-static int isp_enable_sensor(struct fthd_private *dev_priv)
-{
-	return 0;
-}
-
 static int isp_load_firmware(struct fthd_private *dev_priv)
 {
 	const struct firmware *fw;
@@ -1285,7 +1280,6 @@ int isp_init(struct fthd_private *dev_priv)
 	pci_set_power_state(dev_priv->pdev, PCI_D0);
 	mdelay(10);
 
-	isp_enable_sensor(dev_priv);
 	FTHD_ISP_REG_WRITE(0, ISP_FW_CHAN_CTRL);
 	FTHD_ISP_REG_WRITE(0, ISP_FW_QUEUE_CTRL);
 	FTHD_ISP_REG_WRITE(0, ISP_FW_SIZE);
