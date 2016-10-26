@@ -320,7 +320,7 @@ static int fthd_pci_set_dma_mask(struct fthd_private *dev_priv,
 
 static void fthd_stop_firmware(struct fthd_private *dev_priv)
 {
-		fthd_isp_cmd_stop(dev_priv);
+	fthd_isp_cmd_stop(dev_priv);
 	isp_powerdown(dev_priv);
 }
 
@@ -368,7 +368,6 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 {
 	struct pci_dev *pdev = dev_priv->pdev;
 	int ret;
-
 
 	ret = pci_enable_device(pdev);
 	if (ret) {
@@ -438,7 +437,6 @@ static int fthd_firmware_start(struct fthd_private *dev_priv)
 		return ret;
 
 	return fthd_isp_cmd_set_loadfile(dev_priv);
-
 }
 
 static int fthd_pci_probe(struct pci_dev *pdev,
@@ -492,6 +490,7 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		goto fail_v4l2;
 	return 0;
+
 fail_v4l2:
 	fthd_v4l2_unregister(dev_priv);
 fail_firmware:

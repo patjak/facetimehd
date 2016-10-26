@@ -189,7 +189,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 			ctx->plane[i] =
 				fthd_iommu_alloc_sgtable(dev_priv, sgtable);
 
-			if(!ctx->plane[i])
+			if (!ctx->plane[i])
 				return -ENOMEM;
 		}
 	}
@@ -279,7 +279,7 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 		pr_debug("done\n");
 	} else {
 		/* Firmware doesn't respond. */
-		for (i = 0; i < FTHD_NUM_BUFS;i++) {
+		for (i = 0; i < FTHD_NUM_BUFS; i++) {
 			ctx = dev_priv->h2t_bufs + i;
 			if (ctx->state == BUF_DRV_QUEUED ||
 			    ctx->state == BUF_HW_QUEUED) {

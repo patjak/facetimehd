@@ -158,7 +158,6 @@ static int fthd_hw_s2_pll_init(struct fthd_private *dev_priv, u32 ddr_speed)
 			/* Ref clk 24 */
 			FTHD_S2_REG_WRITE(0x04b00000, S2_PLL_CTRL_20);
 			FTHD_S2_REG_WRITE(0x14280904, S2_PLL_CTRL_24);
-
 		}
 	}
 

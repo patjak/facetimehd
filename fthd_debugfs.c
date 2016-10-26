@@ -84,9 +84,9 @@ static ssize_t fthd_store_debug(struct file *file, const char __user *user_buf,
 		opcode = CISP_CMD_DEBUG_GET_FSM_DEBUG_LEVEL;
 	else if (sscanf(buf, "set_fsm_debug_level %x", &cmd.arg[0]) == 2)
 		opcode = CISP_CMD_DEBUG_SET_FSM_DEBUG_LEVEL;
-
 	else if (sscanf(buf, "%i %i\n", &opcode, &cmd.arg[0]) != 2)
 		return -EINVAL;
+
 	cmd.show_errors = 1;
 
 	ret = fthd_isp_debug_cmd(dev_priv, opcode, &cmd, sizeof(cmd), NULL);
@@ -104,7 +104,7 @@ static int seq_channel_read(struct seq_file *seq, struct fthd_private *dev_priv,
 	u32 entry;
 
 	spin_lock_irq(&chan->lock);
-	for( i = 0; i < chan->size; i++) {
+	for (i = 0; i < chan->size; i++) {
 		if (chan->ringbuf.idx == i)
 			pos = '*';
 		else
