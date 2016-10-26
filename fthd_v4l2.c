@@ -103,7 +103,9 @@ static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ct
 	FTHD_S2_MEMCPY_TOIO(ctx->dma_desc_obj->offset, &ctx->dma_desc_list,
 			    sizeof(ctx->dma_desc_list));
 	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
-					ctx->dma_desc_obj->offset, 0x180, 0x30000000, &entry);
+					ctx->dma_desc_obj->offset,
+					sizeof(ctx->dma_desc_list), 0x30000000,
+					&entry);
 
 	if (ret) {
 		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
@@ -177,7 +179,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	if (ctx->state == BUF_FREE) {
 		pr_debug("allocating new entry\n");
 		ctx->dma_desc_obj = isp_mem_create(dev_priv, FTHD_MEM_BUFFER,
-						   0x180);
+						   sizeof(ctx->dma_desc_list));
 		if (!ctx->dma_desc_obj)
 			return -ENOMEM;
 
@@ -197,7 +199,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	vb2_set_plane_payload(vb, 0, dev_priv->fmt.fmt.sizeimage);
 
 	dma_list = &ctx->dma_desc_list;
-	memset(dma_list, 0, 0x180);
+	memset(dma_list, 0, sizeof(ctx->dma_desc_list));
 
 	dma_list->field0 = 1;
 	dma_list->count = 1;
