@@ -145,8 +145,8 @@ static int fthd_hw_s2_pll_init(struct fthd_private *dev_priv, u32 ddr_speed)
 		}
 	} else {
 		if (ddr_speed != 450) {
-			pr_err("Unsupported DDR speed %uMHz, using 450MHz\n",
-			       ddr_speed);
+			pr_info("Unsupported DDR speed %uMHz, using 450MHz\n",
+				ddr_speed);
 			ddr_speed = 450;
 		}
 
