@@ -470,13 +470,13 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	if (ret)
 		goto fail_work;
 
-	ret = fthd_buffer_init(dev_priv);
-	if (ret)
-		goto fail_pci;
-
 	ret = fthd_hw_init(dev_priv);
 	if (ret)
 		goto fail_buffer;
+
+	ret = fthd_buffer_init(dev_priv);
+	if (ret)
+		goto fail_pci;
 
 	ret = fthd_firmware_start(dev_priv);
 	if (ret)
