@@ -28,6 +28,7 @@
 #include <linux/sched.h>
 #include <linux/wait.h>
 #include <linux/videodev2.h>
+#include <linux/ratelimit.h>
 #include "fthd_drv.h"
 #include "fthd_hw.h"
 #include "fthd_isp.h"
@@ -150,7 +151,7 @@ static void terminal_handler(struct fthd_private *dev_priv,
 	if (request_size > 512)
 		request_size = 512;
 	FTHD_S2_MEMCPY_FROMIO(buf, address, request_size);
-	pr_info("FWMSG: %.*s", request_size, buf);
+	pr_info_ratelimited("FWMSG: %.*s", request_size, buf);
 }
 
 static void buf_t2h_handler(struct fthd_private *dev_priv,
