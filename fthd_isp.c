@@ -537,6 +537,9 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	case 0x190:
 		filename = "facetimehd/1222_01XX.dat";
 		break;
+	case 0x248:
+		filename = "facetimehd/XXXX_XXXX.dat";
+		break;
 	case 0x8830:
 		filename = "facetimehd/9112_01XX.dat";
 		break;
