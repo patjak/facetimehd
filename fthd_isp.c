@@ -530,8 +530,6 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
 	board = dmi_get_system_info(DMI_BOARD_NAME);
 
-	memset(&cmd, 0, sizeof(cmd));
-
 	switch(dev_priv->sensor_id1) {
 	case 0x164:
 		filename = "facetimehd/8221_01XX.dat";
@@ -572,15 +570,13 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		}
 		break;
 	default:
+		pr_debug("Unknown sensor id: %04x %04x\n", dev_priv->sensor_id0,
+			 dev_priv->sensor_id1);
 		break;
-
 	}
 
-	if (!filename) {
-		pr_err("no set file for sensorid %04x %04x found\n",
-		       dev_priv->sensor_id0, dev_priv->sensor_id1);
-		return -EINVAL;
-	}
+	if (!filename)
+		return 0;
 
 	/* The set file is allowed to be missing but we don't get calibration */
 	ret = request_firmware(&fw, filename, &dev_priv->pdev->dev);
@@ -597,8 +593,11 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 
 	dev_priv->set_file = file;
 	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
+
+	memset(&cmd, 0, sizeof(cmd));
 	cmd.addr = file->offset;
 	cmd.length = file->size;
+
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
 }
 
