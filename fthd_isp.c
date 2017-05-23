@@ -46,6 +46,7 @@ int isp_mem_init(struct fthd_private *dev_priv)
 
 	if (!dev_priv->firmware) {
 		pr_err("Failed to preallocate firmware memory\n");
+		kfree(dev_priv->mem);
 		return -ENOMEM;
 	}
 
