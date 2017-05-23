@@ -445,12 +445,6 @@ static int fthd_isp_cmd_powerdown(struct fthd_private *dev_priv)
 	return fthd_isp_cmd(dev_priv, CISP_CMD_POWER_DOWN, NULL, 0, NULL);
 }
 
-static void isp_free_set_file(struct fthd_private *dev_priv)
-{
-	if (dev_priv->set_file)
-		isp_mem_destroy(dev_priv->set_file);
-}
-
 int isp_powerdown(struct fthd_private *dev_priv)
 {
 	int retries;
@@ -501,7 +495,10 @@ int isp_uninit(struct fthd_private *dev_priv)
 
 	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
 	isp_free_channel_info(dev_priv);
-	isp_free_set_file(dev_priv);
+
+	if (dev_priv->set_file)
+		isp_mem_destroy(dev_priv->set_file);
+
 	isp_mem_destroy(dev_priv->firmware);
 	kfree(dev_priv->mem);
 	return 0;
@@ -520,13 +517,11 @@ int fthd_isp_cmd_print_enable(struct fthd_private *dev_priv, int enable)
 int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 {
 	struct isp_cmd_set_loadfile cmd;
-	struct isp_mem_obj *file;
+	struct isp_mem_obj *set_file;
 	const struct firmware *fw;
 	const char *filename = NULL;
 	const char *vendor, *board;
 	int ret = 0;
-
-	pr_debug("set loadfile\n");
 
 	vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
 	board = dmi_get_system_info(DMI_BOARD_NAME);
@@ -576,28 +571,27 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		break;
 	}
 
+	/* The set file is allowed to be missing but we don't get calibration */
 	if (!filename)
 		return 0;
 
-	/* The set file is allowed to be missing but we don't get calibration */
 	ret = request_firmware(&fw, filename, &dev_priv->pdev->dev);
 	if (ret)
 		return 0;
 
-	/* Firmware memory is preallocated at init time */
-	BUG_ON(dev_priv->set_file);
+	WARN_ON(dev_priv->set_file);
 
-	file = isp_mem_create(dev_priv, FTHD_MEM_SET_FILE, fw->size);
+	set_file = isp_mem_create(dev_priv, FTHD_MEM_SET_FILE, fw->size);
 	FTHD_S2_MEMCPY_TOIO(file->offset, fw->data, fw->size);
 
 	release_firmware(fw);
 
-	dev_priv->set_file = file;
+	dev_priv->set_file = set_file;
 	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
 
 	memset(&cmd, 0, sizeof(cmd));
-	cmd.addr = file->offset;
-	cmd.length = file->size;
+	cmd.addr = set_file->offset;
+	cmd.length = set_file->size;
 
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
 }
