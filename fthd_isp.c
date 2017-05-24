@@ -582,12 +582,12 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	WARN_ON(dev_priv->set_file);
 
 	set_file = isp_mem_create(dev_priv, FTHD_MEM_SET_FILE, fw->size);
-	FTHD_S2_MEMCPY_TOIO(file->offset, fw->data, fw->size);
+	FTHD_S2_MEMCPY_TOIO(set_file->offset, fw->data, fw->size);
 
 	release_firmware(fw);
 
 	dev_priv->set_file = set_file;
-	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
+	pr_debug("set file: addr %08lx, size %d\n", set_file->offset, (int)set_file->size);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.addr = set_file->offset;
