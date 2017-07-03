@@ -1,0 +1,7 @@
+Package:
+Version:
+Section: Miscellaneous - Text Based
+Priority: optional
+Maintainer: Patrik Jakobsson
+Architecture: all
+Description: Firmware for facetimehd
