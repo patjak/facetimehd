@@ -12,3 +12,5 @@ description-pak
 doc-pak
 *.deb
 *.tgz
+*.o.ur-safe
+.cache.mk
