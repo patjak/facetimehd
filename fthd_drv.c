@@ -21,6 +21,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/pci-aspm.h>
 #include <linux/io.h>
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
@@ -375,6 +376,10 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 		dev_err(&pdev->dev, "Failed to enable device\n");
 		return ret;
 	}
+
+	/* ASPM must be disabled on the device or it hangs while streaming */
+	pci_disable_link_state(pdev, PCIE_LINK_STATE_L0S | PCIE_LINK_STATE_L1 |
+			       PCIE_LINK_STATE_CLKPM);
 
 	ret = fthd_pci_reserve_mem(dev_priv);
 	if (ret)
