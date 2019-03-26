@@ -42,9 +42,9 @@ $(OSX_DRV):
 	@rmdir -p "$(OSX_DRV_DIR)"
 
 install:
-	@echo "Copying firmware into '$(DESTDIR)/$(FW_DIR)'"
-	@install -dm755 "$(DESTDIR)/$(FW_DIR)"
-	@install -m644 "firmware.bin" "$(DESTDIR)/$(FW_DIR)/firmware.bin"
+	@echo "Copying firmware into '$(DESTDIR)$(FW_DIR)'"
+	@install -dm755 "$(DESTDIR)$(FW_DIR)"
+	@install -m644 "firmware.bin" "$(DESTDIR)$(FW_DIR)/firmware.bin"
 
 .PHONY: clean
 clean:
