@@ -42,4 +42,11 @@ struct fthd_private;
 extern int fthd_v4l2_register(struct fthd_private *dev_priv);
 extern void fthd_v4l2_unregister(struct fthd_private *dev_priv);
 
+#ifdef CONFIG_FTHD_ENABLE_CHROMIUM_WORKAROUND
+
+/* module parameter: pretend to be fixed resolution camera */
+extern bool enable_chromium_workaround;
+
+#endif
+
 #endif

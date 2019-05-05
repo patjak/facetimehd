@@ -546,6 +546,15 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
 		return -EINVAL;
 
+#ifdef CONFIG_FTHD_ENABLE_CHROMIUM_WORKAROUND
+        if (enable_chromium_workaround) {
+                sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+                sizes->discrete.width = FTHD_WORKAROUND_RES_WIDTH;
+                sizes->discrete.height = FTHD_WORKAROUND_RES_HEIGHT;
+                return 0;
+        }
+#endif
+
 	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
 	sizes->stepwise.min_width = FTHD_MIN_WIDTH;
 	sizes->stepwise.max_width = FTHD_MAX_WIDTH;
@@ -573,6 +582,15 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	    || interval->width > FTHD_MAX_WIDTH
 	    || interval->height > FTHD_MAX_HEIGHT)
 		return -EINVAL;
+
+#ifdef CONFIG_FTHD_ENABLE_CHROMIUM_WORKAROUND
+        if (enable_chromium_workaround) {
+                interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+                interval->discrete.numerator = FTHD_WORKAROUND_FRAMERATE_NUMERATOR;
+                interval->discrete.denominator= FTHD_WORKAROUND_FRAMERATE_DENOMINATOR;
+                return 0;
+        }
+#endif
 
 	interval->type = V4L2_FRMIVAL_TYPE_STEPWISE;
 	interval->stepwise.step.numerator = 1;

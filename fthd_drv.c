@@ -455,6 +455,15 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	dev_info(&pdev->dev, "Found FaceTime HD camera with device id: %x\n",
 		 pdev->device);
 
+#ifdef CONFIG_FTHD_ENABLE_CHROMIUM_WORKAROUND
+        /* info code: show status of workaround flag */
+        if (enable_chromium_workaround) {
+                pr_info("facetimehd: chromium workaround enabled. Webcam capabilities artifically restricted for the sake of chrome and skype compatibility.\n");
+        } else {
+                pr_info("facetimehd: chromium workaround disabled.\n");
+        }
+#endif
+
 	dev_priv = kzalloc(sizeof(struct fthd_private), GFP_KERNEL);
 	if (!dev_priv) {
 		dev_err(&pdev->dev, "Failed to allocate memory\n");
@@ -551,6 +560,15 @@ static struct pci_driver fthd_pci_driver = {
 	.resume = fthd_pci_resume,
 #endif
 };
+
+#ifdef CONFIG_FTHD_ENABLE_CHROMIUM_WORKAROUND
+
+bool enable_chromium_workaround;
+
+module_param(enable_chromium_workaround, bool, ENABLE_CHROMIUM_WORKAROUND_DEFAULT);
+MODULE_PARM_DESC(enable_chromium_workaround, "Enable fixed resolution workaround for google chrome");
+
+#endif
 
 module_pci_driver(fthd_pci_driver);
 

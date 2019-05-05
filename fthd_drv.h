@@ -20,6 +20,12 @@
 #ifndef _FTHD_DRV_H
 #define _FTHD_DRV_H
 
+/* enable the chromium workaround code */
+#define CONFIG_FTHD_ENABLE_CHROMIUM_WORKAROUND 1
+/* This can serve as Kconfig flag and will enable easy removal
+ * of the workaround code, once chrome people have added support
+ * for stepwise resolutions and framerate api. */
+
 #include <linux/pci.h>
 #include <linux/spinlock.h>
 #include <linux/wait.h>
@@ -128,5 +134,28 @@ struct fthd_private {
 	int frametime;
 	struct dentry *debugfs;
 };
+
+#ifdef CONFIG_FTHD_ENABLE_CHROMIUM_WORKAROUND
+
+/* workaround disabled by default, has to be enabled via module parameter */
+/* to comply with principle of least surprise */
+#define ENABLE_CHROMIUM_WORKAROUND_DEFAULT 0
+
+/* Define fixed resolutions and framerate used for the workaround */
+
+#define FTHD_WORKAROUND_RES_WIDTH 320
+#define FTHD_WORKAROUND_RES_HEIGHT 240
+
+/* Max capability of the webcam */
+/*#define FTHD_WORKAROUND_RES_WIDTH 1280 */ /* Max Resolution! */
+/*#define FTHD_WORKAROUND_RES_HEIGHT 720 */
+/* Use max resolution at own risk, might have skype etc. smoking away at the CPU! */
+
+#define FTHD_WORKAROUND_FRAMERATE_NUMERATOR 33
+#define FTHD_WORKAROUND_FRAMERATE_DENOMINATOR 1000
+
+/* TODO: may add support for multiple default resolutions and framerates, for now just one. */
+
+#endif
 
 #endif
