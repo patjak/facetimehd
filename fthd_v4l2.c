@@ -728,6 +728,8 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	vdev->queue = q;
 	vdev->release = video_device_release;
 	vdev->ctrl_handler = &dev_priv->v4l2_ctrl_handler;
+	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_READWRITE |
+			    V4L2_CAP_STREAMING;
 	video_set_drvdata(vdev, dev_priv);
 
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
