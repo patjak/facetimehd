@@ -575,8 +575,8 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	}
 
 	if (!filename) {
-		pr_err("no set file for sensorid %04x %04x found\n",
-		       dev_priv->sensor_id0, dev_priv->sensor_id1);
+		pr_debug("no set file for sensorid %04x %04x found\n",
+			 dev_priv->sensor_id0, dev_priv->sensor_id1);
 		return 0;
 	}
 
