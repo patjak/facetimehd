@@ -1,0 +1,7 @@
+.debhelper/
+*.debhelper
+*.substvars
+*.log
+files
+
+facetimehd-dkms/

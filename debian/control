@@ -1,0 +1,15 @@
+Source: facetimehd-dkms
+Section: kernel
+Priority: optional
+Maintainer: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
+Build-Depends: debhelper (>= 9), dkms
+Standards-Version: 3.9.7
+Homepage: https://github.com/patjak/bcwc_pcie
+
+Package: facetimehd-dkms
+Architecture: linux-any
+Depends: ${misc:Depends}, dkms
+Recommends: facetimehd-firmware
+Description: Kernel driver for FacetimeHD camera
+ Linux driver for the Facetime HD (Broadcom 1570) PCIe webcam found in
+ recent Macbooks.

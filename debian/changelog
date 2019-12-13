@@ -1,0 +1,5 @@
+facetimehd-dkms (0.5.7-1) unstable; urgency=medium
+
+  * Initial DKMS package.
+
+ -- Patrik Jakobsson <patrik.r.jakobsson@gmail.com>  Fri, 13 Dec 2019 21:55:44 +1100
