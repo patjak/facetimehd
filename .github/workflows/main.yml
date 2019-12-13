@@ -1,0 +1,26 @@
+name: Build package
+
+on: [push]
+
+jobs:
+  build:
+
+    name: Test build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04, ubuntu-20.04, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install dependencies
+      run: sudo apt-get install -y git-buildpackage debhelper dkms lsb-release
+    - name: Environment survey
+      run:
+        lsb_release -a && uname -a
+    - name: Build
+      run: gbp buildpackage -us -uc --git-ignore-branch --git-upstream-tree=HEAD
+    - name: Test install
+      run: sudo dpkg -i ../facetimehd-dkms_*.deb ; cat /var/lib/dkms/facetimehd/*/build/make.log || true
+    - name: Check install
+      run: modinfo facetimehd
