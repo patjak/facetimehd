@@ -41,6 +41,10 @@
 #define FTHD_MIN_HEIGHT 240
 #define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+# define VFL_TYPE_VIDEO VFL_TYPE_GRABBER
+#endif
+
 static int fthd_buffer_queue_setup(
     struct vb2_queue *vq,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
@@ -729,7 +733,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 			    V4L2_CAP_STREAMING;
 #endif
 	video_set_drvdata(vdev, dev_priv);
-	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
+	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
 	if (ret) {
 		video_device_release(vdev);
 		goto fail_vdev;
