@@ -724,7 +724,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 			    V4L2_CAP_STREAMING;
 	video_set_drvdata(vdev, dev_priv);
 
-	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
+	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
 	if (ret) {
 		video_device_release(vdev);
 		goto fail_vdev;
