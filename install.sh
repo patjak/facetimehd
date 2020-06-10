@@ -1,7 +1,7 @@
 #! /bin/bash
 # Some inspiration from the AUR pkgbuild
 
-if [ ! whoami = root ]; then
+if [ ! $(whoami) = root ]; then
   echo 'You must be root to run this script.'
   exit 13
 fi
