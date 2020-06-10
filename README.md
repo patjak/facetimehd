@@ -11,6 +11,5 @@ See the [Wiki][wiki] for more information:
 [wiki]: https://github.com/patjak/bcwc_pcie/wiki
 
 ## Install:
-If you use arch, install from the AUR
-If not, run build.sh as root:
+If you use arch, install from the AUR. If not, run build.sh as root:
 `sudo ./build.sh`
