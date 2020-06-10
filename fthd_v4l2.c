@@ -550,13 +550,10 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
 		return -EINVAL;
 
-	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-	sizes->stepwise.min_width = FTHD_MIN_WIDTH;
-	sizes->stepwise.max_width = FTHD_MAX_WIDTH;
-	sizes->stepwise.min_height = FTHD_MIN_HEIGHT;
-	sizes->stepwise.max_height = FTHD_MAX_HEIGHT;
-	sizes->stepwise.step_width = 8;
-	sizes->stepwise.step_height = 1;
+	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+	sizes->discrete.width = FTHD_MAX_WIDTH;
+	sizes->discrete.height = FTHD_MAX_HEIGHT;
+
 	return 0;
 }
 
@@ -578,13 +575,10 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	    || interval->height > FTHD_MAX_HEIGHT)
 		return -EINVAL;
 
-	interval->type = V4L2_FRMIVAL_TYPE_STEPWISE;
-	interval->stepwise.step.numerator = 1;
-	interval->stepwise.step.denominator = 1000;
-	interval->stepwise.min.numerator = 33;
-	interval->stepwise.min.denominator = 1000;
-	interval->stepwise.max.numerator = 500;
-	interval->stepwise.max.denominator = 1000;
+	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
+	interval->discrete.numerator = 1;
+	interval->discrete.denominator = 30;
+
 	return 0;
 }
 
