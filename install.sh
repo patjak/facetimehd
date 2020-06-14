@@ -7,7 +7,7 @@ if [ ! $(whoami) = root ]; then
 fi
 
 pkgname=bcwc-pcie
-pkgver=r245.82626d4
+pkgver=git
 url="https://github.com/patjak/bcwc_pcie"
 fwurl="https://github.com/patjak/facetimehd-firmware"
 fwname=facetimehd-firmware
