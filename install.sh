@@ -8,13 +8,11 @@ fi
 
 pkgname=bcwc-pcie
 pkgver=git
-url="https://github.com/patjak/bcwc_pcie"
 fwurl="https://github.com/patjak/facetimehd-firmware"
 fwname=facetimehd-firmware
 srcdir=src
 
 rm -rf ${srcdir}
-
 mkdir $srcdir
 
 if [ ! -f /usr/lib/firmware/facetimehd/firmware.bin ]; then
@@ -27,13 +25,9 @@ if [ ! -f /usr/lib/firmware/facetimehd/firmware.bin ]; then
   popd > /dev/null
 fi
 
-(cd $srcdir; git clone $url $pkgname)
-
-pushd $srcdir/$pkgname/ > /dev/null
 for FILE in dkms.conf Makefile *.[ch]; do
   install -Dm 644 "$FILE" "/usr/src/${pkgname}-${pkgver}/$FILE"
 done
-popd > /dev/null
 
 echo 'Creating modprobe config files'
 echo 'facetimehd' > /etc/modules-load.d/bcwc-pcie.conf
