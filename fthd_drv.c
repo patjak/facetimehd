@@ -541,6 +541,7 @@ static struct pci_driver fthd_pci_driver = {
 
 module_pci_driver(fthd_pci_driver);
 
+MODULE_DEVICE_TABLE(pci, fthd_pci_id_table);
 MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
 MODULE_DESCRIPTION("FacetimeHD camera driver");
 MODULE_LICENSE("GPL");
