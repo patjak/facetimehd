@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/pci.h>
 #include <linux/version.h>
+#include <linux/dma-mapping.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5,4,0)
 #include <linux/pci-aspm.h>
 #endif
@@ -396,7 +397,7 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 		goto fail_irq;
 
 	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
-	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
+	dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(dev_priv->dma_mask));
 
 	pci_set_master(pdev);
 	pci_set_drvdata(pdev, dev_priv);
