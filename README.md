@@ -1,6 +1,9 @@
 facetimehd
 ==========
 
+## fixed make error on Linux 5.18+?
+(needs more help testing)
+
 Linux driver for the Facetime HD (Broadcom 1570) PCIe webcam
 found in recent Macbooks.
 
