@@ -391,7 +391,7 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 		goto fail_irq;
 
 	pr_debug("Setting %ubit DMA mask\n", dev_priv->dma_mask);
-	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
+	dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(dev_priv->dma_mask));
 
 	pci_set_master(pdev);
 	pci_set_drvdata(pdev, dev_priv);
