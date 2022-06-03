@@ -396,7 +396,11 @@ static int fthd_pci_init(struct fthd_private *dev_priv)
 		goto fail_irq;
 
 	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,18,0)
 	pci_set_consistent_dma_mask(pdev, DMA_BIT_MASK(dev_priv->dma_mask));
+#else
+	dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(dev_priv->dma_mask));
+#endif
 
 	pci_set_master(pdev);
 	pci_set_drvdata(pdev, dev_priv);
