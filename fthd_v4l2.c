@@ -683,7 +683,11 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	q->mem_ops = &vb2_dma_sg_memops;
 	q->buf_struct_size = 0;//sizeof(struct vpif_cap_buffer);
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,8,0)
 	q->min_buffers_needed = 1;
+#else
+	q->min_queued_buffers = 1;
+#endif
 	q->lock = &dev_priv->vb2_queue_lock;
 
 	ret = vb2_queue_init(q);
