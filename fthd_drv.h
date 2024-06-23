@@ -28,6 +28,7 @@
 #define FTHD_PCI_ISP_IO 4
 
 #define FTHD_BUFFERS 4
+#define FIRMWARE_VERBOSE false
 
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,
