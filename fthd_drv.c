@@ -542,6 +542,7 @@ static struct pci_driver fthd_pci_driver = {
 	.name = KBUILD_MODNAME,
 	.probe = fthd_pci_probe,
 	.remove = fthd_pci_remove,
+	.shutdown = fthd_pci_remove,
 	.id_table = fthd_pci_id_table,
 #ifdef CONFIG_PM
 	.suspend = fthd_pci_suspend,
