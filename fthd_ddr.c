@@ -17,7 +17,7 @@
  *
  */
 
-#include <linux/random.h>
+#include <linux/prandom.h>
 #include "fthd_drv.h"
 #include "fthd_hw.h"
 #include "fthd_ddr.h"
