@@ -17,7 +17,13 @@
  *
  */
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
 #include <linux/prandom.h>
+#else
+#include <linux/random.h>
+#endif
+
 #include "fthd_drv.h"
 #include "fthd_hw.h"
 #include "fthd_ddr.h"
