@@ -240,6 +240,12 @@ void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int s
 			 list.desc[i].count, list.desc[i].pool, list.desc[i].addr0, list.desc[i].addr1, list.desc[i].tag, ctx->vb, ctx);
 
 		if (ctx->state == BUF_HW_QUEUED || ctx->state == BUF_DRV_QUEUED) {
+			struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(ctx->vb);
+
+			vbuf->sequence = dev_priv->sequence++;
+			vbuf->vb2_buf.timestamp = ktime_get_ns();
+			vbuf->field = V4L2_FIELD_NONE;
+
 			ctx->state = BUF_ALLOC;
 			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
 		}
@@ -254,6 +260,8 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	int i, ret;
 
 	pr_debug("count = %d\n", count);
+	dev_priv->sequence = 0;
+
 	ret = fthd_start_channel(dev_priv, 0);
 	if (ret)
 		return ret;
