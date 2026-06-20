@@ -510,10 +510,14 @@ static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 		struct v4l2_streamparm *parm)
 {
-        struct fthd_private *priv_dev = video_drvdata(filp);
+	/* Report a consistent 30 fps, matching what the sensor actually delivers
+	 * and what enum_frameintervals advertises. The old frametime/1000 value
+	 * (25 fps) disagreed with the real 30 fps rate, which made GStreamer's
+	 * pipewiresrc compute negative frame durations and stall after one frame
+	 * (e.g. GNOME Snapshot froze, while ffplay/v4l2-ctl were unaffected). */
 	struct v4l2_fract timeperframe = {
-		.numerator = priv_dev->frametime,
-		.denominator = 1000,
+		.numerator = 1,
+		.denominator = 30,
 	};
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
