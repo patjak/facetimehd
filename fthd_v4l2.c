@@ -25,6 +25,8 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 
+/* Fallback ceiling used only if the sensor's native size wasn't detected.
+ * The real per-device limit is dev_priv->sensor_width/height. */
 #define FTHD_MAX_WIDTH 1280
 #define FTHD_MAX_HEIGHT 720
 #define FTHD_MIN_WIDTH 320
@@ -405,18 +407,24 @@ static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 				   struct v4l2_pix_format *pix)
 {
 
+	/* Upper bound is the sensor's native resolution (e.g. 1280x720 on
+	 * MacBookPro, 848x588 on the 12-inch MacBook); fall back to the generic
+	 * ceiling if it hasn't been detected yet. */
+	unsigned int max_w = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
+	unsigned int max_h = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+
 	if (pix->pixelformat != V4L2_PIX_FMT_YUYV &&
 	    pix->pixelformat != V4L2_PIX_FMT_YVYU)
 		pix->pixelformat = V4L2_PIX_FMT_YUYV;
 
 	if (pix->width < FTHD_MIN_WIDTH)
 		pix->width = FTHD_MIN_WIDTH;
-	if (pix->width > FTHD_MAX_WIDTH)
-		pix->width = FTHD_MAX_WIDTH;
+	if (pix->width > max_w)
+		pix->width = max_w;
 	if (pix->height < FTHD_MIN_HEIGHT)
 		pix->height = FTHD_MIN_HEIGHT;
-	if (pix->height > FTHD_MAX_HEIGHT)
-		pix->height = FTHD_MAX_HEIGHT;
+	if (pix->height > max_h)
+		pix->height = max_h;
 
 	pix->colorspace = V4L2_COLORSPACE_SRGB;
 	pix->field = V4L2_FIELD_NONE;
@@ -543,6 +551,8 @@ static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		struct v4l2_frmsizeenum *sizes)
 {
+	struct fthd_private *dev_priv = video_drvdata(filp);
+
 	if (sizes->index)
 		return -EINVAL;
 
@@ -551,8 +561,8 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		return -EINVAL;
 
 	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-	sizes->discrete.width = FTHD_MAX_WIDTH;
-	sizes->discrete.height = FTHD_MAX_HEIGHT;
+	sizes->discrete.width  = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
+	sizes->discrete.height = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
 
 	return 0;
 }
@@ -560,6 +570,10 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		struct v4l2_frmivalenum *interval)
 {
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	unsigned int max_w = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
+	unsigned int max_h = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+
 	pr_debug("%s\n", __FUNCTION__);
 
 	if (interval->index)
@@ -571,8 +585,8 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		return -EINVAL;
 
 	if (interval->width & 7
-	    || interval->width > FTHD_MAX_WIDTH
-	    || interval->height > FTHD_MAX_HEIGHT)
+	    || interval->width > max_w
+	    || interval->height > max_h)
 		return -EINVAL;
 
 	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
@@ -742,10 +756,12 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 		video_device_release(vdev);
 		goto fail_vdev;
 	}
-	dev_priv->fmt.fmt.sizeimage = 1280 * 720 * 2;
+	/* Default to the sensor's native resolution (detected at probe), or the
+	 * generic ceiling if detection didn't run. */
+	dev_priv->fmt.fmt.width  = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
+	dev_priv->fmt.fmt.height = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
 	dev_priv->fmt.fmt.pixelformat = V4L2_PIX_FMT_YUYV;
-	dev_priv->fmt.fmt.width = 1280;
-	dev_priv->fmt.fmt.height = 720;
+	dev_priv->fmt.fmt.sizeimage = dev_priv->fmt.fmt.width * dev_priv->fmt.fmt.height * 2;
 	dev_priv->fmt.planes = 1;
 
 	fthd_v4l2_adjust_format(dev_priv, &dev_priv->fmt.fmt);

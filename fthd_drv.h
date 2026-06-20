@@ -103,6 +103,11 @@ struct fthd_private {
 	int sensor_count;
 	int sensor_id0;
 	int sensor_id1;
+	/* Native sensor resolution, read from the firmware's per-channel camera
+	 * config. MacBookPro sensors report 1280x720; the 12-inch MacBook
+	 * (MacBook8,1, sensor 1675) reports 848x588. 0 until detected. */
+	unsigned int sensor_width;
+	unsigned int sensor_height;
 
 	struct fthd_fmt fmt;
 
