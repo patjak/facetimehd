@@ -439,6 +439,11 @@ static int fthd_firmware_start(struct fthd_private *dev_priv)
 	if (ret)
 		return ret;
 
+	/* Query the sensor's native resolution now so fthd_v4l2_register()
+	 * can advertise it. Non-fatal: if it fails the V4L2 layer falls back
+	 * to a default size. */
+	fthd_isp_cmd_channel_camera_config(dev_priv);
+
 	return fthd_isp_cmd_set_loadfile(dev_priv);
 
 }

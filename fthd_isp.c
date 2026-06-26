@@ -648,6 +648,22 @@ int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv)
 			break;
 		snprintf(prefix, sizeof(prefix)-1, "CAMCONF%d ", i);
 		print_hex_dump_bytes(prefix, DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
+
+		/* The first two u16s of the config payload are the sensor's
+		 * native width and height (e.g. 1280x720 on MacBookPro,
+		 * 848x588 on the 12-inch MacBook). Record sensor 0's size so
+		 * the V4L2 layer can advertise the real resolution instead of
+		 * a hardcoded one. */
+		if (i == 0) {
+			unsigned int w = cmd.data[0] | (cmd.data[1] << 8);
+			unsigned int h = cmd.data[2] | (cmd.data[3] << 8);
+
+			if (w && h) {
+				dev_priv->sensor_width = w;
+				dev_priv->sensor_height = h;
+				pr_debug("sensor native resolution: %ux%u\n", w, h);
+			}
+		}
 	}
 	return ret;
 }
@@ -1115,16 +1131,15 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	if (ret)
 		return ret;
 
-	if (dev_priv->fmt.fmt.width < 1280 ||
-	    dev_priv->fmt.fmt.height < 720) {
-		x1 = 160;
-		x2 = 960;
-	} else {
-		x1 = 0;
-		x2 = 1280;
-	}
+	/* Crop the full sensor area. The 12-inch MacBook (MacBook8,1, sensor
+	 * 1675) reports an 848x588 sensor via CISP_CMD_CH_CAMERA_CONFIG_GET;
+	 * the old hardcoded 1280x720 crop exceeds that array and makes the
+	 * sensor interface throw SIF errors. Use the negotiated format size. */
+	x1 = 0;
+	x2 = dev_priv->fmt.fmt.width;
 
-	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2, 720);
+	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2,
+					    dev_priv->fmt.fmt.height);
 	if (ret)
 		return ret;
 
