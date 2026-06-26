@@ -129,6 +129,16 @@ out:
 
 static int isp_enable_sensor(struct fthd_private *dev_priv)
 {
+	int ret;
+
+	/* Power on sensor CMOS via SMC; some systems may not have CMPE */
+	ret = isp_acpi_set_power(dev_priv, 1);
+	if (ret)
+		dev_warn(&dev_priv->pdev->dev,
+			 "ACPI sensor power-on failed (%d), continuing\n", ret);
+
+	mdelay(100); /* wait for sensor power rail to stabilize */
+
 	return 0;
 }
 
@@ -587,7 +597,11 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
 	cmd.addr = file->offset;
 	cmd.length = file->size;
-	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
+	ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
+	if (ret)
+		dev_warn(&dev_priv->pdev->dev,
+			 "set file load failed (%d), continuing without calibration\n", ret);
+	return 0;
 }
 
 int fthd_isp_cmd_channel_info(struct fthd_private *dev_priv)
@@ -1276,9 +1290,6 @@ int isp_init(struct fthd_private *dev_priv)
 	ret = isp_load_firmware(dev_priv);
 	if (ret)
 		return ret;
-
-	isp_acpi_set_power(dev_priv, 1);
-	mdelay(20);
 
 	pci_set_power_state(dev_priv->pdev, PCI_D0);
 	mdelay(10);
