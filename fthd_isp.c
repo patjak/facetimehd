@@ -129,6 +129,16 @@ out:
 
 static int isp_enable_sensor(struct fthd_private *dev_priv)
 {
+	int ret;
+
+	/* Power on sensor CMOS via SMC; some systems may not have CMPE */
+	ret = isp_acpi_set_power(dev_priv, 1);
+	if (ret)
+		dev_warn(&dev_priv->pdev->dev,
+			 "ACPI sensor power-on failed (%d), continuing\n", ret);
+
+	mdelay(100); /* wait for sensor power rail to stabilize */
+
 	return 0;
 }
 
@@ -1261,9 +1271,6 @@ int isp_init(struct fthd_private *dev_priv)
 	ret = isp_load_firmware(dev_priv);
 	if (ret)
 		return ret;
-
-	isp_acpi_set_power(dev_priv, 1);
-	mdelay(20);
 
 	pci_set_power_state(dev_priv->pdev, PCI_D0);
 	mdelay(10);
