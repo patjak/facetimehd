@@ -597,7 +597,11 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
 	cmd.addr = file->offset;
 	cmd.length = file->size;
-	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
+	ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
+	if (ret)
+		dev_warn(&dev_priv->pdev->dev,
+			 "set file load failed (%d), continuing without calibration\n", ret);
+	return 0;
 }
 
 int fthd_isp_cmd_channel_info(struct fthd_private *dev_priv)
