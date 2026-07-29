@@ -1241,7 +1241,7 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_start(dev_priv);
 	if (ret)
 		return ret;
-	mdelay(1000); /* Needed to settle AE */
+	msleep(1000); /* Needed to settle AE */
 	return 0;
 }
 
