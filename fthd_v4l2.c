@@ -669,7 +669,7 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		ret = fthd_isp_cmd_channel_awb(dev_priv, 0, ctrl->val);
-
+		break;
 	default:
 		break;
 
