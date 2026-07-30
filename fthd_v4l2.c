@@ -268,6 +268,9 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	if (ret)
 		return ret;
 
+	/* Starting the channel resets the ISP, so push the control values down. */
+	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
+
 	for(i = 0; i < FTHD_BUFFERS && count; i++, count--) {
 		ctx = dev_priv->h2t_bufs + i;
 		if (ctx->state != BUF_DRV_QUEUED)
