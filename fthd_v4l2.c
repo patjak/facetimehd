@@ -298,8 +298,7 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 	    for(i = 0; i < FTHD_BUFFERS;i++) {
 		    ctx = dev_priv->h2t_bufs + i;
 		    if (ctx->state == BUF_DRV_QUEUED || ctx->state == BUF_HW_QUEUED) {
-			    vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
-			    ctx->vb = NULL;
+			    vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
 			    ctx->state = BUF_ALLOC;
 		}
 	    }
