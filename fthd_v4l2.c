@@ -428,7 +428,7 @@ static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 
 	pix->colorspace = V4L2_COLORSPACE_SRGB;
 	pix->field = V4L2_FIELD_NONE;
-	pix->width = ALIGN(pix->width, 7);
+	pix->width = ALIGN(pix->width, 8);
 
 	switch (pix->pixelformat) {
 /*
