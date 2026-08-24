@@ -319,12 +319,35 @@ static struct vb2_ops vb2_queue_ops = {
 #endif
 };
 
+static int fthd_v4l2_open(struct file *filp)
+{
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	int ret;
+
+	ret = v4l2_fh_open(filp);
+	if (!ret)
+		atomic_inc(&dev_priv->users);
+
+	return ret;
+}
+
+static int fthd_v4l2_release(struct file *filp)
+{
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	int ret;
+
+	ret = vb2_fop_release(filp);
+	atomic_dec(&dev_priv->users);
+
+	return ret;
+}
+
 static struct v4l2_file_operations fthd_vdev_fops = {
 	.owner          = THIS_MODULE,
-	.open           = v4l2_fh_open,
+	.open           = fthd_v4l2_open,
 
 	.read		= vb2_fop_read,
-	.release        = vb2_fop_release,
+	.release        = fthd_v4l2_release,
 	.poll           = vb2_fop_poll,
 	.mmap           = vb2_fop_mmap,
 	.unlocked_ioctl = video_ioctl2

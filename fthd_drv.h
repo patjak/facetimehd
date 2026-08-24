@@ -54,7 +54,7 @@ struct fthd_private {
 	struct v4l2_device v4l2_dev;
 	struct video_device *videodev;
 	struct mutex ioctl_lock;
-	int users;
+	atomic_t users;
 	/* lock for synchronizing with irq/workqueue */
 	spinlock_t io_lock;
 
