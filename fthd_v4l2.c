@@ -376,16 +376,22 @@ static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 				   struct v4l2_fmtdesc *fmt)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
 	char *desc = NULL;
+#endif
 
 	switch (fmt->index) {
 	case 0:
 		fmt->pixelformat = V4L2_PIX_FMT_YUYV;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
 		desc = "YUYV";
+#endif
 		break;
 	case 1:
 		fmt->pixelformat = V4L2_PIX_FMT_YVYU;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
 		desc = "YVYU";
+#endif
 		break;
 	/* We don't support the mplane yet
 	case 2:
@@ -398,7 +404,9 @@ static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 	}
 
 	fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
 	strncpy(fmt->description, desc, sizeof(fmt->description));
+#endif
 
 	return 0;
 }
