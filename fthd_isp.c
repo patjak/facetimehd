@@ -707,7 +707,7 @@ int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
 	cmd.x1 = x1;
-	cmd.y2 = y2;
+	cmd.y1 = y1;
 	cmd.x2 = x2;
 	cmd.y2 = y2;
 	len = sizeof(cmd);
