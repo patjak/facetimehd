@@ -79,8 +79,8 @@ static int fthd_buffer_queue_setup(
 	}
 
 	*nbuffers = (4096 * 4096) / total_size;
-	if (*nbuffers > 4)
-		*nbuffers = 4;
+	if (*nbuffers > FTHD_BUFFERS)
+		*nbuffers = FTHD_BUFFERS;
 	if (*nbuffers <= 1)
 		return -ENOMEM;
 	pr_debug("using %d buffers\n", *nbuffers);
@@ -669,7 +669,7 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		ret = fthd_isp_cmd_channel_awb(dev_priv, 0, ctrl->val);
-
+		break;
 	default:
 		break;
 
