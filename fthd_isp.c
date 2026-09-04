@@ -1232,12 +1232,6 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
-	if (ret)
-		return ret;
-	ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
-	if (ret)
-		return ret;
 	ret = fthd_isp_cmd_channel_start(dev_priv);
 	if (ret)
 		return ret;
