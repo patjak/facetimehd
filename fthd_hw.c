@@ -278,7 +278,9 @@ static int fthd_hw_s2_init_ddr_controller_soc(struct fthd_private *dev_priv)
 	FTHD_S2_REG_WRITE(reg & 0xfffffcff, S2_PLL_CTRL_9C);
 	FTHD_S2_REG_WRITE(reg | 0x300, S2_PLL_CTRL_9C);
 
-	fthd_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
+	ret = fthd_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
+	if (ret)
+		return ret;
 
 	fthd_hw_ddr_phy_soft_reset(dev_priv);
 
