@@ -325,6 +325,7 @@ static void fthd_pci_remove(struct pci_dev *pdev)
 	dev_priv = pci_get_drvdata(pdev);
 	if (!dev_priv)
 		goto out;
+	pci_set_drvdata(pdev, NULL);
 
 	fthd_debugfs_exit(dev_priv);
 
@@ -354,6 +355,7 @@ static void fthd_pci_remove(struct pci_dev *pdev)
 	pci_release_region(pdev, FTHD_PCI_S2_IO);
 	pci_release_region(pdev, FTHD_PCI_S2_MEM);
 	pci_release_region(pdev, FTHD_PCI_ISP_IO);
+	kfree(dev_priv);
 out:
 	pci_disable_device(pdev);
 }
@@ -471,6 +473,7 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	mutex_init(&dev_priv->vb2_queue_lock);
 
 	mutex_init(&dev_priv->ioctl_lock);
+	atomic_set(&dev_priv->users, 0);
 	INIT_LIST_HEAD(&dev_priv->buffer_queue);
 	INIT_WORK(&dev_priv->irq_work, fthd_irq_work);
 
@@ -525,6 +528,17 @@ fail_work:
 #ifdef CONFIG_PM
 static int fthd_pci_suspend(struct pci_dev *pdev, pm_message_t state)
 {
+	struct fthd_private *dev_priv = pci_get_drvdata(pdev);
+
+	/* Tearing down the firmware and DMA mappings under an open V4L2 file
+	 * leaves the file handle pointing at freed driver state.  Refuse the
+	 * transition instead of risking a use-after-free on resume. */
+	if (dev_priv && atomic_read(&dev_priv->users)) {
+		dev_warn(&pdev->dev,
+			 "camera is in use; close video applications before suspend\n");
+		return -EBUSY;
+	}
+
 	fthd_pci_remove(pdev);
 
 	return 0;
@@ -532,9 +546,7 @@ static int fthd_pci_suspend(struct pci_dev *pdev, pm_message_t state)
 
 static int fthd_pci_resume(struct pci_dev *pdev)
 {
-	fthd_pci_probe(pdev, NULL);
-
-	return 0;
+	return fthd_pci_probe(pdev, NULL);
 }
 #endif /* CONFIG_PM */
 
