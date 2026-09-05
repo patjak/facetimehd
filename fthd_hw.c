@@ -136,7 +136,7 @@ static int fthd_hw_s2_pll_init(struct fthd_private *dev_priv, u32 ddr_speed)
 		reg = FTHD_S2_REG_READ(S2_PLL_CMU_STATUS);
 		udelay(10);
 		retries++;
-	} while (((reg & 0xff00) & S2_PLL_CMU_STATUS_LOCKED) && retries <= 10000);
+	} while (!(reg & S2_PLL_CMU_STATUS_LOCKED) && retries <= 10000);
 
 	if (retries > 10000) {
 		dev_info(&dev_priv->pdev->dev, "Failed to lock S2 PLL: 0x%x\n",
@@ -278,7 +278,9 @@ static int fthd_hw_s2_init_ddr_controller_soc(struct fthd_private *dev_priv)
 	FTHD_S2_REG_WRITE(reg & 0xfffffcff, S2_PLL_CTRL_9C);
 	FTHD_S2_REG_WRITE(reg | 0x300, S2_PLL_CTRL_9C);
 
-	fthd_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
+	ret = fthd_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
+	if (ret)
+		return ret;
 
 	fthd_hw_ddr_phy_soft_reset(dev_priv);
 
