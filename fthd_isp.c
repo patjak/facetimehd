@@ -697,19 +697,19 @@ int fthd_isp_cmd_channel_camera_config_select(struct fthd_private *dev_priv, int
 }
 
 int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
-				  int x1, int y1, int x2, int y2)
+				  int x, int y, int width, int height)
 {
 	struct isp_cmd_channel_set_crop cmd;
 	int len;
 
-	pr_debug("set crop: [%d, %d] -> [%d, %d]\n", x1, y1, x2, y2);
+	pr_debug("set crop: %dx%d at [%d, %d]\n", width, height, x, y);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
-	cmd.x1 = x1;
-	cmd.y1 = y1;
-	cmd.x2 = x2;
-	cmd.y2 = y2;
+	cmd.x = x;
+	cmd.y = y;
+	cmd.width = width;
+	cmd.height = height;
 	len = sizeof(cmd);
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
 }
@@ -1136,7 +1136,8 @@ int fthd_isp_cmd_channel_awb(struct fthd_private *dev_priv, int channel, int ena
 
 int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 {
-	int ret, x1 = 0, x2 = 0, pixelformat;
+	unsigned int sw, sh, ow, oh, cw, ch;
+	int ret, x, y, pixelformat;
 
 	ret = fthd_isp_cmd_channel_camera_config(dev_priv);
 	if (ret)
@@ -1145,15 +1146,34 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	if (ret)
 		return ret;
 
-	/* Crop the full sensor area. The 12-inch MacBook (MacBook8,1, sensor
-	 * 1675) reports an 848x588 sensor via CISP_CMD_CH_CAMERA_CONFIG_GET;
-	 * the old hardcoded 1280x720 crop exceeds that array and makes the
-	 * sensor interface throw SIF errors. Use the negotiated format size. */
-	x1 = 0;
-	x2 = dev_priv->fmt.fmt.width;
+	/* Crop the largest centred window with the output's aspect ratio and
+	 * let the ISP scale it down. The window and its offset are derived
+	 * from the sensor's own reported size, so neither can exceed it.
+	 */
+	sw = dev_priv->sensor_width  ? : dev_priv->fmt.fmt.width;
+	sh = dev_priv->sensor_height ? : dev_priv->fmt.fmt.height;
+	ow = dev_priv->fmt.fmt.width;
+	oh = dev_priv->fmt.fmt.height;
 
-	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2,
-					    dev_priv->fmt.fmt.height);
+	if (!ow || !oh) {
+		cw = sw;
+		ch = sh;
+	} else if (ow * sh >= sw * oh) {
+		/* output is wider than the sensor: keep the full width */
+		cw = sw;
+		ch = sw * oh / ow;
+	} else {
+		/* output is taller than the sensor: keep the full height */
+		ch = sh;
+		cw = sh * ow / oh;
+	}
+	cw = min(cw, sw) & ~1u;
+	ch = min(ch, sh) & ~1u;
+
+	x = ((sw - cw) / 2) & ~1u;
+	y = ((sh - ch) / 2) & ~1u;
+
+	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x, y, cw, ch);
 	if (ret)
 		return ret;
 
