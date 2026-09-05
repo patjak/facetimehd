@@ -42,8 +42,23 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 	int total_len = 0, dma_length;
 	dma_addr_t dma_addr;
 	
-	for(i = 0; i < sgtable->nents; i++)
-		total_len += sg_dma_len(sgtable->sgl + i);
+	for(i = 0; i < sgtable->nents; i++) {
+		sg = sgtable->sgl + i;
+
+		/* The IOMMU descriptor holds a page number only, so a segment
+		 * that does not start on a page boundary would be mapped from
+		 * the start of its page and the hardware would write up to
+		 * 4095 bytes in front of the buffer.
+		 */
+		if (sg->offset || (sg_dma_address(sg) & 0xfff)) {
+			dev_err(&dev_priv->pdev->dev,
+				"Buffer segment %d is not page aligned (offset %u), refusing\n",
+				i, sg->offset);
+			return NULL;
+		}
+
+		total_len += sg_dma_len(sg);
+	}
 	
 	if (!total_len)
 		return NULL;
@@ -73,9 +88,7 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 	pos = 0x9000 + obj->offset * 4;
 	for(i = 0; i < sgtable->nents; i++) {
 		sg = sgtable->sgl + i;
-		WARN_ON(sg->offset);
 		dma_addr = sg_dma_address(sg);
-		WARN_ON(dma_addr & 0xfff);
 		dma_addr >>= 12;
 		
 		for(dma_length = 0; dma_length < sg_dma_len(sg); dma_length += 0x1000) {
