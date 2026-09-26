@@ -544,10 +544,10 @@ struct isp_cmd_channel_camera_config {
 
 struct isp_cmd_channel_set_crop {
 	u32 channel;
-	u32 x1;
-	u32 y1;
-	u32 x2;
-	u32 y2;
+	u32 x;
+	u32 y;
+	u32 width;
+	u32 height;
 };
 
 struct isp_cmd_channel_output_config {
@@ -726,7 +726,7 @@ extern int fthd_isp_cmd_channel_start(struct fthd_private *dev_priv);
 extern int fthd_isp_cmd_channel_stop(struct fthd_private *dev_priv);
 extern int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv);
 extern int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
-					 int x1, int y1, int x2, int y2);
+					 int x, int y, int width, int height);
 extern int fthd_isp_cmd_channel_output_config_set(struct fthd_private *dev_priv, int channel, int x, int y, int pixelformat);
 extern int fthd_isp_cmd_channel_recycle_mode(struct fthd_private *dev_priv, int channel, int mode);
 extern int fthd_isp_cmd_channel_recycle_start(struct fthd_private *dev_priv, int channel);
