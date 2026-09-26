@@ -700,9 +700,27 @@ int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
 				  int x, int y, int width, int height)
 {
 	struct isp_cmd_channel_set_crop cmd;
+	unsigned int sw = dev_priv->sensor_width;
+	unsigned int sh = dev_priv->sensor_height;
 	int len;
 
 	pr_debug("set crop: %dx%d at [%d, %d]\n", width, height, x, y);
+
+	if (x < 0 || y < 0 || width <= 0 || height <= 0 ||
+	    (sw && (unsigned int)x + width > sw) ||
+	    (sh && (unsigned int)y + height > sh)) {
+		dev_err(&dev_priv->pdev->dev,
+			"crop %dx%d at %d,%d leaves the %ux%u sensor\n",
+			width, height, x, y, sw, sh);
+		return -ERANGE;
+	}
+
+	if ((x & 1) && (width & 1)) {
+		dev_err(&dev_priv->pdev->dev,
+			"crop width %d and x offset %d must not both be odd\n",
+			width, x);
+		return -ERANGE;
+	}
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
