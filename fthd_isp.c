@@ -520,13 +520,13 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	struct isp_mem_obj *file;
 	const struct firmware *fw;
 	const char *filename = NULL;
-	const char *vendor, *board;
+	const char *vendor, *model;
 	int ret = 0;
 
 	pr_debug("set loadfile\n");
 
-	vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
-	board = dmi_get_system_info(DMI_BOARD_NAME);
+	vendor = dmi_get_system_info(DMI_SYS_VENDOR);
+	model = dmi_get_system_info(DMI_PRODUCT_NAME);
 
 	memset(&cmd, 0, sizeof(cmd));
 
@@ -541,8 +541,8 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		filename = "facetimehd/9112_01XX.dat";
 		break;
 	case 0x9770:
-		if (vendor && board && !strcmp(vendor, "Apple Inc.") &&
-		    !strncmp(board, "MacBookAir", sizeof("MacBookAir")-1)) {
+		if (vendor && model && !strcmp(vendor, "Apple Inc.") &&
+		    !strncmp(model, "MacBookAir", sizeof("MacBookAir") - 1)) {
 			filename = "facetimehd/1771_01XX.dat";
 			break;
 		}
