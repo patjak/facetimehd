@@ -59,8 +59,24 @@ static int fthd_buffer_queue_setup(
 	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
 	int i, total_size = 0;
 
-	if (*nplanes)
-		return sizes[0] < (cur_fmt->bytesperline * cur_fmt->height) ? -EINVAL : 0;
+	/*
+	 * VIDIOC_CREATE_BUFS arrives with the plane count already set and
+	 * needs the allocator device filled in as well: vb2 hands
+	 * alloc_devs[] straight to the DMA allocator, which rejects a NULL
+	 * device.
+	 */
+	if (*nplanes) {
+		if (sizes[0] < cur_fmt->bytesperline * cur_fmt->height)
+			return -EINVAL;
+		for (i = 0; i < *nplanes; i++) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+			alloc_devs[i] = &dev_priv->pdev->dev;
+#else
+			alloc_ctxs[i] = dev_priv->alloc_ctx;
+#endif
+		}
+		return 0;
+	}
 
 	*nplanes = dev_priv->fmt.planes;
 
