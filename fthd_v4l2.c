@@ -160,7 +160,7 @@ static void fthd_buffer_queue(struct vb2_buffer *vb)
 		ctx->state = BUF_HW_QUEUED;
 		wmb();
 		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p\n", i, list->field0,
-			 list->desc[i].count, list->desc[i].pool, list->desc[i].addr0, list->desc[i].addr1, list->desc[i].tag, ctx->vb);
+			 list->desc[0].count, list->desc[0].pool, list->desc[0].addr0, list->desc[0].addr1, list->desc[0].tag, ctx->vb);
 
 		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
 			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
