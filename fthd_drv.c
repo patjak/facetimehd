@@ -570,6 +570,17 @@ static struct pci_driver fthd_pci_driver = {
 module_pci_driver(fthd_pci_driver);
 
 MODULE_FIRMWARE("facetimehd/firmware.bin");
+MODULE_FIRMWARE("facetimehd/1222_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1571_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1575_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1671_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1674_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1675_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1771_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1871_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1874_01XX.dat");
+MODULE_FIRMWARE("facetimehd/8221_01XX.dat");
+MODULE_FIRMWARE("facetimehd/9112_01XX.dat");
 MODULE_DEVICE_TABLE(pci, fthd_pci_id_table);
 MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
 MODULE_DESCRIPTION("FacetimeHD camera driver");
