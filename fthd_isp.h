@@ -738,6 +738,7 @@ extern int fthd_isp_cmd_channel_error_handling_config(struct fthd_private *dev_p
 extern int fthd_isp_cmd_channel_streaming_mode(struct fthd_private *dev_priv, int channel, int mode);
 extern int fthd_isp_cmd_channel_frame_rate_min(struct fthd_private *dev_priv, int channel, int rate);
 extern int fthd_isp_cmd_channel_frame_rate_max(struct fthd_private *dev_priv, int channel, int rate);
+extern int fthd_isp_ae_frame_rate_min(struct fthd_private *dev_priv, bool auto_priority);
 extern int fthd_isp_cmd_camera_config(struct fthd_private *dev_priv);
 extern int fthd_isp_cmd_channel_ae_speed_set(struct fthd_private *dev_priv, int channel, int speed);
 extern int fthd_isp_cmd_channel_ae_stability_set(struct fthd_private *dev_priv, int channel, int stability);
