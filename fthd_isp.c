@@ -585,15 +585,20 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	}
 
 	if (!filename) {
-		pr_debug("no set file for sensorid %04x %04x found\n",
+		dev_info(&dev_priv->pdev->dev,
+			 "no set file for sensor %04x %04x, continuing without calibration\n",
 			 dev_priv->sensor_id0, dev_priv->sensor_id1);
 		return 0;
 	}
 
 	/* The set file is allowed to be missing but we don't get calibration */
 	ret = request_firmware(&fw, filename, &dev_priv->pdev->dev);
-	if (ret)
+	if (ret) {
+		dev_info(&dev_priv->pdev->dev,
+			 "set file %s is missing, continuing without calibration\n",
+			 filename);
 		return 0;
+	}
 
 	/* Firmware memory is preallocated at init time */
 	BUG_ON(dev_priv->set_file);
@@ -611,6 +616,8 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	if (ret)
 		dev_warn(&dev_priv->pdev->dev,
 			 "set file load failed (%d), continuing without calibration\n", ret);
+	else
+		dev_info(&dev_priv->pdev->dev, "loaded set file %s\n", filename);
 	return 0;
 }
 
