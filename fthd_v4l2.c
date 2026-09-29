@@ -585,6 +585,33 @@ static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 	return fthd_v4l2_ioctl_g_parm(filp, priv, parm);
 }
 
+/* Report the sensor area the scaler reads from. V4L2_SEL_TGT_CROP is left
+ * out: the window in use depends on the negotiated format.
+ */
+static int fthd_v4l2_ioctl_g_selection(struct file *filp, void *priv,
+		struct v4l2_selection *sel)
+{
+	struct fthd_private *dev_priv = video_drvdata(filp);
+
+	if (sel->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	switch (sel->target) {
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	sel->r.left = 0;
+	sel->r.top = 0;
+	sel->r.width = dev_priv->sensor_width ? : FTHD_MAX_WIDTH;
+	sel->r.height = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+
+	return 0;
+}
+
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		struct v4l2_frmsizeenum *sizes)
 {
@@ -667,6 +694,7 @@ static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 
 	.vidioc_g_parm          = fthd_v4l2_ioctl_g_parm,
 	.vidioc_s_parm          = fthd_v4l2_ioctl_s_parm,
+	.vidioc_g_selection     = fthd_v4l2_ioctl_g_selection,
 	.vidioc_enum_framesizes = fthd_v4l2_ioctl_enum_framesizes,
 	.vidioc_enum_frameintervals = fthd_v4l2_ioctl_enum_frameintervals,
 
