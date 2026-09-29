@@ -265,8 +265,17 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	dev_priv->sequence = 0;
 
 	ret = fthd_start_channel(dev_priv, 0);
-	if (ret)
+	if (ret) {
+		/* vb2 owns the buffers again if the queue never starts. */
+		for (i = 0; i < FTHD_BUFFERS; i++) {
+			ctx = dev_priv->h2t_bufs + i;
+			if (ctx->state != BUF_DRV_QUEUED)
+				continue;
+			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_QUEUED);
+			ctx->state = BUF_ALLOC;
+		}
 		return ret;
+	}
 
 	/* Starting the channel resets the ISP, so push the control values down. */
 	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
@@ -279,8 +288,9 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
 			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
 			ctx->state = BUF_ALLOC;
+			continue;
 		}
-			ctx->state = BUF_HW_QUEUED;
+		ctx->state = BUF_HW_QUEUED;
 	}
 	return 0;
 }
