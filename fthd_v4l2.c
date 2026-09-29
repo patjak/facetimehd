@@ -8,6 +8,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/math64.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
@@ -543,46 +544,45 @@ static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 		struct v4l2_streamparm *parm)
 {
-	/* Report a consistent 30 fps, matching what the sensor actually delivers
-	 * and what enum_frameintervals advertises. The old frametime/1000 value
-	 * (25 fps) disagreed with the real 30 fps rate, which made GStreamer's
-	 * pipewiresrc compute negative frame durations and stall after one frame
-	 * (e.g. GNOME Snapshot froze, while ffplay/v4l2-ctl were unaffected). */
-	struct v4l2_fract timeperframe = {
-		.numerator = 1,
-		.denominator = 30,
-	};
+	struct fthd_private *dev_priv = video_drvdata(filp);
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
 	parm->parm.capture.readbuffers = FTHD_BUFFERS;
 	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
-	parm->parm.capture.timeperframe = timeperframe;
+	parm->parm.capture.timeperframe.numerator = FTHD_FRAME_RATE_SCALE;
+	parm->parm.capture.timeperframe.denominator = READ_ONCE(dev_priv->frame_rate);
 	return 0;
 }
 
 static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 		struct v4l2_streamparm *parm)
 {
-
-        struct fthd_private *dev_priv = video_drvdata(filp);
-	struct v4l2_fract *timeperframe;
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	struct v4l2_fract *tpf = &parm->parm.capture.timeperframe;
+	u64 rate = FTHD_FRAME_RATE_MAX;
+	int ret;
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
+	if (tpf->numerator && tpf->denominator)
+		rate = div_u64((u64)tpf->denominator * FTHD_FRAME_RATE_SCALE,
+			       tpf->numerator);
+	rate = clamp_t(u64, rate, FTHD_FRAME_RATE_MIN, FTHD_FRAME_RATE_MAX);
 
-	timeperframe = &parm->parm.capture.timeperframe;
-
-	if(timeperframe->denominator == 0) {
-		timeperframe->numerator = 20;
-		timeperframe->denominator = 1000;
+	ret = mutex_lock_interruptible(&dev_priv->vb2_queue_lock);
+	if (ret)
+		return ret;
+	/* Rate commands take effect at channel start. Do not promise a live change. */
+	if (vb2_is_streaming(&dev_priv->vb2_queue)) {
+		ret = -EBUSY;
+	} else {
+		WRITE_ONCE(dev_priv->frame_rate, (u32)rate);
+		ret = fthd_v4l2_ioctl_g_parm(filp, priv, parm);
 	}
-
-	dev_priv->frametime = clamp_t(unsigned int, timeperframe->numerator * 1000 /
-				timeperframe->denominator, 20, 500);
-
-	return fthd_v4l2_ioctl_g_parm(filp, priv, parm);
+	mutex_unlock(&dev_priv->vb2_queue_lock);
+	return ret;
 }
 
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
