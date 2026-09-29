@@ -597,9 +597,13 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
 		return -EINVAL;
 
-	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-	sizes->discrete.width  = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
-	sizes->discrete.height = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	sizes->stepwise.min_width  = FTHD_MIN_WIDTH;
+	sizes->stepwise.max_width  = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
+	sizes->stepwise.step_width = 8;
+	sizes->stepwise.min_height  = FTHD_MIN_HEIGHT;
+	sizes->stepwise.max_height  = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+	sizes->stepwise.step_height = 1;
 
 	return 0;
 }
