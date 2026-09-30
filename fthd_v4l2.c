@@ -216,12 +216,15 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	dma_list->count = 1;
 	dma_list->desc[0].count = 1;
 	dma_list->desc[0].pool = 0x02;
-	dma_list->desc[0].addr0 = (ctx->plane[0]->offset << 12) | 0xc0000000;
+	dma_list->desc[0].addr0 = ((ctx->plane[0]->offset << 12) | 0xc0000000) +
+		ctx->plane[0]->byte_offset;
 
 	if (dev_priv->fmt.planes >= 2)
-		dma_list->desc[0].addr1 = (ctx->plane[1]->offset << 12) | 0xc0000000;
+		dma_list->desc[0].addr1 = ((ctx->plane[1]->offset << 12) | 0xc0000000) +
+		ctx->plane[1]->byte_offset;
 	if (dev_priv->fmt.planes >= 3)
-		dma_list->desc[0].addr2 = (ctx->plane[2]->offset << 12) | 0xc0000000;
+		dma_list->desc[0].addr2 = ((ctx->plane[2]->offset << 12) | 0xc0000000) +
+		ctx->plane[2]->byte_offset;
 
 	dma_list->desc[0].tag = (u64)ctx;
 	init_waitqueue_head(&ctx->wq);
@@ -741,7 +744,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	/* VB2_USERPTR not supported due to missing support for unaligned
 	 * pointers.
 	 */
-	q->io_modes = VB2_MMAP | VB2_DMABUF | VB2_READ;
+	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
 	q->drv_priv = dev_priv;
 	q->ops = &vb2_queue_ops;
 	q->mem_ops = &vb2_dma_sg_memops;
