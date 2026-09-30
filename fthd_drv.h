@@ -122,6 +122,9 @@ struct fthd_private {
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	int frametime;
 	unsigned int sequence;
+	/* Serialises the warmup counter against the buffer return handler. */
+	spinlock_t warmup_lock;
+	int warmup_frames;	/* frames still to drop after channel start */
 	struct dentry *debugfs;
 };
 
