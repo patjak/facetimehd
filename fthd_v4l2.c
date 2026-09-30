@@ -203,7 +203,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 		  sgtable = vb2_dma_sg_plane_desc(vb, i);
 		  ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
 		  if(!ctx->plane[i])
-			  return -ENOMEM;
+			  goto err_free;
 		}
 	}
 
@@ -229,6 +229,17 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	dma_list->desc[0].tag = (u64)ctx;
 	init_waitqueue_head(&ctx->wq);
 	return 0;
+
+err_free:
+	for(i = 0; i < dev_priv->fmt.planes; i++) {
+		iommu_free(dev_priv, ctx->plane[i]);
+		ctx->plane[i] = NULL;
+	}
+	isp_mem_destroy(ctx->dma_desc_obj);
+	ctx->dma_desc_obj = NULL;
+	ctx->vb = NULL;
+	ctx->state = BUF_FREE;
+	return -ENOMEM;
 }
 
 void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size)
