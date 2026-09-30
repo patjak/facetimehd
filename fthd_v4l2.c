@@ -285,7 +285,7 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	/* Starting the channel resets the ISP, so push the control values down. */
 	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
 
-	for(i = 0; i < FTHD_BUFFERS && count; i++, count--) {
+	for(i = 0; i < FTHD_BUFFERS; i++) {
 		ctx = dev_priv->h2t_bufs + i;
 		if (ctx->state != BUF_DRV_QUEUED)
 			continue;
@@ -306,6 +306,16 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 	int ret, i;
 
 	ret = fthd_stop_channel(dev_priv, 0);
+
+	/* Buffers never sent to the firmware will not come back from it */
+	for(i = 0; i < FTHD_BUFFERS; i++) {
+		ctx = dev_priv->h2t_bufs + i;
+		if (ctx->state == BUF_DRV_QUEUED) {
+			ctx->state = BUF_ALLOC;
+			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
+		}
+	}
+
 	if (!ret) {
 		pr_debug("waiting for buffers...\n");
 		vb2_wait_for_all_buffers(vq);
