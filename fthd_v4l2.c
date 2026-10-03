@@ -57,34 +57,80 @@ static int fthd_buffer_queue_setup(
 
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
-	int i, total_size = 0;
+	unsigned long budget = 16 * 1024 * 1024;
+	unsigned long size;
+	unsigned int i, allocated, slots, limit;
+	bool create = *nplanes != 0;
 
-	if (*nplanes)
-		return sizes[0] < (cur_fmt->bytesperline * cur_fmt->height) ? -EINVAL : 0;
-
-	*nplanes = dev_priv->fmt.planes;
-
-	if (!*nplanes)
-		return -EINVAL;
-
-	/* FIXME: We assume single plane format here but not below */
-	for (i = 0; i < *nplanes; i++) {
-		sizes[i] = cur_fmt->sizeimage;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
-		alloc_devs[i] = &dev_priv->pdev->dev;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+	allocated = vb2_get_num_buffers(vq);
+	slots = vq->max_num_buffers;
 #else
-		alloc_ctxs[i] = dev_priv->alloc_ctx;
+	allocated = vq->num_buffers;
+	slots = vq->num_buffers;
 #endif
-		total_size += sizes[i];
+	if (create) {
+		if (*nplanes != 1 || sizes[0] < cur_fmt->sizeimage)
+			return -EINVAL;
+	} else {
+		*nplanes = 1;
+		sizes[0] = cur_fmt->sizeimage;
 	}
 
-	*nbuffers = (4096 * 4096) / total_size;
-	if (*nbuffers > FTHD_BUFFERS)
-		*nbuffers = FTHD_BUFFERS;
-	if (*nbuffers <= 1)
+	size = PAGE_ALIGN((unsigned long)sizes[0]);
+	if (!size)
 		return -ENOMEM;
-	pr_debug("using %d buffers\n", *nbuffers);
 
+	if (create) {
+		/*
+		 * CREATE_BUFS asks for buffers on top of the ones already
+		 * there, so those are charged against the budget and against
+		 * the context count.
+		 */
+		for (i = 0; i < slots; i++) {
+			struct vb2_buffer *vb;
+			unsigned long used;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+			vb = vb2_get_buffer(vq, i);
+#else
+			vb = vq->bufs[i];
+#endif
+			if (!vb)
+				continue;
+			used = PAGE_ALIGN((unsigned long)vb2_plane_size(vb, 0));
+			if (!used || used >= budget)
+				return -ENOMEM;
+			budget -= used;
+		}
+		if (allocated >= FTHD_BUFFERS)
+			return -ENOBUFS;
+		if (size > budget)
+			return -ENOMEM;
+		limit = min_t(unsigned int, FTHD_BUFFERS - allocated,
+			      budget / size);
+		*nbuffers = min(*nbuffers, limit);
+		if (!*nbuffers)
+			return -ENOMEM;
+	} else {
+		/*
+		 * REQBUFS asks for a total. vb2 calls back a second time to
+		 * confirm a partial allocation, and the buffers it asks about
+		 * then are the ones already allocated, so charging them here
+		 * would reject a count that is in fact usable.
+		 */
+		if (size > budget)
+			return -ENOMEM;
+		limit = min_t(unsigned int, FTHD_BUFFERS, budget / size);
+		*nbuffers = min(max(*nbuffers, 2U), limit);
+		if (*nbuffers < 2)
+			return -ENOMEM;
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
+	alloc_devs[0] = &dev_priv->pdev->dev;
+#else
+	alloc_ctxs[0] = dev_priv->alloc_ctx;
+#endif
 	return 0;
 }
 
