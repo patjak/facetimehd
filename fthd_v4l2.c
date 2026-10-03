@@ -762,9 +762,6 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 
 	q = &dev_priv->vb2_queue;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	/* VB2_USERPTR not supported due to missing support for unaligned
-	 * pointers.
-	 */
 	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
 	q->drv_priv = dev_priv;
 	q->ops = &vb2_queue_ops;
