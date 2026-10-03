@@ -10,6 +10,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/printk.h>
+#include <linux/scatterlist.h>
 #include "fthd_drv.h"
 #include "fthd_isp.h"
 #include "fthd_hw.h"
@@ -39,33 +40,37 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 	struct resource *root = dev_priv->iommu;
 	struct scatterlist *sg;
 	int ret, i, pos;
-	int total_len = 0, dma_length;
-	dma_addr_t dma_addr;
-	
-	for(i = 0; i < sgtable->nents; i++) {
-		sg = sgtable->sgl + i;
+	int total_len = 0;
+	dma_addr_t dma_addr, dma_end, page;
 
-		/* The IOMMU descriptor holds a page number only, so a segment
-		 * that does not start on a page boundary would be mapped from
-		 * the start of its page and the hardware would write up to
-		 * 4095 bytes in front of the buffer.
-		 */
-		if (sg->offset || (sg_dma_address(sg) & 0xfff)) {
+	/*
+	 * Large buffers use chained scatterlists, so the entries must be
+	 * walked with for_each_sg() and not by indexing sgtable->sgl.
+	 *
+	 * The S2 IOMMU maps whole pages. The firmware accepts a byte address
+	 * though, so a buffer may start inside its first page (USERPTR
+	 * buffers from PipeWire start 0x40-0x100 bytes into a page): all
+	 * pages it touches are mapped and the offset is kept in byte_offset.
+	 * A gap inside the buffer can't be expressed, so only the start of
+	 * the first segment and the end of the last one may be unaligned.
+	 */
+	for_each_sg(sgtable->sgl, sg, sgtable->nents, i) {
+		dma_addr = sg_dma_address(sg);
+		dma_end = dma_addr + sg_dma_len(sg);
+
+		if ((i > 0 && (dma_addr & 0xfff)) ||
+		    (i < sgtable->nents - 1 && (dma_end & 0xfff))) {
 			dev_err(&dev_priv->pdev->dev,
-				"Buffer segment %d is not page aligned (offset %u), refusing\n",
-				i, sg->offset);
+				"Buffer segment %d is not page aligned (%pad, len %u), refusing\n",
+				i, &dma_addr, sg_dma_len(sg));
 			return NULL;
 		}
-
-		total_len += sg_dma_len(sg);
+		total_len += GET_IOMMU_PAGES(dma_end) - (dma_addr >> 12);
 	}
-	
+
 	if (!total_len)
 		return NULL;
 
-	total_len += 4095;
-	total_len /= 4096;
-	
 	obj = kzalloc(sizeof(struct iommu_obj), GFP_KERNEL);
 	if (!obj)
 		return NULL;
@@ -84,16 +89,15 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 
 	obj->offset = obj->base.start - root->start;
 	obj->size = total_len;
+	obj->byte_offset = sg_dma_address(sgtable->sgl) & 0xfff;
 
 	pos = 0x9000 + obj->offset * 4;
-	for(i = 0; i < sgtable->nents; i++) {
-		sg = sgtable->sgl + i;
+	for_each_sg(sgtable->sgl, sg, sgtable->nents, i) {
 		dma_addr = sg_dma_address(sg);
-		dma_addr >>= 12;
-		
-		for(dma_length = 0; dma_length < sg_dma_len(sg); dma_length += 0x1000) {
-		  //			pr_debug("IOMMU %08x -> %08llx (dma length %d)\n", pos, dma_addr, dma_length);
-			FTHD_S2_REG_WRITE(dma_addr++, pos);
+		dma_end = dma_addr + sg_dma_len(sg);
+
+		for(page = dma_addr >> 12; page < GET_IOMMU_PAGES(dma_end); page++) {
+			FTHD_S2_REG_WRITE(page, pos);
 			pos += 4;
 		}
 	}
