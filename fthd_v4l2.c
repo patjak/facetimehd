@@ -749,6 +749,16 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		ret = fthd_isp_cmd_channel_awb(dev_priv, 0, ctrl->val);
 		break;
+	case V4L2_CID_EXPOSURE_AUTO:
+		/* The firmware runs auto exposure unconditionally. */
+		ret = 0;
+		break;
+	case V4L2_CID_EXPOSURE_AUTO_PRIORITY:
+		ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0,
+							  fthd_isp_ae_frame_rate_min(dev_priv, ctrl->val));
+		if (!ret)
+			dev_priv->exposure_auto_priority = ctrl->val;
+		break;
 	default:
 		break;
 
@@ -804,7 +814,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	if (ret)
 		goto fail;
 
-	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 4);
+	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 7);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_BRIGHTNESS, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
@@ -815,6 +825,12 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 			  V4L2_CID_HUE, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
+	v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			       V4L2_CID_EXPOSURE_AUTO,
+			       V4L2_EXPOSURE_APERTURE_PRIORITY,
+			       ~(1 << V4L2_EXPOSURE_AUTO), V4L2_EXPOSURE_AUTO);
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_EXPOSURE_AUTO_PRIORITY, 0, 1, 1, 0);
 
 	if (dev_priv->v4l2_ctrl_handler.error) {
 		pr_err("failed to setup control handlers\n");
