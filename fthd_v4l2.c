@@ -459,12 +459,11 @@ static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 		desc = "YUYV";
 #endif
 		break;
-	case 1:
-		fmt->pixelformat = V4L2_PIX_FMT_YVYU;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,2,0)
-		desc = "YVYU";
-#endif
-		break;
+	/* YVYU is not advertised: the ISP firmware's output for that format is
+	 * broken (wrong/garbage chroma, renders green and pink). Apps that
+	 * negotiate YVYU get a corrupted image; YUYV is correct. Requests for
+	 * YVYU are coerced to YUYV in fthd_v4l2_adjust_format().
+	 */
 	/* We don't support the mplane yet
 	case 2:
 		fmt->pixelformat = V4L2_PIX_FMT_NV16;
@@ -493,8 +492,7 @@ static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 	unsigned int max_w = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
 	unsigned int max_h = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
 
-	if (pix->pixelformat != V4L2_PIX_FMT_YUYV &&
-	    pix->pixelformat != V4L2_PIX_FMT_YVYU)
+	if (pix->pixelformat != V4L2_PIX_FMT_YUYV)
 		pix->pixelformat = V4L2_PIX_FMT_YUYV;
 
 	if (pix->width < FTHD_MIN_WIDTH)
@@ -518,7 +516,6 @@ static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 		break;
 */
 	case V4L2_PIX_FMT_YUYV:
-	case V4L2_PIX_FMT_YVYU:
 	default:
 		pix->bytesperline = pix->width * 2;
 		pix->sizeimage = pix->bytesperline * pix->height;
@@ -578,7 +575,6 @@ static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 		dev_priv->fmt.planes = 2;
 		break;
 	case V4L2_PIX_FMT_YUYV:
-	case V4L2_PIX_FMT_YVYU:
 		dev_priv->fmt.planes = 1;
 		break;
 	}
@@ -639,8 +635,7 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	if (sizes->index)
 		return -EINVAL;
 
-	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV &&
-	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
+	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV)
 		return -EINVAL;
 
 	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
@@ -667,7 +662,6 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		return -EINVAL;
 
 	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
-	    interval->pixel_format != V4L2_PIX_FMT_YVYU &&
 	    interval->pixel_format != V4L2_PIX_FMT_NV16)
 		return -EINVAL;
 
