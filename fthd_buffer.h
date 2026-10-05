@@ -42,6 +42,8 @@ struct iommu_obj {
 	struct resource base;
 	int size;
 	int offset;
+	/* Byte offset of the buffer start within its first page */
+	int byte_offset;
 };
 
 struct fthd_plane {
