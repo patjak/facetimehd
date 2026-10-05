@@ -161,6 +161,35 @@ static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 	ctx->dma_desc_obj = NULL;
 }
 
+/*
+ * Hand a buffer straight back to the hardware without waiting for the ring
+ * acknowledgment. The caller is the interrupt work item that delivers that
+ * very acknowledgment, so waiting here would deadlock until the timeout.
+ * The send itself is complete: the descriptor is in the ring and the doorbell
+ * has been rung.
+ */
+static int fthd_rearm_h2t_buffer(struct fthd_private *dev_priv,
+				 struct h2t_buf_ctx *ctx)
+{
+	FTHD_S2_MEMCPY_TOIO(ctx->dma_desc_obj->offset, &ctx->dma_desc_list,
+			    sizeof(ctx->dma_desc_list));
+	return fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
+					 ctx->dma_desc_obj->offset, 0x180,
+					 0x30000000, NULL);
+}
+
+/*
+ * On the sensor this was measured on, the first two frames after the channel
+ * starts come back far darker than the level the stream settles at, while the
+ * third is close enough to pass on. They are not empty buffers: they still
+ * correlate with a settled frame, so the sensor is capturing. Why they come
+ * out that dark is not established, and whether other sensors behave the same
+ * way is not known. Drop them instead of stalling VIDIOC_STREAMON for a fixed
+ * interval, which does not track the frame rate. The measurements are in the
+ * commit message.
+ */
+#define FTHD_WARMUP_FRAMES	2
+
 static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ctx *ctx)
 {
 	u32 entry;
@@ -291,12 +320,40 @@ void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int s
 		if (ctx->state == BUF_HW_QUEUED || ctx->state == BUF_DRV_QUEUED) {
 			struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(ctx->vb);
 
+			bool dropped = false, rearm_failed = false;
+
+			/*
+			 * list.field0 is 2 for a captured frame and 1 for a
+			 * buffer the firmware hands back on CH_BUFFER_RETURN,
+			 * so only a real frame can consume a warmup slot.
+			 *
+			 * That is not enough on its own: a captured frame can
+			 * still arrive after stop_streaming() has begun, so
+			 * the counter is cleared there under the same lock.
+			 * This handler runs in IRQ work, never in the hard IRQ.
+			 */
+			spin_lock(&dev_priv->warmup_lock);
+			if (dev_priv->warmup_frames > 0 && list.field0 == 2) {
+				dev_priv->warmup_frames--;
+				if (!fthd_rearm_h2t_buffer(dev_priv, ctx)) {
+					ctx->state = BUF_HW_QUEUED;
+					dropped = true;
+				} else {
+					rearm_failed = true;
+				}
+			}
+			spin_unlock(&dev_priv->warmup_lock);
+
+			if (dropped)
+				continue;
+
 			vbuf->sequence = dev_priv->sequence++;
 			vbuf->vb2_buf.timestamp = ktime_get_ns();
 			vbuf->field = V4L2_FIELD_NONE;
 
 			ctx->state = BUF_ALLOC;
-			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
+			vb2_buffer_done(ctx->vb, rearm_failed ?
+					VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE);
 		}
 
 	}
@@ -310,6 +367,7 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 	pr_debug("count = %d\n", count);
 	dev_priv->sequence = 0;
+	dev_priv->warmup_frames = FTHD_WARMUP_FRAMES;
 
 	ret = fthd_start_channel(dev_priv, 0);
 	if (ret)
@@ -337,6 +395,11 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 	struct h2t_buf_ctx *ctx;
 	int ret, i;
+
+	/* Stop dropping: a buffer rearmed now would never come back. */
+	spin_lock(&dev_priv->warmup_lock);
+	dev_priv->warmup_frames = 0;
+	spin_unlock(&dev_priv->warmup_lock);
 
 	ret = fthd_stop_channel(dev_priv, 0);
 	if (!ret) {
