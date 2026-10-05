@@ -1274,10 +1274,11 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_face_detection_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frametime * 256);
+	/* The cached rate uses the ISP's 1/256 fps units. */
+	ret = fthd_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frame_rate);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0, dev_priv->frametime * 256);
+	ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0, dev_priv->frame_rate);
 	if (ret)
 		return ret;
 	ret = fthd_isp_cmd_channel_temporal_filter_start(dev_priv, 0);

@@ -29,6 +29,10 @@
 
 #define FTHD_BUFFERS 4
 
+#define FTHD_FRAME_RATE_SCALE 256U
+#define FTHD_FRAME_RATE_MIN (2 * FTHD_FRAME_RATE_SCALE)
+#define FTHD_FRAME_RATE_MAX (30 * FTHD_FRAME_RATE_SCALE)
+
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,
 	FW_CHAN_TYPE_IN=1,
@@ -120,7 +124,7 @@ struct fthd_private {
 	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
 
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
-	int frametime;
+	u32 frame_rate; /* 1/256 fps */
 	unsigned int sequence;
 	struct dentry *debugfs;
 };
