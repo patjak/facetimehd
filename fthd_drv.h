@@ -32,6 +32,8 @@
 #define FTHD_FRAME_RATE_SCALE 256U
 #define FTHD_FRAME_RATE_MIN (2 * FTHD_FRAME_RATE_SCALE)
 #define FTHD_FRAME_RATE_MAX (30 * FTHD_FRAME_RATE_SCALE)
+/* one frame at the lowest frame rate, in the 100 us units of V4L2_CID_EXPOSURE_ABSOLUTE */
+#define FTHD_EXPOSURE_MAX ((1000000 / 100) / (FTHD_FRAME_RATE_MIN / FTHD_FRAME_RATE_SCALE))
 
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,
@@ -126,6 +128,12 @@ struct fthd_private {
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	u32 frame_rate; /* 1/256 fps */
 	int exposure_auto_priority;
+	/* v4l2_ctrl_auto_cluster() reads these three as an array */
+	struct v4l2_ctrl *ctrl_exposure_auto;
+	struct v4l2_ctrl *ctrl_exposure;
+	struct v4l2_ctrl *ctrl_gain;
+	bool ae_suspended;
+	unsigned long ae_last_set; /* jiffies */
 	unsigned int sequence;
 	struct dentry *debugfs;
 };
