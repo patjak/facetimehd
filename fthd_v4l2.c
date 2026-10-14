@@ -250,7 +250,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 		  sgtable = vb2_dma_sg_plane_desc(vb, i);
 		  ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
 		  if(!ctx->plane[i])
-			  return -ENOMEM;
+			  goto err_free;
 		}
 	}
 
@@ -263,16 +263,30 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	dma_list->count = 1;
 	dma_list->desc[0].count = 1;
 	dma_list->desc[0].pool = 0x02;
-	dma_list->desc[0].addr0 = (ctx->plane[0]->offset << 12) | 0xc0000000;
+	dma_list->desc[0].addr0 = ((ctx->plane[0]->offset << 12) | 0xc0000000) +
+		ctx->plane[0]->byte_offset;
 
 	if (dev_priv->fmt.planes >= 2)
-		dma_list->desc[0].addr1 = (ctx->plane[1]->offset << 12) | 0xc0000000;
+		dma_list->desc[0].addr1 = ((ctx->plane[1]->offset << 12) | 0xc0000000) +
+		ctx->plane[1]->byte_offset;
 	if (dev_priv->fmt.planes >= 3)
-		dma_list->desc[0].addr2 = (ctx->plane[2]->offset << 12) | 0xc0000000;
+		dma_list->desc[0].addr2 = ((ctx->plane[2]->offset << 12) | 0xc0000000) +
+		ctx->plane[2]->byte_offset;
 
 	dma_list->desc[0].tag = (u64)ctx;
 	init_waitqueue_head(&ctx->wq);
 	return 0;
+
+err_free:
+	for(i = 0; i < dev_priv->fmt.planes; i++) {
+		iommu_free(dev_priv, ctx->plane[i]);
+		ctx->plane[i] = NULL;
+	}
+	isp_mem_destroy(ctx->dma_desc_obj);
+	ctx->dma_desc_obj = NULL;
+	ctx->vb = NULL;
+	ctx->state = BUF_FREE;
+	return -ENOMEM;
 }
 
 void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size)
@@ -327,7 +341,7 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	/* Starting the channel resets the ISP, so push the control values down. */
 	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
 
-	for(i = 0; i < FTHD_BUFFERS && count; i++, count--) {
+	for(i = 0; i < FTHD_BUFFERS; i++) {
 		ctx = dev_priv->h2t_bufs + i;
 		if (ctx->state != BUF_DRV_QUEUED)
 			continue;
@@ -349,6 +363,16 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 	int ret, i;
 
 	ret = fthd_stop_channel(dev_priv, 0);
+
+	/* Buffers never sent to the firmware will not come back from it */
+	for(i = 0; i < FTHD_BUFFERS; i++) {
+		ctx = dev_priv->h2t_bufs + i;
+		if (ctx->state == BUF_DRV_QUEUED) {
+			ctx->state = BUF_ALLOC;
+			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
+		}
+	}
+
 	if (!ret) {
 		pr_debug("waiting for buffers...\n");
 		vb2_wait_for_all_buffers(vq);
@@ -830,10 +854,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 
 	q = &dev_priv->vb2_queue;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	/* VB2_USERPTR not supported due to missing support for unaligned
-	 * pointers.
-	 */
-	q->io_modes = VB2_MMAP | VB2_DMABUF | VB2_READ;
+	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
 	q->drv_priv = dev_priv;
 	q->ops = &vb2_queue_ops;
 	q->mem_ops = &vb2_dma_sg_memops;
