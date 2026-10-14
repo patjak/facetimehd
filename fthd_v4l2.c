@@ -8,6 +8,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/gcd.h>
 #include <linux/math64.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>
@@ -621,14 +622,16 @@ static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 		struct v4l2_streamparm *parm)
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
+	u32 rate = READ_ONCE(dev_priv->frame_rate);
+	u32 div = gcd(rate, FTHD_FRAME_RATE_SCALE);
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
 	parm->parm.capture.readbuffers = FTHD_BUFFERS;
 	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
-	parm->parm.capture.timeperframe.numerator = FTHD_FRAME_RATE_SCALE;
-	parm->parm.capture.timeperframe.denominator = READ_ONCE(dev_priv->frame_rate);
+	parm->parm.capture.timeperframe.numerator = FTHD_FRAME_RATE_SCALE / div;
+	parm->parm.capture.timeperframe.denominator = rate / div;
 	return 0;
 }
 
