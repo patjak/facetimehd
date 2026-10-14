@@ -601,7 +601,25 @@ struct isp_cmd_channel_streaming_mode {
 
 struct isp_cmd_channel_frame_rate_set {
 	u32 channel;
-	u16 rate;
+	u32 rate;
+};
+
+struct isp_cmd_channel_ae_bias_exposure_set {
+	u32 channel;
+	u16 bias;
+	u16 pad;
+	u32 tag;
+};
+
+struct isp_cmd_channel_ae_integration_gain_set {
+	u32 channel;
+	u32 integration_time_us;
+	u16 analog_gain;
+	u16 isp_gain;
+	u16 digital_gain;
+	u16 pad;
+	u32 tag;
+	u32 frame_rate;
 };
 
 struct isp_cmd_channel_ae_speed_set {
@@ -741,6 +759,13 @@ extern int fthd_isp_cmd_channel_frame_rate_max(struct fthd_private *dev_priv, in
 extern int fthd_isp_ae_frame_rate_min(struct fthd_private *dev_priv, bool auto_priority);
 extern int fthd_isp_cmd_camera_config(struct fthd_private *dev_priv);
 extern int fthd_isp_cmd_channel_ae_speed_set(struct fthd_private *dev_priv, int channel, int speed);
+extern int fthd_isp_cmd_channel_ae_update(struct fthd_private *dev_priv, int channel,
+					  bool suspend);
+extern int fthd_isp_cmd_channel_ae_bias_exposure_set(struct fthd_private *dev_priv,
+						     int channel, u16 bias);
+extern int fthd_isp_cmd_channel_ae_integration_gain_set(struct fthd_private *dev_priv,
+							int channel, u32 time_us,
+							u16 analog_gain);
 extern int fthd_isp_cmd_channel_ae_stability_set(struct fthd_private *dev_priv, int channel, int stability);
 extern int fthd_isp_cmd_channel_ae_stability_to_stable_set(struct fthd_private *dev_priv, int channel, int value);
 extern int fthd_isp_cmd_channel_face_detection_enable(struct fthd_private *dev_priv, int channel);

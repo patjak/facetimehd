@@ -325,6 +325,8 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	}
 
 	/* Starting the channel resets the ISP, so push the control values down. */
+	dev_priv->ae_suspended = false;
+	dev_priv->ae_last_set = jiffies - HZ;
 	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
 
 	for(i = 0; i < FTHD_BUFFERS && count; i++, count--) {
@@ -756,6 +758,58 @@ static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
 
+/* V4L2_CID_AUTO_EXPOSURE_BIAS menu in 0.001 EV, and the 2^EV * 256 the firmware takes */
+static const s64 fthd_exposure_bias_qmenu[] = {
+	-3000, -2500, -2000, -1500, -1000, -500, 0, 500, 1000, 1500, 2000, 2500, 3000,
+};
+
+static const u16 fthd_exposure_bias_fw[] = {
+	32, 45, 64, 91, 128, 181, 256, 362, 512, 724, 1024, 1448, 2048,
+};
+
+static int fthd_set_exposure(struct fthd_private *dev_priv)
+{
+	u32 period_us = 256000000U / READ_ONCE(dev_priv->frame_rate);
+	u32 time_us = dev_priv->ctrl_exposure->val * 100;
+	unsigned long next;
+	int ret;
+
+	/* fthd_start_streaming() reruns this through v4l2_ctrl_handler_setup(). */
+	if (!vb2_is_streaming(&dev_priv->vb2_queue))
+		return 0;
+
+	if (dev_priv->ctrl_exposure_auto->val != V4L2_EXPOSURE_MANUAL) {
+		if (!dev_priv->ae_suspended)
+			return 0;
+		ret = fthd_isp_cmd_channel_ae_update(dev_priv, 0, false);
+		if (!ret)
+			dev_priv->ae_suspended = false;
+		return ret;
+	}
+
+	/* The firmware rejects manual exposure while AE updates are running. */
+	if (!dev_priv->ae_suspended) {
+		ret = fthd_isp_cmd_channel_ae_update(dev_priv, 0, true);
+		if (ret)
+			return ret;
+		dev_priv->ae_suspended = true;
+	}
+
+	/*
+	 * Each update holds one of the firmware's eight sensor settings for
+	 * about two frames, longer when the exposure exceeds the frame period,
+	 * and the firmware crashes when they run out.
+	 */
+	time_us = min(time_us, period_us);
+	next = dev_priv->ae_last_set + usecs_to_jiffies(period_us) + 1;
+	if (time_before(jiffies, next))
+		msleep(jiffies_to_msecs(next - jiffies));
+	ret = fthd_isp_cmd_channel_ae_integration_gain_set(dev_priv, 0, time_us,
+							   dev_priv->ctrl_gain->val);
+	dev_priv->ae_last_set = jiffies;
+	return ret;
+}
+
 static int fthd_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
 	pr_debug("id = %x\n", ctrl->id);
@@ -786,8 +840,11 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 		ret = fthd_isp_cmd_channel_awb(dev_priv, 0, ctrl->val);
 		break;
 	case V4L2_CID_EXPOSURE_AUTO:
-		/* The firmware runs auto exposure unconditionally. */
-		ret = 0;
+		ret = fthd_set_exposure(dev_priv);
+		break;
+	case V4L2_CID_AUTO_EXPOSURE_BIAS:
+		ret = fthd_isp_cmd_channel_ae_bias_exposure_set(dev_priv, 0,
+								fthd_exposure_bias_fw[ctrl->val]);
 		break;
 	case V4L2_CID_EXPOSURE_AUTO_PRIORITY:
 		ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0,
@@ -850,7 +907,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	if (ret)
 		goto fail;
 
-	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 7);
+	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 10);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_BRIGHTNESS, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
@@ -861,12 +918,30 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 			  V4L2_CID_HUE, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
-	v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
-			       V4L2_CID_EXPOSURE_AUTO,
-			       V4L2_EXPOSURE_APERTURE_PRIORITY,
-			       ~(1 << V4L2_EXPOSURE_AUTO), V4L2_EXPOSURE_AUTO);
+	dev_priv->ctrl_exposure_auto =
+		v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+				       V4L2_CID_EXPOSURE_AUTO,
+				       V4L2_EXPOSURE_APERTURE_PRIORITY,
+				       ~((1 << V4L2_EXPOSURE_AUTO) |
+					 (1 << V4L2_EXPOSURE_MANUAL)),
+				       V4L2_EXPOSURE_AUTO);
+	dev_priv->ctrl_exposure =
+		v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+				  V4L2_CID_EXPOSURE_ABSOLUTE, 1, FTHD_EXPOSURE_MAX, 1, 100);
+	/* analog gain in 8.8 fixed point; above 16x the image barely gets brighter */
+	dev_priv->ctrl_gain =
+		v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+				  V4L2_CID_GAIN, 256, 4096, 1, 256);
+	v4l2_ctrl_new_int_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			       V4L2_CID_AUTO_EXPOSURE_BIAS,
+			       ARRAY_SIZE(fthd_exposure_bias_qmenu) - 1, 6,
+			       fthd_exposure_bias_qmenu);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_EXPOSURE_AUTO_PRIORITY, 0, 1, 1, 0);
+
+	if (!dev_priv->v4l2_ctrl_handler.error)
+		v4l2_ctrl_auto_cluster(3, &dev_priv->ctrl_exposure_auto,
+				       V4L2_EXPOSURE_MANUAL, false);
 
 	if (dev_priv->v4l2_ctrl_handler.error) {
 		pr_err("failed to setup control handlers\n");
