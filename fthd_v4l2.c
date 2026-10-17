@@ -710,6 +710,9 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	return 0;
 }
 
+/* S_PARM takes any rate from 2 to 30 fps, these are the ones listed */
+static const u8 fthd_frame_rates[] = { 30, 25, 24, 20, 15, 10, 5 };
+
 static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		struct v4l2_frmivalenum *interval)
 {
@@ -719,7 +722,7 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 
 	pr_debug("%s\n", __FUNCTION__);
 
-	if (interval->index)
+	if (interval->index >= ARRAY_SIZE(fthd_frame_rates))
 		return -EINVAL;
 
 	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
@@ -733,7 +736,7 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 
 	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 	interval->discrete.numerator = 1;
-	interval->discrete.denominator = 30;
+	interval->discrete.denominator = fthd_frame_rates[interval->index];
 
 	return 0;
 }
