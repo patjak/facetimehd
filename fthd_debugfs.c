@@ -172,7 +172,7 @@ int fthd_debugfs_init(struct fthd_private *dev_priv)
 
 	top = debugfs_create_dir("facetimehd", NULL);
 	if (IS_ERR(top))
-		return PTR_ERR(top);
+		return PTR_ERR(top) == -ENODEV ? 0 : PTR_ERR(top);
 
 	d = debugfs_create_dir(dev_name(&dev_priv->pdev->dev), top);
 	if (IS_ERR(d)) {
