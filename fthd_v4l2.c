@@ -706,11 +706,26 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
 
-	if (sizes->index)
+	if (sizes->index > 1)
 		return -EINVAL;
 
 	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV)
 		return -EINVAL;
+
+	/*
+	 * Chromium-based browsers skip V4L2 devices that only advertise
+	 * stepwise frame sizes, which leaves the camera invisible to them
+	 * even though Firefox and native V4L2 clients work fine (cf.
+	 * raspberrypi/linux#1498). Report the sensor's native size as a
+	 * discrete entry first so Chromium detects the camera, and keep
+	 * the stepwise range at index 1 for range-aware consumers.
+	 */
+	if (!sizes->index) {
+		sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+		sizes->discrete.width  = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
+		sizes->discrete.height = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+		return 0;
+	}
 
 	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
 	sizes->stepwise.min_width  = FTHD_MIN_WIDTH;
