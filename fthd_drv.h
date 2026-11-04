@@ -127,6 +127,9 @@ struct fthd_private {
 	u32 frame_rate; /* 1/256 fps */
 	int exposure_auto_priority;
 	unsigned int sequence;
+	/* Serialises the warmup counter against the buffer return handler. */
+	spinlock_t warmup_lock;
+	int warmup_frames;	/* frames still to drop after channel start */
 	struct dentry *debugfs;
 };
 
