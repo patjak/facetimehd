@@ -913,6 +913,53 @@ int fthd_isp_cmd_channel_frame_rate_max(struct fthd_private *dev_priv, int chann
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MAX_SET, &cmd, sizeof(cmd), &len);
 }
 
+int fthd_isp_cmd_channel_ae_update(struct fthd_private *dev_priv, int channel, bool suspend)
+{
+	struct isp_cmd_channel cmd;
+	int len;
+
+	pr_debug("ae update %s\n", suspend ? "suspend" : "resume");
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	len = sizeof(cmd);
+	return fthd_isp_cmd(dev_priv, suspend ? CISP_CMD_CH_AE_UPDATE_SUSPEND :
+			    CISP_CMD_CH_AE_UPDATE_RESUME, &cmd, sizeof(cmd), &len);
+}
+
+int fthd_isp_cmd_channel_ae_bias_exposure_set(struct fthd_private *dev_priv, int channel,
+					      u16 bias)
+{
+	struct isp_cmd_channel_ae_bias_exposure_set cmd;
+	int len;
+
+	pr_debug("set ae bias exposure %u\n", bias);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.bias = bias;
+	len = sizeof(cmd);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_BIAS_EXPOSURE_SET, &cmd, sizeof(cmd), &len);
+}
+
+int fthd_isp_cmd_channel_ae_integration_gain_set(struct fthd_private *dev_priv, int channel,
+						 u32 time_us, u16 analog_gain)
+{
+	struct isp_cmd_channel_ae_integration_gain_set cmd;
+	int len;
+
+	pr_debug("set ae integration time %u us, analog gain 0x%x\n", time_us, analog_gain);
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+	cmd.integration_time_us = time_us;
+	cmd.analog_gain = analog_gain;
+	cmd.isp_gain = 0x100;
+	cmd.digital_gain = 0x100;
+	len = sizeof(cmd);
+	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_INTEGRATION_GAIN_SET, &cmd, sizeof(cmd), &len);
+}
+
 int fthd_isp_cmd_channel_ae_speed_set(struct fthd_private *dev_priv, int channel, int speed)
 {
 	struct isp_cmd_channel_ae_speed_set cmd;
