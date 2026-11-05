@@ -701,26 +701,36 @@ static int fthd_v4l2_ioctl_g_selection(struct file *filp, void *priv,
 	return 0;
 }
 
+/*
+ * Chromium (Chrome, Brave, Electron apps) and libwebrtc's PipeWire camera skip a camera that only reports a
+ * stepwise size range (crbug.com/249953): web pages found no camera. List common 16:9 sizes instead.
+ */
+static const struct v4l2_frmsize_discrete fthd_sizes[] = {
+	{ 1280, 720 }, { 960, 540 }, { 848, 480 }, { 640, 360 },
+};
+
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		struct v4l2_frmsizeenum *sizes)
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
-
-	if (sizes->index)
-		return -EINVAL;
+	unsigned int max_w = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
+	unsigned int max_h = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+	unsigned int i, n = 0;
 
 	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV)
 		return -EINVAL;
 
-	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
-	sizes->stepwise.min_width  = FTHD_MIN_WIDTH;
-	sizes->stepwise.max_width  = dev_priv->sensor_width  ? : FTHD_MAX_WIDTH;
-	sizes->stepwise.step_width = 8;
-	sizes->stepwise.min_height  = FTHD_MIN_HEIGHT;
-	sizes->stepwise.max_height  = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
-	sizes->stepwise.step_height = 1;
+	for (i = 0; i < ARRAY_SIZE(fthd_sizes); i++) {
+		if (fthd_sizes[i].width > max_w || fthd_sizes[i].height > max_h)
+			continue;
+		if (n++ == sizes->index) {
+			sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
+			sizes->discrete = fthd_sizes[i];
+			return 0;
+		}
+	}
 
-	return 0;
+	return -EINVAL;
 }
 
 static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
