@@ -14,6 +14,8 @@ requirement for proprietary macOS firmware extraction blobs.
 Both C reference and embedded Rust binaries are validated via automated
 QEMU ARMv7-A continuous integration tests and on real MacBook hardware.
 
+Link: https://github.com/programandosolucoes/open-fthd-firmware
+Link: https://github.com/patjak/facetimehd/pull/368
 Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
 ---
  WHENCE                     | 12 ++++++++++++

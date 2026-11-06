@@ -39,6 +39,12 @@ Mid 2014, MacBookPro11,2, PCI 03:00.0) running Linux 7.0.0-14-generic,
 streaming cleanly at a steady 30.0 fps in both native V4L2 and PipeWire
 (GNOME Cheese / Snapshot in Flatpak containers) with zero dropped frames.
 
+Repository & Upstream Pull Request References:
+- Out-of-tree repository: https://github.com/patjak/facetimehd
+- Tracking Pull Request: https://github.com/patjak/facetimehd/pull/368
+- Active branch with test suite: https://github.com/programandosolucoes/facetimehd/tree/linux-6.12-compat
+- OpenFTHD clean-room firmware: https://github.com/programandosolucoes/open-fthd-firmware
+
 A TODO file is provided detailing the roadmap for graduating from staging
 into drivers/media/pci/facetimehd/.
 

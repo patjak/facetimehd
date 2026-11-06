@@ -19,6 +19,7 @@ Features supported:
 - Dynamic power saving profiles (High Performance, Balanced, Low Power)
 - Clean-room open-source firmware compatibility (OpenFTHD project)
 
+Link: https://github.com/patjak/facetimehd/pull/368
 Original-author: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
 Co-developed-by: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
 Signed-off-by: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
