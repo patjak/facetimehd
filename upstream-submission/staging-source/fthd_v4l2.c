@@ -46,12 +46,28 @@ static const struct fthd_frame_size fthd_sizes[] = {
 #define FTHD_SENSOR_HEIGHT 720
 #define FTHD_NUM_FORMATS 1
 
-static int fthd_buffer_queue_setup(struct vb2_queue *vq,
-				   unsigned int *nbuffers,
-				   unsigned int *nplanes,
-				   unsigned int sizes[],
-				   struct device *alloc_devs[])
-{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+# define VFL_TYPE_VIDEO VFL_TYPE_GRABBER
+#endif
+
+static int fthd_buffer_queue_setup(
+    struct vb2_queue *vq,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
+    const struct v4l2_format *fmt,
+#endif
+#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(4,5,0))
+    const void *parg,
+#endif
+    unsigned int *nbuffers,
+    unsigned int *nplanes,
+    unsigned int sizes[],
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
+    struct device *alloc_devs[]
+#else
+    void *alloc_ctxs[]
+#endif
+) {
+
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
 	int i, total_size = 0;
@@ -67,7 +83,11 @@ static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 	/* FIXME: We assume single plane format here but not below */
 	for (i = 0; i < *nplanes; i++) {
 		sizes[i] = cur_fmt->sizeimage;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
 		alloc_devs[i] = &dev_priv->pdev->dev;
+#else
+		alloc_ctxs[i] = dev_priv->alloc_ctx;
+#endif
 		total_size += sizes[i];
 	}
 
@@ -196,7 +216,7 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 		  sgtable = vb2_dma_sg_plane_desc(vb, i);
 		  ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
 		  if(!ctx->plane[i])
-			  return -ENOMEM;
+			  goto err_free;
 		}
 	}
 
@@ -209,16 +229,30 @@ static int fthd_buffer_prepare(struct vb2_buffer *vb)
 	dma_list->count = 1;
 	dma_list->desc[0].count = 1;
 	dma_list->desc[0].pool = 0x02;
-	dma_list->desc[0].addr0 = (ctx->plane[0]->offset << 12) | 0xc0000000;
+	dma_list->desc[0].addr0 = ((ctx->plane[0]->offset << 12) | 0xc0000000) +
+		ctx->plane[0]->byte_offset;
 
 	if (dev_priv->fmt.planes >= 2)
-		dma_list->desc[0].addr1 = (ctx->plane[1]->offset << 12) | 0xc0000000;
+		dma_list->desc[0].addr1 = ((ctx->plane[1]->offset << 12) | 0xc0000000) +
+		ctx->plane[1]->byte_offset;
 	if (dev_priv->fmt.planes >= 3)
-		dma_list->desc[0].addr2 = (ctx->plane[2]->offset << 12) | 0xc0000000;
+		dma_list->desc[0].addr2 = ((ctx->plane[2]->offset << 12) | 0xc0000000) +
+		ctx->plane[2]->byte_offset;
 
 	dma_list->desc[0].tag = (u64)ctx;
 	init_waitqueue_head(&ctx->wq);
 	return 0;
+
+err_free:
+	for(i = 0; i < dev_priv->fmt.planes; i++) {
+		iommu_free(dev_priv, ctx->plane[i]);
+		ctx->plane[i] = NULL;
+	}
+	isp_mem_destroy(ctx->dma_desc_obj);
+	ctx->dma_desc_obj = NULL;
+	ctx->vb = NULL;
+	ctx->state = BUF_FREE;
+	return -ENOMEM;
 }
 
 void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size)
@@ -250,10 +284,22 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 
 	pr_debug("count = %d\n", count);
 	ret = fthd_start_channel(dev_priv, 0);
-	if (ret)
+	if (ret) {
+		/* vb2 owns the buffers again if the queue never starts. */
+		for (i = 0; i < FTHD_BUFFERS; i++) {
+			ctx = dev_priv->h2t_bufs + i;
+			if (ctx->state != BUF_DRV_QUEUED)
+				continue;
+			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_QUEUED);
+			ctx->state = BUF_ALLOC;
+		}
 		return ret;
+	}
 
-	for(i = 0; i < FTHD_BUFFERS && count; i++, count--) {
+	/* Starting the channel resets the ISP, so push the control values down. */
+	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
+
+	for (i = 0; i < FTHD_BUFFERS; i++) {
 		ctx = dev_priv->h2t_bufs + i;
 		if (ctx->state != BUF_DRV_QUEUED)
 			continue;
@@ -261,8 +307,9 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
 			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
 			ctx->state = BUF_ALLOC;
+			continue;
 		}
-			ctx->state = BUF_HW_QUEUED;
+		ctx->state = BUF_HW_QUEUED;
 	}
 	return 0;
 }
@@ -274,6 +321,16 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 	int ret, i;
 
 	ret = fthd_stop_channel(dev_priv, 0);
+
+	/* Buffers never sent to the firmware will not come back from it */
+	for (i = 0; i < FTHD_BUFFERS; i++) {
+		ctx = dev_priv->h2t_bufs + i;
+		if (ctx->state == BUF_DRV_QUEUED) {
+			ctx->state = BUF_ALLOC;
+			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
+		}
+	}
+
 	if (!ret) {
 		pr_debug("waiting for buffers...\n");
 		vb2_wait_for_all_buffers(vq);
@@ -298,6 +355,10 @@ static struct vb2_ops vb2_queue_ops = {
 	.start_streaming        = fthd_start_streaming,
 	.stop_streaming         = fthd_stop_streaming,
 	.buf_queue              = fthd_buffer_queue,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
+	.wait_prepare           = vb2_ops_wait_prepare,
+	.wait_finish            = vb2_ops_wait_finish,
+#endif
 };
 
 static struct v4l2_file_operations fthd_vdev_fops = {
@@ -760,7 +821,11 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	q->mem_ops = &vb2_dma_sg_memops;
 	q->buf_struct_size = 0;//sizeof(struct vpif_cap_buffer);
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,8,0)
+	q->min_buffers_needed = 1;
+#else
 	q->min_queued_buffers = 1;
+#endif
 	q->lock = &dev_priv->vb2_queue_lock;
 
 	ret = vb2_queue_init(q);
@@ -798,7 +863,9 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 		v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
 		goto fail;
 	}
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
+	dev_priv->alloc_ctx = vb2_dma_sg_init_ctx(&dev_priv->pdev->dev);
+#endif
 	vdev->v4l2_dev = v4l2_dev;
 	strcpy(vdev->name, "Apple Facetime HD"); // XXX: Length?
 	vdev->vfl_dir = VFL_DIR_RX;
@@ -807,9 +874,10 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	vdev->queue = q;
 	vdev->release = video_device_release;
 	vdev->ctrl_handler = &dev_priv->v4l2_ctrl_handler;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
 	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_READWRITE |
 			    V4L2_CAP_STREAMING;
-
+#endif
 	video_set_drvdata(vdev, dev_priv);
 	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
 	if (ret) {
@@ -834,7 +902,11 @@ fail:
 
 void fthd_v4l2_unregister(struct fthd_private *dev_priv)
 {
+
 	v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
+	vb2_dma_sg_cleanup_ctx(dev_priv->alloc_ctx);
+#endif
 	video_unregister_device(dev_priv->videodev);
 	v4l2_device_unregister(&dev_priv->v4l2_dev);
 }

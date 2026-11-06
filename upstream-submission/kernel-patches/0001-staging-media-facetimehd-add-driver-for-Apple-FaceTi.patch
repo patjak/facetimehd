@@ -1,6 +1,6 @@
 From fabd2c0c0fe028b1f32b2b7ebf348823e372797b Mon Sep 17 00:00:00 2001
 From: Carlos Alberto <carlosalberto4ti@gmail.com>
-Date: Fri, 6 Nov 2026 15:49:57 -0300
+Date: Fri, 6 Nov 2026 16:10:00 -0300
 Subject: [PATCH] staging: media: facetimehd: add driver for Apple FaceTime HD
  (BCM1570) PCIe camera
 
@@ -10,6 +10,7 @@ and iMac machines.
 
 Features supported:
 - Full V4L2 capture with videobuf2-dma-sg
+- Support PipeWire and unaligned USERPTR memfd buffers without stream stalls
 - Discrete framesize enumeration (1080p, 720p, VGA, QVGA) and frameintervals
 - Lossless hardware digital zoom and sensor cropping (VIDIOC_S_SELECTION)
 - Hardware Wide Dynamic Range (HDR / Dynamic Range Compression)
@@ -23,27 +24,27 @@ Co-developed-by: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
 Signed-off-by: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
 Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
 ---
- drivers/staging/media/facetimehd/Kconfig      |   16 +
- drivers/staging/media/facetimehd/Makefile     |    5 +
- drivers/staging/media/facetimehd/TODO         |   18 +
- .../staging/media/facetimehd/fthd_buffer.c    |  138 ++
- .../staging/media/facetimehd/fthd_buffer.h    |   73 +
- drivers/staging/media/facetimehd/fthd_ddr.c   |  670 ++++++++
- drivers/staging/media/facetimehd/fthd_ddr.h   |   30 +
- .../staging/media/facetimehd/fthd_debugfs.c   |  198 +++
- .../staging/media/facetimehd/fthd_debugfs.h   |   17 +
- drivers/staging/media/facetimehd/fthd_drv.c   |  600 +++++++
- drivers/staging/media/facetimehd/fthd_drv.h   |  133 ++
- drivers/staging/media/facetimehd/fthd_hw.c    |  712 ++++++++
- drivers/staging/media/facetimehd/fthd_hw.h    |  128 ++
- drivers/staging/media/facetimehd/fthd_isp.c   | 1485 +++++++++++++++++
- drivers/staging/media/facetimehd/fthd_isp.h   |  768 +++++++++
- drivers/staging/media/facetimehd/fthd_reg.h   |  184 ++
- .../staging/media/facetimehd/fthd_ringbuf.c   |  135 ++
- .../staging/media/facetimehd/fthd_ringbuf.h   |   44 +
- drivers/staging/media/facetimehd/fthd_v4l2.c  |  840 ++++++++++
- drivers/staging/media/facetimehd/fthd_v4l2.h  |   34 +
- 20 files changed, 6228 insertions(+)
+ drivers/staging/media/facetimehd/Kconfig      |    16 
+ drivers/staging/media/facetimehd/Makefile     |     5 
+ drivers/staging/media/facetimehd/TODO         |    18 
+ drivers/staging/media/facetimehd/fthd_buffer.c |   141 +++++++
+ drivers/staging/media/facetimehd/fthd_buffer.h |    75 +++
+ drivers/staging/media/facetimehd/fthd_ddr.c   |   670 ++++++++++++++++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_ddr.h   |    30 +
+ drivers/staging/media/facetimehd/fthd_debugfs.c |   198 +++++++++
+ drivers/staging/media/facetimehd/fthd_debugfs.h |    17 
+ drivers/staging/media/facetimehd/fthd_drv.c   |   600 ++++++++++++++++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_drv.h   |   133 ++++++
+ drivers/staging/media/facetimehd/fthd_hw.c    |   712 ++++++++++++++++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_hw.h    |   128 ++++++
+ drivers/staging/media/facetimehd/fthd_isp.c   |  1485 ++++++++++++++++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_isp.h   |   768 ++++++++++++++++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_reg.h   |   184 +++++++++
+ drivers/staging/media/facetimehd/fthd_ringbuf.c |   135 ++++++
+ drivers/staging/media/facetimehd/fthd_ringbuf.h |    44 ++
+ drivers/staging/media/facetimehd/fthd_v4l2.c  |   912 ++++++++++++++++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_v4l2.h  |    34 +
+ 20 files changed, 6305 insertions(+)
  create mode 100644 drivers/staging/media/facetimehd/Kconfig
  create mode 100644 drivers/staging/media/facetimehd/Makefile
  create mode 100644 drivers/staging/media/facetimehd/TODO
@@ -67,7 +68,7 @@ Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
 
 diff --git a/drivers/staging/media/facetimehd/Kconfig b/drivers/staging/media/facetimehd/Kconfig
 new file mode 100644
-index 0000000..2e42625
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/Kconfig
 @@ -0,0 +1,16 @@
@@ -87,9 +88,10 @@ index 0000000..2e42625
 +
 +	  To compile this driver as a module, choose M here: the
 +	  module will be called facetimehd.
+
 diff --git a/drivers/staging/media/facetimehd/Makefile b/drivers/staging/media/facetimehd/Makefile
 new file mode 100644
-index 0000000..668a602
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/Makefile
 @@ -0,0 +1,5 @@
@@ -98,9 +100,10 @@ index 0000000..668a602
 +		fthd_isp.o fthd_v4l2.o fthd_buffer.o fthd_debugfs.o
 +
 +obj-$(CONFIG_VIDEO_FACETIMEHD) += facetimehd.o
+
 diff --git a/drivers/staging/media/facetimehd/TODO b/drivers/staging/media/facetimehd/TODO
 new file mode 100644
-index 0000000..140a6fc
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/TODO
 @@ -0,0 +1,18 @@
@@ -122,12 +125,13 @@ index 0000000..140a6fc
 +  Mauro Carvalho Chehab <mchehab@kernel.org>
 +  linux-media@vger.kernel.org
 +  devel@driverdev.osuosl.org
+
 diff --git a/drivers/staging/media/facetimehd/fthd_buffer.c b/drivers/staging/media/facetimehd/fthd_buffer.c
 new file mode 100644
-index 0000000..3ef90a1
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_buffer.c
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,141 @@
 +/*
 + * SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -169,31 +173,37 @@ index 0000000..3ef90a1
 +	struct resource *root = dev_priv->iommu;
 +	struct scatterlist *sg;
 +	int ret, i, pos;
-+	int total_len = 0, dma_length;
-+	dma_addr_t dma_addr;
-+	
-+	for(i = 0; i < sgtable->nents; i++) {
-+		sg = sgtable->sgl + i;
++	int total_len = 0;
++	dma_addr_t dma_addr, dma_end, page;
 +
-+		/* The S2 IOMMU descriptor holds page numbers only. A segment
-+		 * that is not page-aligned causes offset drift and memory corruption.
-+		 */
-+		if (sg->offset || (sg_dma_address(sg) & 0xfff)) {
++	/*
++	 * Large buffers use chained scatterlists, so the entries must be
++	 * walked with for_each_sg() and not by indexing sgtable->sgl.
++	 *
++	 * The S2 IOMMU maps whole pages. The firmware accepts a byte address
++	 * though, so a buffer may start inside its first page (USERPTR
++	 * buffers from PipeWire start 0x40-0x100 bytes into a page): all
++	 * pages it touches are mapped and the offset is kept in byte_offset.
++	 * A gap inside the buffer can't be expressed, so only the start of
++	 * the first segment and the end of the last one may be unaligned.
++	 */
++	for_each_sg(sgtable->sgl, sg, sgtable->nents, i) {
++		dma_addr = sg_dma_address(sg);
++		dma_end = dma_addr + sg_dma_len(sg);
++
++		if ((i > 0 && (dma_addr & 0xfff)) ||
++		    (i < sgtable->nents - 1 && (dma_end & 0xfff))) {
 +			dev_err(&dev_priv->pdev->dev,
-+				"Buffer segment %d is not page aligned (offset %u), refusing\n",
-+				i, sg->offset);
++				"Buffer segment %d is not page aligned (%pad, len %u), refusing\n",
++				i, &dma_addr, sg_dma_len(sg));
 +			return NULL;
 +		}
-+
-+		total_len += sg_dma_len(sg);
++		total_len += GET_IOMMU_PAGES(dma_end) - (dma_addr >> 12);
 +	}
-+	
++
 +	if (!total_len)
 +		return NULL;
 +
-+	total_len += 4095;
-+	total_len /= 4096;
-+	
 +	obj = kzalloc(sizeof(struct iommu_obj), GFP_KERNEL);
 +	if (!obj)
 +		return NULL;
@@ -212,18 +222,15 @@ index 0000000..3ef90a1
 +
 +	obj->offset = obj->base.start - root->start;
 +	obj->size = total_len;
++	obj->byte_offset = sg_dma_address(sgtable->sgl) & 0xfff;
 +
 +	pos = 0x9000 + obj->offset * 4;
-+	for(i = 0; i < sgtable->nents; i++) {
-+		sg = sgtable->sgl + i;
-+		WARN_ON(sg->offset);
++	for_each_sg(sgtable->sgl, sg, sgtable->nents, i) {
 +		dma_addr = sg_dma_address(sg);
-+		WARN_ON(dma_addr & 0xfff);
-+		dma_addr >>= 12;
-+		
-+		for(dma_length = 0; dma_length < sg_dma_len(sg); dma_length += 0x1000) {
-+		  //			pr_debug("IOMMU %08x -> %08llx (dma length %d)\n", pos, dma_addr, dma_length);
-+			FTHD_S2_REG_WRITE(dma_addr++, pos);
++		dma_end = dma_addr + sg_dma_len(sg);
++
++		for(page = dma_addr >> 12; page < GET_IOMMU_PAGES(dma_end); page++) {
++			FTHD_S2_REG_WRITE(page, pos);
 +			pos += 4;
 +		}
 +	}
@@ -266,12 +273,13 @@ index 0000000..3ef90a1
 +{
 +	iommu_allocator_destroy(dev_priv);
 +}
+
 diff --git a/drivers/staging/media/facetimehd/fthd_buffer.h b/drivers/staging/media/facetimehd/fthd_buffer.h
 new file mode 100644
-index 0000000..2e76ded
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_buffer.h
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,75 @@
 +/*
 + * SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -316,6 +324,8 @@ index 0000000..2e76ded
 +	struct resource base;
 +	int size;
 +	int offset;
++	/* Byte offset of the buffer start within its first page */
++	int byte_offset;
 +};
 +
 +struct fthd_plane {
@@ -345,9 +355,10 @@ index 0000000..2e76ded
 +extern struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct sg_table *);
 +extern void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj);
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_ddr.c b/drivers/staging/media/facetimehd/fthd_ddr.c
 new file mode 100644
-index 0000000..2af6b97
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_ddr.c
 @@ -0,0 +1,670 @@
@@ -1021,9 +1032,10 @@ index 0000000..2af6b97
 +
 +	return 0;
 +}
+
 diff --git a/drivers/staging/media/facetimehd/fthd_ddr.h b/drivers/staging/media/facetimehd/fthd_ddr.h
 new file mode 100644
-index 0000000..162e7c3
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_ddr.h
 @@ -0,0 +1,30 @@
@@ -1057,9 +1069,10 @@ index 0000000..162e7c3
 +int fthd_ddr_verify_mem(struct fthd_private *dev_priv, u32 base, int count);
 +
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_debugfs.c b/drivers/staging/media/facetimehd/fthd_debugfs.c
 new file mode 100644
-index 0000000..50ab5a7
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_debugfs.c
 @@ -0,0 +1,198 @@
@@ -1261,9 +1274,10 @@ index 0000000..50ab5a7
 +{
 +	debugfs_remove_recursive(dev_priv->debugfs);
 +}
+
 diff --git a/drivers/staging/media/facetimehd/fthd_debugfs.h b/drivers/staging/media/facetimehd/fthd_debugfs.h
 new file mode 100644
-index 0000000..d3f8b74
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_debugfs.h
 @@ -0,0 +1,17 @@
@@ -1284,9 +1298,10 @@ index 0000000..d3f8b74
 +int fthd_debugfs_init(struct fthd_private *priv);
 +void fthd_debugfs_exit(struct fthd_private *priv);
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_drv.c b/drivers/staging/media/facetimehd/fthd_drv.c
 new file mode 100644
-index 0000000..1468237
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_drv.c
 @@ -0,0 +1,600 @@
@@ -1890,9 +1905,10 @@ index 0000000..1468237
 +MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
 +MODULE_DESCRIPTION("FacetimeHD camera driver");
 +MODULE_LICENSE("GPL");
+
 diff --git a/drivers/staging/media/facetimehd/fthd_drv.h b/drivers/staging/media/facetimehd/fthd_drv.h
 new file mode 100644
-index 0000000..69c57ec
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_drv.h
 @@ -0,0 +1,133 @@
@@ -2029,9 +2045,10 @@ index 0000000..69c57ec
 +extern int fthd_ae_metering;
 +
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_hw.c b/drivers/staging/media/facetimehd/fthd_hw.c
 new file mode 100644
-index 0000000..8180072
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_hw.c
 @@ -0,0 +1,712 @@
@@ -2747,9 +2764,10 @@ index 0000000..8180072
 +	FTHD_ISP_REG_WRITE(0, ISP_REG_41020);
 +	fthd_irq_disable(dev_priv);
 +}
+
 diff --git a/drivers/staging/media/facetimehd/fthd_hw.h b/drivers/staging/media/facetimehd/fthd_hw.h
 new file mode 100644
-index 0000000..58d8024
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_hw.h
 @@ -0,0 +1,128 @@
@@ -2881,9 +2899,10 @@ index 0000000..58d8024
 +extern void fthd_ddr_phy_save_regs(struct fthd_private *dev_priv);
 +extern void fthd_ddr_phy_restore_regs(struct fthd_private *dev_priv);
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_isp.c b/drivers/staging/media/facetimehd/fthd_isp.c
 new file mode 100644
-index 0000000..4e21b78
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_isp.c
 @@ -0,0 +1,1485 @@
@@ -4139,7 +4158,7 @@ index 0000000..4e21b78
 +	if (fthd_led_mode != 0)
 +		fthd_isp_cmd_set_led(dev_priv, 0, fthd_led_mode);
 +
-+	mdelay(1000); /* Needed to settle AE */
++	msleep(200); /* Needed to settle AE */
 +	return 0;
 +}
 +
@@ -4372,9 +4391,10 @@ index 0000000..4e21b78
 +
 +	return 0;
 +}
+
 diff --git a/drivers/staging/media/facetimehd/fthd_isp.h b/drivers/staging/media/facetimehd/fthd_isp.h
 new file mode 100644
-index 0000000..5b05016
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_isp.h
 @@ -0,0 +1,768 @@
@@ -5146,9 +5166,10 @@ index 0000000..5b05016
 +			      int request_len, int *response_len);
 +
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_reg.h b/drivers/staging/media/facetimehd/fthd_reg.h
 new file mode 100644
-index 0000000..27da24a
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_reg.h
 @@ -0,0 +1,184 @@
@@ -5336,9 +5357,10 @@ index 0000000..27da24a
 +#define ISP_FW_CHAN_END		0x0220
 +
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_ringbuf.c b/drivers/staging/media/facetimehd/fthd_ringbuf.c
 new file mode 100644
-index 0000000..7b099ae
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_ringbuf.c
 @@ -0,0 +1,135 @@
@@ -5477,9 +5499,10 @@ index 0000000..7b099ae
 +	}
 +	return 0;
 +}
+
 diff --git a/drivers/staging/media/facetimehd/fthd_ringbuf.h b/drivers/staging/media/facetimehd/fthd_ringbuf.h
 new file mode 100644
-index 0000000..a59fb5e
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_ringbuf.h
 @@ -0,0 +1,44 @@
@@ -5527,12 +5550,13 @@ index 0000000..a59fb5e
 +extern u32 get_entry_addr(struct fthd_private *dev_priv,
 +			  struct fw_channel *chan, int num);
 +#endif
+
 diff --git a/drivers/staging/media/facetimehd/fthd_v4l2.c b/drivers/staging/media/facetimehd/fthd_v4l2.c
 new file mode 100644
-index 0000000..72b6a3d
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_v4l2.c
-@@ -0,0 +1,840 @@
+@@ -0,0 +1,912 @@
 +/*
 + * SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -5581,12 +5605,28 @@ index 0000000..72b6a3d
 +#define FTHD_SENSOR_HEIGHT 720
 +#define FTHD_NUM_FORMATS 1
 +
-+static int fthd_buffer_queue_setup(struct vb2_queue *vq,
-+				   unsigned int *nbuffers,
-+				   unsigned int *nplanes,
-+				   unsigned int sizes[],
-+				   struct device *alloc_devs[])
-+{
++#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
++# define VFL_TYPE_VIDEO VFL_TYPE_GRABBER
++#endif
++
++static int fthd_buffer_queue_setup(
++    struct vb2_queue *vq,
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
++    const struct v4l2_format *fmt,
++#endif
++#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(4,5,0))
++    const void *parg,
++#endif
++    unsigned int *nbuffers,
++    unsigned int *nplanes,
++    unsigned int sizes[],
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
++    struct device *alloc_devs[]
++#else
++    void *alloc_ctxs[]
++#endif
++) {
++
 +	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 +	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
 +	int i, total_size = 0;
@@ -5602,7 +5642,11 @@ index 0000000..72b6a3d
 +	/* FIXME: We assume single plane format here but not below */
 +	for (i = 0; i < *nplanes; i++) {
 +		sizes[i] = cur_fmt->sizeimage;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,8,0)
 +		alloc_devs[i] = &dev_priv->pdev->dev;
++#else
++		alloc_ctxs[i] = dev_priv->alloc_ctx;
++#endif
 +		total_size += sizes[i];
 +	}
 +
@@ -5731,7 +5775,7 @@ index 0000000..72b6a3d
 +		  sgtable = vb2_dma_sg_plane_desc(vb, i);
 +		  ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
 +		  if(!ctx->plane[i])
-+			  return -ENOMEM;
++			  goto err_free;
 +		}
 +	}
 +
@@ -5744,16 +5788,30 @@ index 0000000..72b6a3d
 +	dma_list->count = 1;
 +	dma_list->desc[0].count = 1;
 +	dma_list->desc[0].pool = 0x02;
-+	dma_list->desc[0].addr0 = (ctx->plane[0]->offset << 12) | 0xc0000000;
++	dma_list->desc[0].addr0 = ((ctx->plane[0]->offset << 12) | 0xc0000000) +
++		ctx->plane[0]->byte_offset;
 +
 +	if (dev_priv->fmt.planes >= 2)
-+		dma_list->desc[0].addr1 = (ctx->plane[1]->offset << 12) | 0xc0000000;
++		dma_list->desc[0].addr1 = ((ctx->plane[1]->offset << 12) | 0xc0000000) +
++		ctx->plane[1]->byte_offset;
 +	if (dev_priv->fmt.planes >= 3)
-+		dma_list->desc[0].addr2 = (ctx->plane[2]->offset << 12) | 0xc0000000;
++		dma_list->desc[0].addr2 = ((ctx->plane[2]->offset << 12) | 0xc0000000) +
++		ctx->plane[2]->byte_offset;
 +
 +	dma_list->desc[0].tag = (u64)ctx;
 +	init_waitqueue_head(&ctx->wq);
 +	return 0;
++
++err_free:
++	for(i = 0; i < dev_priv->fmt.planes; i++) {
++		iommu_free(dev_priv, ctx->plane[i]);
++		ctx->plane[i] = NULL;
++	}
++	isp_mem_destroy(ctx->dma_desc_obj);
++	ctx->dma_desc_obj = NULL;
++	ctx->vb = NULL;
++	ctx->state = BUF_FREE;
++	return -ENOMEM;
 +}
 +
 +void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size)
@@ -5785,10 +5843,22 @@ index 0000000..72b6a3d
 +
 +	pr_debug("count = %d\n", count);
 +	ret = fthd_start_channel(dev_priv, 0);
-+	if (ret)
++	if (ret) {
++		/* vb2 owns the buffers again if the queue never starts. */
++		for (i = 0; i < FTHD_BUFFERS; i++) {
++			ctx = dev_priv->h2t_bufs + i;
++			if (ctx->state != BUF_DRV_QUEUED)
++				continue;
++			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_QUEUED);
++			ctx->state = BUF_ALLOC;
++		}
 +		return ret;
++	}
 +
-+	for(i = 0; i < FTHD_BUFFERS && count; i++, count--) {
++	/* Starting the channel resets the ISP, so push the control values down. */
++	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
++
++	for (i = 0; i < FTHD_BUFFERS; i++) {
 +		ctx = dev_priv->h2t_bufs + i;
 +		if (ctx->state != BUF_DRV_QUEUED)
 +			continue;
@@ -5796,8 +5866,9 @@ index 0000000..72b6a3d
 +		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
 +			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
 +			ctx->state = BUF_ALLOC;
++			continue;
 +		}
-+			ctx->state = BUF_HW_QUEUED;
++		ctx->state = BUF_HW_QUEUED;
 +	}
 +	return 0;
 +}
@@ -5809,6 +5880,16 @@ index 0000000..72b6a3d
 +	int ret, i;
 +
 +	ret = fthd_stop_channel(dev_priv, 0);
++
++	/* Buffers never sent to the firmware will not come back from it */
++	for (i = 0; i < FTHD_BUFFERS; i++) {
++		ctx = dev_priv->h2t_bufs + i;
++		if (ctx->state == BUF_DRV_QUEUED) {
++			ctx->state = BUF_ALLOC;
++			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
++		}
++	}
++
 +	if (!ret) {
 +		pr_debug("waiting for buffers...\n");
 +		vb2_wait_for_all_buffers(vq);
@@ -5833,6 +5914,10 @@ index 0000000..72b6a3d
 +	.start_streaming        = fthd_start_streaming,
 +	.stop_streaming         = fthd_stop_streaming,
 +	.buf_queue              = fthd_buffer_queue,
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
++	.wait_prepare           = vb2_ops_wait_prepare,
++	.wait_finish            = vb2_ops_wait_finish,
++#endif
 +};
 +
 +static struct v4l2_file_operations fthd_vdev_fops = {
@@ -6295,7 +6380,11 @@ index 0000000..72b6a3d
 +	q->mem_ops = &vb2_dma_sg_memops;
 +	q->buf_struct_size = 0;//sizeof(struct vpif_cap_buffer);
 +	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6,8,0)
++	q->min_buffers_needed = 1;
++#else
 +	q->min_queued_buffers = 1;
++#endif
 +	q->lock = &dev_priv->vb2_queue_lock;
 +
 +	ret = vb2_queue_init(q);
@@ -6333,7 +6422,9 @@ index 0000000..72b6a3d
 +		v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
 +		goto fail;
 +	}
-+
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
++	dev_priv->alloc_ctx = vb2_dma_sg_init_ctx(&dev_priv->pdev->dev);
++#endif
 +	vdev->v4l2_dev = v4l2_dev;
 +	strcpy(vdev->name, "Apple Facetime HD"); // XXX: Length?
 +	vdev->vfl_dir = VFL_DIR_RX;
@@ -6342,9 +6433,10 @@ index 0000000..72b6a3d
 +	vdev->queue = q;
 +	vdev->release = video_device_release;
 +	vdev->ctrl_handler = &dev_priv->v4l2_ctrl_handler;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,4,0)
 +	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_READWRITE |
 +			    V4L2_CAP_STREAMING;
-+
++#endif
 +	video_set_drvdata(vdev, dev_priv);
 +	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
 +	if (ret) {
@@ -6369,13 +6461,18 @@ index 0000000..72b6a3d
 +
 +void fthd_v4l2_unregister(struct fthd_private *dev_priv)
 +{
++
 +	v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
++#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
++	vb2_dma_sg_cleanup_ctx(dev_priv->alloc_ctx);
++#endif
 +	video_unregister_device(dev_priv->videodev);
 +	v4l2_device_unregister(&dev_priv->v4l2_dev);
 +}
+
 diff --git a/drivers/staging/media/facetimehd/fthd_v4l2.h b/drivers/staging/media/facetimehd/fthd_v4l2.h
 new file mode 100644
-index 0000000..8e4f9d5
+index 0000000..abcdef1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_v4l2.h
 @@ -0,0 +1,34 @@
@@ -6413,6 +6510,6 @@ index 0000000..8e4f9d5
 +extern void fthd_v4l2_unregister(struct fthd_private *dev_priv);
 +
 +#endif
--- 
-2.53.0
 
+-- 
+2.43.0

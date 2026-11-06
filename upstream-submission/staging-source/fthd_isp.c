@@ -1250,7 +1250,7 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	if (fthd_led_mode != 0)
 		fthd_isp_cmd_set_led(dev_priv, 0, fthd_led_mode);
 
-	mdelay(1000); /* Needed to settle AE */
+	msleep(200); /* Needed to settle AE */
 	return 0;
 }
 
