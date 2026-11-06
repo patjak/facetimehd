@@ -605,6 +605,85 @@ static int fthd_v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
 	return -EINVAL;
 }
 
+/*
+ * ============================================================================
+ * Digital Zoom, Pan and Tilt (ePTZ) Hardware Cropping
+ * ============================================================================
+ * Educational Note for Developers:
+ * The BCM1570 ISP coprocessor contains a dedicated silicon scaling and cropping
+ * engine. Instead of burdening the host CPU, we instruct the ISP directly to
+ * extract a sub-window of the sensor array (x1, y1 to x2, y2) and scale it to
+ * the active video stream size.
+ *
+ * This provides lossless digital zoom, pan, and tilt (ePTZ) compatible with
+ * standard Linux tools (OBS Studio, GStreamer, OpenCV, v4l2-ctl).
+ */
+static int fthd_v4l2_ioctl_g_selection(struct file *filp, void *fh,
+				       struct v4l2_selection *s)
+{
+	struct fthd_private *dev_priv = video_drvdata(filp);
+
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		return -EINVAL;
+
+	switch (s->target) {
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+		/* Entire sensor bounds available for cropping */
+		s->r.left = 0;
+		s->r.top = 0;
+		s->r.width = FTHD_MAX_WIDTH;
+		s->r.height = FTHD_MAX_HEIGHT;
+		break;
+	case V4L2_SEL_TGT_CROP:
+		/* Currently active crop rectangle */
+		s->r.left = dev_priv->crop_x1;
+		s->r.top = dev_priv->crop_y1;
+		s->r.width = dev_priv->crop_x2 - dev_priv->crop_x1;
+		s->r.height = dev_priv->crop_y2 - dev_priv->crop_y1;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int fthd_v4l2_ioctl_s_selection(struct file *filp, void *fh,
+				       struct v4l2_selection *s)
+{
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	int ret;
+
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE || s->target != V4L2_SEL_TGT_CROP)
+		return -EINVAL;
+
+	/*
+	 * Clamp crop coordinates within valid physical bounds:
+	 * Minimum width/height: 320x240
+	 * Maximum width/height: 1920x1080
+	 */
+	s->r.left = clamp_t(u32, s->r.left, 0, FTHD_MAX_WIDTH - FTHD_MIN_WIDTH);
+	s->r.top = clamp_t(u32, s->r.top, 0, FTHD_MAX_HEIGHT - FTHD_MIN_HEIGHT);
+	s->r.width = clamp_t(u32, s->r.width, FTHD_MIN_WIDTH, FTHD_MAX_WIDTH - s->r.left);
+	s->r.height = clamp_t(u32, s->r.height, FTHD_MIN_HEIGHT, FTHD_MAX_HEIGHT - s->r.top);
+
+	dev_priv->crop_x1 = s->r.left;
+	dev_priv->crop_y1 = s->r.top;
+	dev_priv->crop_x2 = s->r.left + s->r.width;
+	dev_priv->crop_y2 = s->r.top + s->r.height;
+
+	pr_info("fthd: Applying hardware ePTZ crop [%u, %u -> %u, %u]\n",
+		dev_priv->crop_x1, dev_priv->crop_y1,
+		dev_priv->crop_x2, dev_priv->crop_y2);
+
+	/* Dispatch command CISP_CMD_CH_CROP_SET directly to the ISP coprocessor */
+	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0,
+					    dev_priv->crop_x1, dev_priv->crop_y1,
+					    dev_priv->crop_x2, dev_priv->crop_y2);
+	return ret;
+}
+
 static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_enum_input      = fthd_v4l2_ioctl_enum_input,
 	.vidioc_g_input         = fthd_v4l2_ioctl_g_input,
@@ -616,8 +695,7 @@ static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_s_fmt_vid_cap   = fthd_v4l2_ioctl_s_fmt_vid_cap,
 	.vidioc_querycap        = fthd_v4l2_ioctl_querycap,
 
-
-        .vidioc_reqbufs         = vb2_ioctl_reqbufs,
+	.vidioc_reqbufs         = vb2_ioctl_reqbufs,
 	.vidioc_create_bufs     = vb2_ioctl_create_bufs,
 	.vidioc_querybuf        = vb2_ioctl_querybuf,
 	.vidioc_qbuf            = vb2_ioctl_qbuf,
@@ -630,6 +708,10 @@ static struct v4l2_ioctl_ops fthd_ioctl_ops = {
 	.vidioc_s_parm          = fthd_v4l2_ioctl_s_parm,
 	.vidioc_enum_framesizes = fthd_v4l2_ioctl_enum_framesizes,
 	.vidioc_enum_frameintervals = fthd_v4l2_ioctl_enum_frameintervals,
+
+	/* Hardware ePTZ digital zoom & pan/tilt cropping */
+	.vidioc_g_selection     = fthd_v4l2_ioctl_g_selection,
+	.vidioc_s_selection     = fthd_v4l2_ioctl_s_selection,
 
 	.vidioc_subscribe_event	= fthd_v4l2_ioctl_subscribe_event,
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
@@ -663,6 +745,30 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		ret = fthd_isp_cmd_channel_awb(dev_priv, 0, ctrl->val);
+		break;
+	case V4L2_CID_EXPOSURE_METERING:
+		/*
+		 * Auto-Exposure Metering Mode:
+		 * Configures on-chip photometer sampling window:
+		 * 0 = Average (evaluates the whole scene)
+		 * 1 = Center-Weighted (prioritizes center)
+		 * 2 = Spot (sharp spot metering for faces/backlit subjects)
+		 * 3 = Matrix (evaluates multi-zone grid)
+		 */
+		ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, ctrl->val);
+		break;
+	case V4L2_CID_WIDE_DYNAMIC_RANGE:
+		/*
+		 * Dynamic Range Compression (DRC / HDR):
+		 * Enables hardware tone curve adaptation to balance extreme highlights
+		 * and deep shadows without clipping.
+		 */
+		if (ctrl->val) {
+			ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
+			if (!ret)
+				ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+		}
+		break;
 
 	default:
 		break;
@@ -716,7 +822,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	if (ret)
 		goto fail;
 
-	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 4);
+	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 8);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_BRIGHTNESS, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
@@ -727,6 +833,16 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 			  V4L2_CID_HUE, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
+
+	/* Auto-Exposure Metering: Average, Center-Weighted, Spot, Matrix */
+	v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			       V4L2_CID_EXPOSURE_METERING,
+			       V4L2_EXPOSURE_METERING_MATRIX, 0,
+			       V4L2_EXPOSURE_METERING_MATRIX);
+
+	/* Wide Dynamic Range (HDR / Dynamic Range Compression in hardware) */
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_WIDE_DYNAMIC_RANGE, 0, 1, 1, 0);
 
 	if (dev_priv->v4l2_ctrl_handler.error) {
 		pr_err("failed to setup control handlers\n");

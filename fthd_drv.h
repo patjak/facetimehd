@@ -117,6 +117,12 @@ struct fthd_private {
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	int frametime;
 	struct dentry *debugfs;
+
+	/* Digital Zoom / Pan-Tilt (ePTZ) Hardware Crop Coordinates */
+	u32 crop_x1;
+	u32 crop_y1;
+	u32 crop_x2;
+	u32 crop_y2;
 };
 
 #endif

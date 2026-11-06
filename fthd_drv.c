@@ -462,6 +462,12 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	dev_priv->ddr_speed = 450;
 	dev_priv->frametime = 40; /* 25 fps */
 
+	/* Default full sensor crop window (1280x720) for ePTZ digital zoom */
+	dev_priv->crop_x1 = 0;
+	dev_priv->crop_y1 = 0;
+	dev_priv->crop_x2 = 1280;
+	dev_priv->crop_y2 = 720;
+
 	spin_lock_init(&dev_priv->io_lock);
 	mutex_init(&dev_priv->vb2_queue_lock);
 
