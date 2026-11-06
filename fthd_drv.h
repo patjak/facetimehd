@@ -27,7 +27,7 @@
 #define FTHD_PCI_S2_MEM 2
 #define FTHD_PCI_ISP_IO 4
 
-#define FTHD_BUFFERS 4
+#define FTHD_BUFFERS 8
 
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT=0,
@@ -113,6 +113,8 @@ struct fthd_private {
 	struct vb2_alloc_ctx *alloc_ctx;
 #endif
 	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
+	u32 sequence;
+	bool channel_started;
 
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	int frametime;
