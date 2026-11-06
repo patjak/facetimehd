@@ -18,8 +18,13 @@ facetimehd/firmware.bin.
 Key capabilities included in this submission:
 - Modern V4L2 and videobuf2-dma-sg implementation compatible with Linux 6.12+
   through 7.0+ (removal of deprecated vb2 callbacks).
+- Seamless PipeWire and Flatpak streaming via in-page USERPTR offset support
+  (programming obj->byte_offset into ISP DMA descriptors) and chained scatterlist
+  iteration with for_each_sg().
 - Discrete framesize enumeration (1080p, 720p, VGA, QVGA) and matching
   discrete frameintervals for WebRTC, PipeWire, OBS, and browser capture.
+- Native V4L2_PIX_FMT_YUYV pixel pipeline with power-of-two 8-pixel macroblock
+  stride alignment and immediate Auto White Balance (AWB) on channel start.
 - Hardware ePTZ digital zoom (VIDIOC_G_SELECTION / VIDIOC_S_SELECTION for
   V4L2_SEL_TGT_CROP), executing lossless sensor crop without host CPU overhead.
 - Auto-Exposure Photometry Metering (V4L2_CID_EXPOSURE_METERING: Average,
@@ -31,7 +36,8 @@ Key capabilities included in this submission:
 
 The driver has been validated on physical hardware (MacBook Pro Retina 15-inch
 Mid 2014, MacBookPro11,2, PCI 03:00.0) running Linux 7.0.0-14-generic,
-streaming cleanly at full framerate with zero dropped frames.
+streaming cleanly at a steady 30.0 fps in both native V4L2 and PipeWire
+(GNOME Cheese / Snapshot in Flatpak containers) with zero dropped frames.
 
 A TODO file is provided detailing the roadmap for graduating from staging
 into drivers/media/pci/facetimehd/.
