@@ -25,8 +25,21 @@
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
 
-#define FTHD_MAX_WIDTH 1280
-#define FTHD_MAX_HEIGHT 720
+struct fthd_frame_size {
+	u32 width;
+	u32 height;
+	u32 max_fps;
+};
+
+static const struct fthd_frame_size fthd_sizes[] = {
+	{ 1280, 720,  30 }, /* 720p HD 16:9 - Default */
+	{ 1920, 1080, 30 }, /* 1080p Full HD 16:9 */
+	{ 640,  480,  30 }, /* VGA 4:3 - Required by WebRTC / Chrome / Cheese */
+	{ 320,  240,  30 }, /* QVGA 4:3 */
+};
+
+#define FTHD_MAX_WIDTH 1920
+#define FTHD_MAX_HEIGHT 1080
 #define FTHD_MIN_WIDTH 320
 #define FTHD_MIN_HEIGHT 240
 #define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
@@ -76,11 +89,11 @@ static int fthd_buffer_queue_setup(
 		total_size += sizes[i];
 	}
 
-	*nbuffers = (4096 * 4096) / total_size;
+	*nbuffers = (32 * 1024 * 1024) / total_size;
 	if (*nbuffers > 4)
 		*nbuffers = 4;
-	if (*nbuffers <= 1)
-		return -ENOMEM;
+	if (*nbuffers < 2)
+		*nbuffers = 2;
 	pr_debug("using %d buffers\n", *nbuffers);
 
 	return 0;
@@ -535,7 +548,7 @@ static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		struct v4l2_frmsizeenum *sizes)
 {
-	if (sizes->index)
+	if (sizes->index >= ARRAY_SIZE(fthd_sizes))
 		return -EINVAL;
 
 	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV &&
@@ -543,8 +556,8 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 		return -EINVAL;
 
 	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-	sizes->discrete.width = FTHD_MAX_WIDTH;
-	sizes->discrete.height = FTHD_MAX_HEIGHT;
+	sizes->discrete.width = fthd_sizes[sizes->index].width;
+	sizes->discrete.height = fthd_sizes[sizes->index].height;
 
 	return 0;
 }
@@ -552,9 +565,13 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 		struct v4l2_frmivalenum *interval)
 {
-	pr_debug("%s\n", __FUNCTION__);
+	int i;
+	u32 fps = 30;
 
-	if (interval->index)
+	pr_debug("%s: %dx%d fmt=%x idx=%d\n", __FUNCTION__,
+		 interval->width, interval->height, interval->pixel_format, interval->index);
+
+	if (interval->index != 0)
 		return -EINVAL;
 
 	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
@@ -562,14 +579,17 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	    interval->pixel_format != V4L2_PIX_FMT_NV16)
 		return -EINVAL;
 
-	if (interval->width & 7
-	    || interval->width > FTHD_MAX_WIDTH
-	    || interval->height > FTHD_MAX_HEIGHT)
-		return -EINVAL;
+	for (i = 0; i < ARRAY_SIZE(fthd_sizes); i++) {
+		if (interval->width == fthd_sizes[i].width &&
+		    interval->height == fthd_sizes[i].height) {
+			fps = fthd_sizes[i].max_fps;
+			break;
+		}
+	}
 
 	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 	interval->discrete.numerator = 1;
-	interval->discrete.denominator = 30;
+	interval->discrete.denominator = fps;
 
 	return 0;
 }
