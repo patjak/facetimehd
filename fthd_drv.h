@@ -125,4 +125,12 @@ struct fthd_private {
 	u32 crop_y2;
 };
 
+/* Module parameters exposed system-wide via /sys/module/facetimehd/parameters/ */
+extern int fthd_led_mode;
+extern int fthd_power_save;
+extern int fthd_default_width;
+extern int fthd_default_height;
+extern int fthd_drc_enable;
+extern int fthd_ae_metering;
+
 #endif

@@ -30,6 +30,49 @@
 #include "fthd_v4l2.h"
 #include "fthd_debugfs.h"
 
+/*
+ * Module parameters for direct driver configuration and runtime tuning:
+ *
+ * 1. led_mode: Camera status / privacy LED indicator mode:
+ *    - 0: Auto (hardware default: illuminated during active video streaming)
+ *    - 1: Always Off (stealth mode / suppress indicator light)
+ *    - 2: Always On (indicator illuminated continuously while camera is initialized)
+ *
+ * 2. power_save: Energy profile for ISP co-processor and image sensor:
+ *    - 0: High Performance (low latency, maintains ISP/DDR clocks during idle)
+ *    - 1: Balanced (default: ISP enters low-power standby on idle)
+ *    - 2: Aggressive Low Power (deep sensor power down CISP_CMD_CH_SENSOR_POWER_OFF)
+ *
+ * 3. default_width / default_height: Default boot/initial capture resolution (e.g. 1280x720)
+ *
+ * 4. drc_enable: Dynamic Range Compression / Wide Dynamic Range (HDR) enabled by default (0/1)
+ *
+ * 5. ae_metering: Auto-exposure metering algorithm (0=Average, 1=Center, 2=Spot, 3=Matrix)
+ */
+int fthd_led_mode = 0;
+module_param_named(led_mode, fthd_led_mode, int, 0644);
+MODULE_PARM_DESC(led_mode, "LED indicator mode: 0=Auto (on while streaming), 1=Always Off, 2=Always On");
+
+int fthd_power_save = 1;
+module_param_named(power_save, fthd_power_save, int, 0644);
+MODULE_PARM_DESC(power_save, "Power saving profile: 0=High Performance, 1=Balanced (default), 2=Aggressive Low Power");
+
+int fthd_default_width = 1280;
+module_param_named(default_width, fthd_default_width, int, 0644);
+MODULE_PARM_DESC(default_width, "Default capture width (default: 1280)");
+
+int fthd_default_height = 720;
+module_param_named(default_height, fthd_default_height, int, 0644);
+MODULE_PARM_DESC(default_height, "Default capture height (default: 720)");
+
+int fthd_drc_enable = 0;
+module_param_named(drc_enable, fthd_drc_enable, int, 0644);
+MODULE_PARM_DESC(drc_enable, "Default HDR / Dynamic Range Compression: 0=Disabled (default), 1=Enabled");
+
+int fthd_ae_metering = 3;
+module_param_named(ae_metering, fthd_ae_metering, int, 0644);
+MODULE_PARM_DESC(ae_metering, "Default Auto-Exposure metering mode: 0=Average, 1=Center-Weighted, 2=Spot, 3=Matrix (default)");
+
 static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
 {
 	unsigned long start;

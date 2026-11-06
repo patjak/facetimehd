@@ -763,11 +763,25 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 		 * Enables hardware tone curve adaptation to balance extreme highlights
 		 * and deep shadows without clipping.
 		 */
+		fthd_drc_enable = ctrl->val;
 		if (ctrl->val) {
 			ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
 			if (!ret)
 				ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+		} else {
+			ret = 0;
 		}
+		break;
+
+	case V4L2_CID_ILLUMINATORS_1:
+		/*
+		 * Camera Status / Privacy LED Indicator:
+		 * 0 = Auto (illuminated while video streaming is active)
+		 * 1 = Force Off (stealth mode / indicator disabled)
+		 * 2 = Force On (indicator continuously illuminated)
+		 */
+		fthd_led_mode = ctrl->val;
+		ret = fthd_isp_cmd_set_led(dev_priv, 0, ctrl->val);
 		break;
 
 	default:
@@ -822,7 +836,7 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	if (ret)
 		goto fail;
 
-	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 8);
+	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 10);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_BRIGHTNESS, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
@@ -834,15 +848,19 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
 
-	/* Auto-Exposure Metering: Average, Center-Weighted, Spot, Matrix */
+	/* Auto-Exposure Metering: Average (0), Center-Weighted (1), Spot (2), Matrix (3) */
 	v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			       V4L2_CID_EXPOSURE_METERING,
 			       V4L2_EXPOSURE_METERING_MATRIX, 0,
-			       V4L2_EXPOSURE_METERING_MATRIX);
+			       fthd_ae_metering);
 
 	/* Wide Dynamic Range (HDR / Dynamic Range Compression in hardware) */
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
-			  V4L2_CID_WIDE_DYNAMIC_RANGE, 0, 1, 1, 0);
+			  V4L2_CID_WIDE_DYNAMIC_RANGE, 0, 1, 1, fthd_drc_enable);
+
+	/* Camera status LED / indicator control (0 = Auto, 1 = Force Off, 2 = Force On) */
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_ILLUMINATORS_1, 0, 2, 1, fthd_led_mode);
 
 	if (dev_priv->v4l2_ctrl_handler.error) {
 		pr_err("failed to setup control handlers\n");
@@ -870,10 +888,10 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 		video_device_release(vdev);
 		goto fail_vdev;
 	}
-	dev_priv->fmt.fmt.sizeimage = 1280 * 720 * 2;
 	dev_priv->fmt.fmt.pixelformat = V4L2_PIX_FMT_YUYV;
-	dev_priv->fmt.fmt.width = 1280;
-	dev_priv->fmt.fmt.height = 720;
+	dev_priv->fmt.fmt.width = fthd_default_width;
+	dev_priv->fmt.fmt.height = fthd_default_height;
+	dev_priv->fmt.fmt.sizeimage = dev_priv->fmt.fmt.width * dev_priv->fmt.fmt.height * 2;
 	dev_priv->fmt.planes = 1;
 
 	fthd_v4l2_adjust_format(dev_priv, &dev_priv->fmt.fmt);

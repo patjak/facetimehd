@@ -1034,6 +1034,35 @@ int fthd_isp_cmd_channel_ae_metering_mode_set(struct fthd_private *dev_priv, int
 	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_AE_METERING_MODE_SET, &cmd, sizeof(cmd), &len);
 }
 
+/*
+ * Control camera indicator LED:
+ * mode 0: Auto (firmware illuminates LED during active capture)
+ * mode 1: Force Off (stealth mode / disable indicator)
+ * mode 2: Force On (keep indicator illuminated)
+ */
+int fthd_isp_cmd_set_led(struct fthd_private *dev_priv, int channel, int mode)
+{
+	struct {
+		u32 channel;
+	} cmd;
+	int len = sizeof(cmd);
+	int ret = 0;
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+
+	if (mode == 1) {
+		/* Turn off LED indicator */
+		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_LED_TORCH_OFF, &cmd, sizeof(cmd), &len);
+	} else if (mode == 2) {
+		/* Turn on indicator */
+		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_LED_TORCH_ON_INDICATOR, &cmd, sizeof(cmd), &len);
+	}
+
+	pr_debug("set_led mode %d ret=%d\n", mode, ret);
+	return 0;
+}
+
 int fthd_isp_cmd_channel_brightness_set(struct fthd_private *dev_priv, int channel, int brightness)
 {
 	struct isp_cmd_channel_brightness_set cmd;
@@ -1155,15 +1184,17 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_recycle_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, 3);
+	ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, fthd_ae_metering);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
-	if (ret)
-		return ret;
-	ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
-	if (ret)
-		return ret;
+	if (fthd_drc_enable) {
+		ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
+		if (ret)
+			return ret;
+		ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+		if (ret)
+			return ret;
+	}
 	ret = fthd_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
 	if (ret)
 		return ret;
@@ -1212,6 +1243,11 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_start(dev_priv);
 	if (ret)
 		return ret;
+
+	/* Apply LED indicator override if configured */
+	if (fthd_led_mode != 0)
+		fthd_isp_cmd_set_led(dev_priv, 0, fthd_led_mode);
+
 	mdelay(1000); /* Needed to settle AE */
 	return 0;
 }
@@ -1244,7 +1280,21 @@ int fthd_stop_channel(struct fthd_private *dev_priv, int channel)
 	if (ret)
 		return ret;
 
-	return fthd_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
+	if (ret)
+		return ret;
+
+	/* Aggressive Low Power: power down sensor on stop */
+	if (fthd_power_save == 2) {
+		struct {
+			u32 channel;
+		} pcmd;
+		memset(&pcmd, 0, sizeof(pcmd));
+		pcmd.channel = 0;
+		fthd_isp_cmd(dev_priv, CISP_CMD_CH_SENSOR_POWER_OFF, &pcmd, sizeof(pcmd), NULL);
+	}
+
+	return 0;
 }
 
 int isp_init(struct fthd_private *dev_priv)
