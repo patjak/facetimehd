@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config VIDEO_FACETIMEHD
+	tristate "Apple FaceTime HD (Broadcom BCM1570) PCIe Camera support"
+	depends on PCI && VIDEO_DEV
+	select VIDEOBUF2_DMA_SG
+	select VIDEOBUF2_V4L2
+	help
+	  This is a Video4Linux2 driver for the Broadcom BCM1570 PCIe
+	  webcam (FaceTime HD camera) found in Apple MacBook Pro,
+	  MacBook Air, and iMac machines.
+
+	  Firmware for this device is available as open-source via
+	  the OpenFTHD project or via linux-firmware.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called facetimehd.

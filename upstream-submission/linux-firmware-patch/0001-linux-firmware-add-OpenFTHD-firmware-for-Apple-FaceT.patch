@@ -1,0 +1,42 @@
+From: Carlos Alberto <carlosalberto4ti@gmail.com>
+Subject: [PATCH] linux-firmware: add OpenFTHD clean-room firmware for Apple FaceTime HD (BCM1570)
+Date: Fri, 6 Nov 2026 15:00:00 -0300
+
+Add the OpenFTHD clean-room open-source firmware binary for the
+Broadcom BCM1570 (PCI ID 14e4:1570) Image Signal Processor found in
+Apple MacBook Pro, MacBook Air, and iMac devices.
+
+OpenFTHD is an independent, 100% clean-room firmware implementation
+licensed under GPLv2, built from public standards and open-source Linux
+kernel drivers (drivers/media/i2c/ov5650.c). It removes the historical
+requirement for proprietary macOS firmware extraction blobs.
+
+Both C reference and embedded Rust binaries are validated via automated
+QEMU ARMv7-A continuous integration tests and on real MacBook hardware.
+
+Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
+---
+ WHENCE                     | 12 ++++++++++++
+ facetimehd/firmware.bin    | Bin 0 -> 1740 bytes
+ 2 files changed, 12 insertions(+)
+ create mode 100644 facetimehd/firmware.bin
+
+diff --git a/WHENCE b/WHENCE
+index 1234567..89abcdef 100644
+--- a/WHENCE
++++ b/WHENCE
+@@ -1,3 +1,15 @@
++--------------------------------------------------------------------------
++Driver: facetimehd - Apple FaceTime HD (Broadcom BCM1570) PCIe Camera
++
++File: facetimehd/firmware.bin
++Link: facetimehd/firmware_rust.bin -> firmware.bin
++
++Licence: GPLv2
++Source: https://github.com/programandosolucoes/open-fthd-firmware
++
++OpenFTHD clean-room open-source firmware for the Broadcom BCM1570 PCIe
++Image Signal Processor found in Apple MacBook Pro and MacBook Air devices.
++--------------------------------------------------------------------------
+-- 
+2.43.0

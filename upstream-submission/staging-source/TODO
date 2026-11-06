@@ -1,0 +1,18 @@
+TODO for Apple FaceTime HD (Broadcom BCM1570) PCIe webcam driver:
+
+- Move driver from drivers/staging/media/facetimehd to drivers/media/pci/facetimehd
+- Fully audit and clean checkpatch.pl warnings across legacy DDR training routines
+- Add v4l2-compliance automated test coverage
+- Integrate with official linux-firmware package (using OpenFTHD clean-room firmware)
+- Test multi-resolution and ePTZ features across broader hardware matrix:
+  - MacBook Pro 11,x (Mid 2014, Retina)
+  - MacBook Pro 12,x (Early 2015, Retina)
+  - MacBook Pro 13,x / 14,x (2016-2017)
+  - MacBook Air 6,x / 7,x
+  - iMac 14,x / 15,x
+
+Please send patches and bug reports to:
+  Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+  Mauro Carvalho Chehab <mchehab@kernel.org>
+  linux-media@vger.kernel.org
+  devel@driverdev.osuosl.org

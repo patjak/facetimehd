@@ -1,0 +1,6444 @@
+From 6127e9dad4b8ab2d8c6d0cf5c448acf17aa7503a Mon Sep 17 00:00:00 2001
+From: Carlos Alberto <carlosalberto4ti@gmail.com>
+Date: Fri, 6 Nov 2026 15:07:58 -0300
+Subject: [PATCH 1/2] staging: media: facetimehd: add driver for Apple FaceTime
+ HD (BCM1570) PCIe camera
+
+Add support for the Apple FaceTime HD (Broadcom BCM1570, PCI ID 14e4:1570)
+PCIe Image Signal Processor found across Apple MacBook Pro, MacBook Air,
+and iMac machines.
+
+Features supported:
+- Full V4L2 capture with videobuf2-dma-sg
+- Discrete framesize enumeration (1080p, 720p, VGA, QVGA) and frameintervals
+- Lossless hardware digital zoom and sensor cropping (VIDIOC_S_SELECTION)
+- Hardware Wide Dynamic Range (HDR / Dynamic Range Compression)
+- Auto-Exposure Photometry Metering (Average, Center-Weighted, Spot, Matrix)
+- Status / Privacy LED indicator control (V4L2_CID_ILLUMINATORS_1)
+- Dynamic power saving profiles (High Performance, Balanced, Low Power)
+- Clean-room open-source firmware compatibility (OpenFTHD project)
+
+Original-author: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
+Co-developed-by: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
+Signed-off-by: Patrik Jakobsson <patrik.r.jakobsson@gmail.com>
+Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
+---
+ drivers/staging/media/facetimehd/Kconfig      |   16 +
+ drivers/staging/media/facetimehd/Makefile     |    5 +
+ drivers/staging/media/facetimehd/TODO         |   18 +
+ .../staging/media/facetimehd/fthd_buffer.c    |  125 ++
+ .../staging/media/facetimehd/fthd_buffer.h    |   73 +
+ drivers/staging/media/facetimehd/fthd_ddr.c   |  670 ++++++++
+ drivers/staging/media/facetimehd/fthd_ddr.h   |   30 +
+ .../staging/media/facetimehd/fthd_debugfs.c   |  198 +++
+ .../staging/media/facetimehd/fthd_debugfs.h   |   17 +
+ drivers/staging/media/facetimehd/fthd_drv.c   |  600 +++++++
+ drivers/staging/media/facetimehd/fthd_drv.h   |  133 ++
+ drivers/staging/media/facetimehd/fthd_hw.c    |  712 ++++++++
+ drivers/staging/media/facetimehd/fthd_hw.h    |  128 ++
+ drivers/staging/media/facetimehd/fthd_isp.c   | 1483 +++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_isp.h   |  768 +++++++++
+ drivers/staging/media/facetimehd/fthd_reg.h   |  184 ++
+ .../staging/media/facetimehd/fthd_ringbuf.c   |  135 ++
+ .../staging/media/facetimehd/fthd_ringbuf.h   |   44 +
+ drivers/staging/media/facetimehd/fthd_v4l2.c  |  881 ++++++++++
+ drivers/staging/media/facetimehd/fthd_v4l2.h  |   34 +
+ 20 files changed, 6254 insertions(+)
+ create mode 100644 drivers/staging/media/facetimehd/Kconfig
+ create mode 100644 drivers/staging/media/facetimehd/Makefile
+ create mode 100644 drivers/staging/media/facetimehd/TODO
+ create mode 100644 drivers/staging/media/facetimehd/fthd_buffer.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_buffer.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ddr.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ddr.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_debugfs.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_debugfs.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_drv.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_drv.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_hw.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_hw.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_isp.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_isp.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_reg.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ringbuf.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ringbuf.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_v4l2.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_v4l2.h
+
+diff --git a/drivers/staging/media/facetimehd/Kconfig b/drivers/staging/media/facetimehd/Kconfig
+new file mode 100644
+index 0000000..2e42625
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/Kconfig
+@@ -0,0 +1,16 @@
++# SPDX-License-Identifier: GPL-2.0-only
++config VIDEO_FACETIMEHD
++	tristate "Apple FaceTime HD (Broadcom BCM1570) PCIe Camera support"
++	depends on PCI && VIDEO_DEV
++	select VIDEOBUF2_DMA_SG
++	select VIDEOBUF2_V4L2
++	help
++	  This is a Video4Linux2 driver for the Broadcom BCM1570 PCIe
++	  webcam (FaceTime HD camera) found in Apple MacBook Pro,
++	  MacBook Air, and iMac machines.
++
++	  Firmware for this device is available as open-source via
++	  the OpenFTHD project or via linux-firmware.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called facetimehd.
+diff --git a/drivers/staging/media/facetimehd/Makefile b/drivers/staging/media/facetimehd/Makefile
+new file mode 100644
+index 0000000..668a602
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/Makefile
+@@ -0,0 +1,5 @@
++# SPDX-License-Identifier: GPL-2.0-only
++facetimehd-y := fthd_ddr.o fthd_hw.o fthd_drv.o fthd_ringbuf.o \
++		fthd_isp.o fthd_v4l2.o fthd_buffer.o fthd_debugfs.o
++
++obj-$(CONFIG_VIDEO_FACETIMEHD) += facetimehd.o
+diff --git a/drivers/staging/media/facetimehd/TODO b/drivers/staging/media/facetimehd/TODO
+new file mode 100644
+index 0000000..140a6fc
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/TODO
+@@ -0,0 +1,18 @@
++TODO for Apple FaceTime HD (Broadcom BCM1570) PCIe webcam driver:
++
++- Move driver from drivers/staging/media/facetimehd to drivers/media/pci/facetimehd
++- Fully audit and clean checkpatch.pl warnings across legacy DDR training routines
++- Add v4l2-compliance automated test coverage
++- Integrate with official linux-firmware package (using OpenFTHD clean-room firmware)
++- Test multi-resolution and ePTZ features across broader hardware matrix:
++  - MacBook Pro 11,x (Mid 2014, Retina)
++  - MacBook Pro 12,x (Early 2015, Retina)
++  - MacBook Pro 13,x / 14,x (2016-2017)
++  - MacBook Air 6,x / 7,x
++  - iMac 14,x / 15,x
++
++Please send patches and bug reports to:
++  Greg Kroah-Hartman <gregkh@linuxfoundation.org>
++  Mauro Carvalho Chehab <mchehab@kernel.org>
++  linux-media@vger.kernel.org
++  devel@driverdev.osuosl.org
+diff --git a/drivers/staging/media/facetimehd/fthd_buffer.c b/drivers/staging/media/facetimehd/fthd_buffer.c
+new file mode 100644
+index 0000000..fae443c
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_buffer.c
+@@ -0,0 +1,125 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++
++#include <linux/delay.h>
++#include <linux/dma-mapping.h>
++#include <linux/printk.h>
++#include "fthd_drv.h"
++#include "fthd_isp.h"
++#include "fthd_hw.h"
++#include "fthd_buffer.h"
++
++#define GET_IOMMU_PAGES(_x) (((_x) + 4095)/4096)
++
++struct buf_ctx {
++	struct fthd_plane plane[4];
++	struct isp_mem_obj *isphdr;
++};
++
++static int iommu_allocator_init(struct fthd_private *dev_priv)
++{
++        dev_priv->iommu = kzalloc(sizeof(struct resource), GFP_KERNEL);
++	if (!dev_priv->iommu)
++	    return -ENOMEM;
++
++	dev_priv->iommu->start = 0;
++	dev_priv->iommu->end = 4095;
++	return 0;
++}
++
++struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct sg_table *sgtable)
++{
++	struct iommu_obj *obj;
++	struct resource *root = dev_priv->iommu;
++	struct scatterlist *sg;
++	int ret, i, pos;
++	int total_len = 0, dma_length;
++	dma_addr_t dma_addr;
++	
++	for(i = 0; i < sgtable->nents; i++)
++		total_len += sg_dma_len(sgtable->sgl + i);
++	
++	if (!total_len)
++		return NULL;
++
++	total_len += 4095;
++	total_len /= 4096;
++	
++	obj = kzalloc(sizeof(struct iommu_obj), GFP_KERNEL);
++	if (!obj)
++		return NULL;
++
++	obj->base.name = "S2 IOMMU";
++	ret = allocate_resource(root, &obj->base, total_len, root->start, root->end,
++				1, NULL, NULL);
++	if (ret) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to allocate resource (size: %d, start: %Ld, end: %Ld)\n",
++			total_len, root->start, root->end);
++		kfree(obj);
++		obj = NULL;
++		return NULL;
++	}
++
++	obj->offset = obj->base.start - root->start;
++	obj->size = total_len;
++
++	pos = 0x9000 + obj->offset * 4;
++	for(i = 0; i < sgtable->nents; i++) {
++		sg = sgtable->sgl + i;
++		WARN_ON(sg->offset);
++		dma_addr = sg_dma_address(sg);
++		WARN_ON(dma_addr & 0xfff);
++		dma_addr >>= 12;
++		
++		for(dma_length = 0; dma_length < sg_dma_len(sg); dma_length += 0x1000) {
++		  //			pr_debug("IOMMU %08x -> %08llx (dma length %d)\n", pos, dma_addr, dma_length);
++			FTHD_S2_REG_WRITE(dma_addr++, pos);
++			pos += 4;
++		}
++	}
++
++	pr_debug("allocated %d pages @ %p / offset %d\n", obj->size, obj, obj->offset);
++	return obj;
++}
++
++void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj)
++{
++	int i;
++	pr_debug("freeing %p\n", obj);
++
++	if (!obj)
++		return;
++	
++ 	for (i = obj->offset; i < obj->offset + obj->size; i++)
++		FTHD_S2_REG_WRITE(0, 0x9000 + i * 4);
++
++	release_resource(&obj->base);
++	kfree(obj);
++	obj = NULL;
++}
++
++static void iommu_allocator_destroy(struct fthd_private *dev_priv)
++{
++	kfree(dev_priv->iommu);
++}
++
++int fthd_buffer_init(struct fthd_private *dev_priv)
++{
++	int i;
++	for(i = 0; i < 0x1000; i++)
++		FTHD_S2_REG_WRITE(0, 0x9000 + i * 4);
++
++	return iommu_allocator_init(dev_priv);
++}
++
++void fthd_buffer_exit(struct fthd_private *dev_priv)
++{
++	iommu_allocator_destroy(dev_priv);
++}
+diff --git a/drivers/staging/media/facetimehd/fthd_buffer.h b/drivers/staging/media/facetimehd/fthd_buffer.h
+new file mode 100644
+index 0000000..2e76ded
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_buffer.h
+@@ -0,0 +1,73 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++#ifndef FTHD_BUFFER_H
++#define FTHD_BUFFER_H
++
++#include <linux/scatterlist.h>
++#include "fthd_buffer.h"
++
++enum fthd_buffer_state {
++	BUF_FREE,
++	BUF_ALLOC,
++	BUF_DRV_QUEUED,
++	BUF_HW_QUEUED,
++};
++
++struct dma_descriptor {
++	u32 addr0;
++	u32 addr1;
++	u32 addr2;
++	u32 field_c;
++	u32 field_10;
++	u32 field_14;
++	u32 count;
++	u32 pool;
++	u64 tag;
++} __attribute__((packed));
++
++struct dma_descriptor_list {
++	u32 field0;
++    	u32 count;
++	struct dma_descriptor desc[4];
++	char unknown[216];
++} __attribute__((packed));
++
++struct iommu_obj {
++	struct resource base;
++	int size;
++	int offset;
++};
++
++struct fthd_plane {
++	u8 *virt;
++	u64 phys;
++	dma_addr_t dma;
++	int len;
++	struct iommu_obj *iommu;
++};
++
++struct h2t_buf_ctx {
++	enum fthd_buffer_state state;
++	struct vb2_buffer *vb;
++	struct iommu_obj *plane[4];
++	struct isp_mem_obj *dma_desc_obj;
++	struct dma_descriptor_list dma_desc_list;
++	/* waitqueue for signaling buffer completion */
++	wait_queue_head_t wq;
++	int done;
++};
++
++extern int setup_buffers(struct fthd_private *dev_priv);
++extern int fthd_buffer_init(struct fthd_private *dev_priv);
++extern void fthd_buffer_exit(struct fthd_private *dev_priv);
++extern void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size);
++extern void fthd_buffer_queued_handler(struct fthd_private *dev_priv, u32 offset);
++extern struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct sg_table *);
++extern void iommu_free(struct fthd_private *dev_priv, struct iommu_obj *obj);
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_ddr.c b/drivers/staging/media/facetimehd/fthd_ddr.c
+new file mode 100644
+index 0000000..2af6b97
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_ddr.c
+@@ -0,0 +1,670 @@
++/*
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software Foundation.
++ *
++ */
++
++#include <linux/prandom.h>
++
++#include "fthd_drv.h"
++#include "fthd_hw.h"
++#include "fthd_ddr.h"
++
++int fthd_ddr_verify_mem(struct fthd_private *dev_priv, u32 base, int count)
++{
++	u32 i, val, val_read;
++	int failed_bits = 0;
++	struct rnd_state state;
++
++	prandom_seed_state(&state, 0x12345678);
++
++	for (i = 0; i < count; i++) {
++		val = prandom_u32_state(&state);
++		FTHD_S2_MEM_WRITE(val, i * 4 + MEM_VERIFY_BASE);
++	}
++
++	prandom_seed_state(&state, 0x12345678);
++
++	for (i = 0; i < count; i++) {
++		val = prandom_u32_state(&state);
++		val_read = FTHD_S2_MEM_READ(i * 4 + MEM_VERIFY_BASE);
++
++		failed_bits |= val ^ val_read;
++	}
++
++	return ((failed_bits & 0xffff) | ((failed_bits >> 16) & 0xffff));
++}
++
++static int fthd_ddr_calibrate_rd_data_dly_fifo(struct fthd_private *dev_priv)
++{
++	u32 fifo_status[2];
++	u32 rden_bytes[3];
++	u32 rden_wl_setting, rden_bl_setting, setting, tmp;
++	u32 byte0_pass, byte1_pass;
++	int passed;
++
++	rden_bytes[0] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE);
++	rden_bytes[1] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0);
++	rden_bytes[2] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE1);
++
++	FTHD_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
++	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
++	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE1);
++
++	passed = 0;
++	setting = 1;
++	byte0_pass = 0;
++	byte1_pass = 0;
++	rden_wl_setting = 0;
++	rden_bl_setting = 0;
++
++	while (passed == 0) {
++		FTHD_S2_REG_WRITE(setting & 0x7, S2_DDR40_WL_RD_DATA_DLY);
++
++		fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++
++		tmp = FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS);
++		fifo_status[0] = tmp & 0xf;
++		fifo_status[1] = (tmp & 0xf0) >> 4;
++
++		FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
++
++		if (fifo_status[0] == 0) {
++			if (byte0_pass == 0)
++				byte0_pass = setting;
++		}
++
++		if (fifo_status[1] == 0) {
++			if (byte1_pass == 0)
++				byte1_pass = setting;
++		}
++
++		if (rden_wl_setting < 57)
++			rden_wl_setting += 7;
++		else
++			rden_bl_setting += 7;
++
++		if (rden_bl_setting > 63) {
++			setting++;
++			rden_wl_setting = 0;
++			rden_bl_setting = 0;
++		}
++
++		if (byte0_pass != 0 && byte1_pass != 0)
++			passed = 1;
++
++		/* Seems we default to setting=7 if no pass is found */
++		if (setting > 7) {
++			passed = 1;
++			setting = 7;
++
++			if (byte0_pass == 0)
++				byte0_pass = setting;
++
++			if (byte1_pass == 0)
++				byte1_pass = setting;
++		}
++
++		/* Write new setting */
++		FTHD_S2_REG_WRITE(rden_wl_setting | 0x30000,
++				  S2_DDR40_RDEN_BYTE);
++		FTHD_S2_REG_WRITE(rden_bl_setting | 0x30100,
++				  S2_DDR40_RDEN_BYTE0);
++		FTHD_S2_REG_WRITE(rden_bl_setting | 0x30100,
++				  S2_DDR40_RDEN_BYTE1);
++	}
++
++	setting = byte0_pass;
++
++	if (byte1_pass > setting)
++		setting = byte1_pass;
++
++	setting++;
++
++	if (setting > 7)
++		setting = 7;
++
++	/* Restore settings */
++	FTHD_S2_REG_WRITE(rden_bytes[0], S2_DDR40_RDEN_BYTE);
++	FTHD_S2_REG_WRITE(rden_bytes[1], S2_DDR40_RDEN_BYTE0);
++	FTHD_S2_REG_WRITE(rden_bytes[2], S2_DDR40_RDEN_BYTE1);
++
++	if (setting < 7)
++		setting++;
++
++	FTHD_S2_REG_WRITE(setting, S2_DDR40_WL_RD_DATA_DLY);
++	dev_info(&dev_priv->pdev->dev, "RD_DATA_DLY: 0x%x\n", setting);
++
++	return 0;
++}
++
++static int fthd_ddr_calibrate_one_re_fifo(struct fthd_private *dev_priv,
++			u32 *rden_byte, u32 *rden_byte0, u32 *rden_byte1)
++{
++	u32 fifo_status[2];
++	u32 wl_start;
++	u32 bl_pass[2] = {0, 0};
++	u32 bl_start[2] = {0, 0};
++	u32 word_setting, byte_setting, passed, delta;
++	u32 tmp;
++
++	delta = ((FTHD_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS) & 0xffc) >> 2) / 4;
++
++	/* Start with word and byte setting at 0 */
++	FTHD_S2_REG_WRITE(0x30000, S2_DDR40_RDEN_BYTE);
++	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
++	FTHD_S2_REG_WRITE(0x30100, S2_DDR40_RDEN_BYTE0);
++
++	fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++
++	FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
++
++	word_setting = 0;
++	byte_setting = 0;
++	passed = 0;
++
++	while (passed == 0) {
++		fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++
++		fifo_status[0] =
++			FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
++		fifo_status[1] =
++			(FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
++			 0xf0) >> 4;
++
++		FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
++
++		if (fifo_status[0] == 0) {
++			if (bl_pass[0] == 0)
++				bl_pass[0] = 1;
++			else
++				passed = 1;
++		}
++
++		if (fifo_status[1] == 0) {
++			if (bl_pass[1] == 0)
++				bl_pass[1] = 1;
++			else
++				passed = 1;
++		}
++
++		/* Still not passed */
++		if (passed == 0) {
++			if (word_setting < 63) {
++				word_setting++;
++				FTHD_S2_REG_WRITE(0x30000 | (word_setting & 0x3f),
++						  S2_DDR40_RDEN_BYTE);
++			} else {
++				byte_setting++;
++				FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
++						  S2_DDR40_RDEN_BYTE0);
++				FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
++						  S2_DDR40_RDEN_BYTE1);
++
++				if (word_setting > 64) {
++					dev_err(&dev_priv->pdev->dev,
++						"RDEN byte timeout\n");
++					return -EIO;
++				}
++			}
++		}
++	}
++
++	wl_start = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE) & 0x3f;
++
++	if (bl_pass[0] == 1) {
++		bl_start[0] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
++		passed = 0;
++
++		while (passed == 0) {
++			byte_setting++;
++			if (byte_setting > 64) {
++				dev_err(&dev_priv->pdev->dev,
++					"RDEN BYTE1 timeout\n");
++				return -EIO;
++			}
++
++			FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
++					  S2_DDR40_RDEN_BYTE1);
++
++			fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++
++			fifo_status[0] = FTHD_S2_REG_READ(
++					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
++			fifo_status[1] =
++				(FTHD_S2_REG_READ(S2_DDR40_WL_READ_FIFO_STATUS) &
++				 0xf0) >> 4;
++			FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
++
++			if (fifo_status[1] == 0)
++				passed = 1;
++		}
++
++		bl_start[1] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
++	}
++	if (bl_pass[1] == 1) {
++		bl_start[1] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE1) & 0x3f;
++		passed = 0;
++
++		while (passed == 0) {
++			byte_setting++;
++			if (byte_setting > 64) {
++				dev_err(&dev_priv->pdev->dev,
++					"RDEN BYTE0 timeout\n");
++				return -EIO;
++			}
++
++			FTHD_S2_REG_WRITE(0x30100 | (byte_setting & 0x3f),
++					  S2_DDR40_RDEN_BYTE0);
++
++			fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++
++			fifo_status[0] = FTHD_S2_REG_READ(
++					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf;
++			fifo_status[1] = FTHD_S2_REG_READ(
++					S2_DDR40_WL_READ_FIFO_STATUS) & 0xf0;
++			FTHD_S2_REG_WRITE(1, S2_DDR40_WL_READ_FIFO_CLEAR);
++
++			if (fifo_status[0] == 0)
++				passed = 1;
++		}
++
++		bl_start[0] = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0) & 0x3f;
++	}
++
++	*rden_byte = wl_start + delta;
++
++	if (*rden_byte > 63) {
++		tmp = *rden_byte - 63;
++		*rden_byte = 63;
++		*rden_byte0 = bl_start[0] + tmp;
++		*rden_byte1 = bl_start[1] + tmp;
++	} else {
++		*rden_byte0 = bl_start[0];
++		*rden_byte1 = bl_start[1];
++	}
++
++	if (*rden_byte0 > 63) {
++		*rden_byte0 = 63;
++	}
++	if (*rden_byte1 > 63) {
++		*rden_byte1 = 63;
++	}
++
++	return 0;
++}
++
++static int fthd_ddr_calibrate_re_byte_fifo(struct fthd_private *dev_priv)
++{
++	u32 rden_byte = 0;
++	u32 rden_byte0 = 0;
++	u32 rden_byte1 = 0;
++	int ret;
++
++	ret = fthd_ddr_calibrate_one_re_fifo(dev_priv, &rden_byte, &rden_byte0, &rden_byte1);
++	if (ret)
++		return ret;
++
++	rden_byte = (rden_byte & 0x3f) | 0x30000;
++	FTHD_S2_REG_WRITE(rden_byte, S2_DDR40_RDEN_BYTE);
++
++	rden_byte0 = (rden_byte0 & 0x3f) | 0x30100;
++	FTHD_S2_REG_WRITE(rden_byte0, S2_DDR40_RDEN_BYTE0);
++
++	rden_byte1 = (rden_byte1 & 0x3f) | 0x30100;
++	FTHD_S2_REG_WRITE(rden_byte1, S2_DDR40_RDEN_BYTE1);
++
++	dev_info(&dev_priv->pdev->dev,
++		 "RE BYTE FIFO success: b0 = 0x%x, b1 = 0x%x, b = 0x%x\n",
++		 rden_byte0, rden_byte1, rden_byte);
++
++	return 0;
++}
++
++/* Set default/generic read data strobe */
++static int fthd_ddr_generic_shmoo_rd_dqs(struct fthd_private *dev_priv,
++					 u32 *fail_bits)
++{
++	u32 retries, setting, tmp, offset;
++	u32 bytes[S2_DDR40_NUM_BYTE_LANES];
++	int i, j, ret, fail;
++
++	/* Save the current byte lanes */
++	for (i = 0; i < S2_DDR40_NUM_BYTE_LANES; i++) {
++		tmp = FTHD_S2_REG_READ(S2_DDR40_RDEN_BYTE0 +
++				       (i * S2_DDR40_BYTE_LANE_SIZE));
++		bytes[i] = tmp & 0x3f;
++	}
++
++	/* Clear all byte lanes */
++	for (i = 0; i < S2_DDR40_NUM_BYTE_LANES; i++) {
++		for (j = 0; j < 8; j++) {
++			offset = S2_DDR40_2A38 + (i * 0xa0) + (j * 8);
++
++			FTHD_S2_REG_WRITE(0x30000, offset - 4);
++			FTHD_S2_REG_WRITE(0x30000, offset);
++		}
++	}
++
++	setting = (FTHD_S2_REG_READ(S2_DDR40_PHY_DQ_CALIB_STATUS) >> 20) & 0x3f;
++
++	retries = 1000;
++	fail = 0;
++
++	while (retries-- > 0 && !fail) {
++		ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++		fail_bits[0] = ret;
++
++		if (ret == 0xffff) {
++			fail = 1;
++			break;
++		}
++
++		setting++;
++		tmp = (setting & 0x3f) | 0x30100;
++
++		/* Byte 0 */
++		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2A08);
++		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2A0C);
++
++		/* Byte 1 */
++		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2AA8);
++		FTHD_S2_REG_WRITE(tmp, S2_DDR40_2AAC);
++
++		if (setting > 62)
++			fail = 1;
++
++		offset = S2_DDR40_RDEN_BYTE0;
++
++		/* Write byte lane settings */
++		for (i = 0; i < 2; i++) {
++			bytes[i]++;
++
++			if (bytes[i] > 62)
++				fail = 1;
++
++			FTHD_S2_REG_WRITE((bytes[i] & 0x3f) | 0x30100, offset);
++
++			offset += 0xa0;
++		}
++	}
++
++	if (retries == 0) {
++		dev_err(&dev_priv->pdev->dev, "Generic shmoo RD DQS timeout\n");
++		ret = -EIO;
++	}
++
++	if (fail)
++		dev_info(&dev_priv->pdev->dev, "Generic RD DQS failed\n");
++	else
++		dev_info(&dev_priv->pdev->dev, "Generic RD DQS succeeded\n");
++
++	/* It always fails, so just pass success */
++	return 0;
++}
++
++static int fthd_ddr_calibrate_rd_dqs(struct fthd_private *dev_priv,
++				     u32 *fails, u32 *settings)
++{
++	s32 pass_len[16];
++	u32 pass_start[16]; // u32 var_b0[16];
++	u32 pass_end[16]; // u32 var_f0[16];
++	int fail_sum, i, j, bit;
++	s32 setting;
++	printk(KERN_CONT "\n");
++
++	for (bit = 0; bit < 16; bit++) {
++		pass_start[bit] = 64;
++		pass_end[bit] = 64;
++
++		printk(KERN_CONT "%.2d: ", bit);
++
++		/* Start looking for start of pass */
++		for (i = 0; i < 63; i++) {
++			fail_sum = 0;
++
++			/* We check ahead the 6 next fail bits */
++			for (j = 0; (j < 6) && ((i + j) < 64); j++)
++				fail_sum += fails[i + j] & (1 << bit);
++
++			if (fail_sum) {
++				printk(KERN_CONT ".");
++			} else {
++				printk(KERN_CONT "O");
++
++				pass_start[bit] = i;
++				break;
++			}
++		}
++
++		/* Start looking for end of pass */
++		for (; i < 63; i++) {
++			if (fails[i] & (1 << bit)) {
++				if (pass_end[bit] == 64)
++					pass_end[bit] = i;
++
++				printk(KERN_CONT ".");
++			} else {
++				printk(KERN_CONT "O");
++			}
++		}
++
++		/* Calculate pass length */
++		pass_len[bit] = pass_end[bit] - pass_start[bit];
++
++		/* Calculate new setting */
++		setting = (pass_len[bit] / 2) + pass_start[bit];
++		if (setting < 0)
++			setting = 0;
++		else if (setting > 63)
++			setting = 63;
++		settings[bit] = setting;
++
++		printk(KERN_CONT " : start=%d end=%d len=%d new=%d\n", pass_start[bit],
++		       pass_end[bit], pass_len[bit], settings[bit]);
++	}
++
++	// Some global stuff that I need to figure out
++
++	return 0;
++}
++
++static int fthd_ddr_wr_dqs_setting(struct fthd_private *dev_priv, int set_bits,
++				   u32 *fail_bits, u32 *settings)
++{
++	u32 bl, setting, byte, bit, offset, tmp, start, inc, reg;
++	int i;
++
++	for (setting = 0; setting < 64; setting++) {
++		for (byte = 0; byte < 2; byte++) {
++			for (bit = 0; bit < 8; bit++) {
++				offset = S2_DDR40_2A38 + (byte * 0xa0) +
++					 (bit * 8);
++				tmp = setting | 0x30000;
++
++				if (set_bits & 1)
++					FTHD_S2_REG_WRITE(tmp, offset - 4);
++
++				if (set_bits & 2)
++					FTHD_S2_REG_WRITE(tmp, offset);
++			}
++		}
++		fail_bits[setting] = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++	}
++
++	if (set_bits == 3) {
++		start = 0;
++		inc = 1;
++	} else if (set_bits == 2) {
++		start = 0;
++		inc = 2;
++	} else {
++		start = 1;
++		inc = 2;
++	}
++
++	fthd_ddr_calibrate_rd_dqs(dev_priv, fail_bits, settings);
++
++	offset = 0;
++
++	for (bl = 0; bl < 2; bl++) {
++		reg = S2_DDR40_2A34 + bl * 0xa0;
++
++		for (i = start; i < 16; i += inc) {
++
++			if (settings[offset] == 0 || settings[offset] >= 63) {
++				dev_err(&dev_priv->pdev->dev,
++					"Bad VDL. Step %d = 0x%x\n",
++					offset, settings[offset]);
++				return -EINVAL;
++			}
++
++			tmp = (settings[offset] & 0x3f) | 0x30000;
++			FTHD_S2_REG_WRITE(tmp, reg);
++			if (set_bits == 3) {
++				if (i & 1)
++					offset++;
++			} else {
++				offset++;
++			}
++
++			reg += inc;
++		}
++	}
++
++	return 0;
++}
++
++static int fthd_ddr_calibrate_create_result(struct fthd_private *dev_priv)
++{
++	return 0;
++}
++
++static int fthd_ddr_generic_shmoo_calibrate_rd_dqs(
++						struct fthd_private *dev_priv)
++{
++	u32 settings[64]; /* Don't know the real size yet */
++	u32 fails[64]; /* Number of fails on a setting */
++	int ret;
++
++	ret = fthd_ddr_generic_shmoo_rd_dqs(dev_priv, fails);
++	if (ret)
++		return ret;
++
++	ret = fthd_ddr_wr_dqs_setting(dev_priv, 3, fails, settings);
++	if (ret)
++		return ret;
++
++	ret = fthd_ddr_wr_dqs_setting(dev_priv, 1, fails, settings);
++	if (ret)
++		return ret;
++
++
++	ret = fthd_ddr_wr_dqs_setting(dev_priv, 2, fails, settings);
++	if (ret)
++		return ret;
++
++	/* NOP for now */
++	ret = fthd_ddr_calibrate_create_result(dev_priv);
++	if (ret)
++		return ret;
++
++	return 0;
++}
++
++static int fthd_ddr_calibrate_wr_dq(struct fthd_private *dev_priv, u32 *fails,
++				    u32 *settings)
++{
++	return 0;
++}
++
++static int fthd_ddr_generic_shmoo_calibrate_wr_dq(struct fthd_private *dev_priv)
++{
++	u32 fails[64];
++	u32 settings[64]; /* Size is actually 16? */
++	u32 setting, offset;
++	int bit, bl, ret = 0;
++
++	/* shmoo_wr_dq */
++	for (setting = 0; setting < 64; setting++) {
++		for (bl = 0; bl < 2; bl++) {
++			offset = S2_DDR40_2A10 + (bl * S2_DDR40_BYTE_LANE_SIZE);
++			for (bit = 0; bit < 8; bit++) {
++				FTHD_S2_REG_WRITE(setting | 0x30000,
++						  offset + (bit * 4));
++			}
++		}
++
++		fails[setting] = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++	}
++
++	fails[63] = 0xffff; /* Last setting is always a fail */
++
++	fthd_ddr_calibrate_wr_dq(dev_priv, fails, settings);
++
++	return ret;
++}
++
++static int fthd_ddr_generic_shmoo_calibrate_wr_dm(struct fthd_private *dev_priv)
++{
++	return 0;
++}
++
++static int fthd_ddr_generic_shmoo_calibrate_addr(struct fthd_private *dev_priv)
++{
++	return 0;
++}
++
++int fthd_ddr_calibrate(struct fthd_private *dev_priv)
++{
++	u32 reg;
++	int ret;
++
++	FTHD_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
++	FTHD_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL);
++
++	while (1) {
++		reg = FTHD_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
++		if (reg & 0x1)
++			break;
++	}
++
++	ret = fthd_ddr_calibrate_rd_data_dly_fifo(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_ddr_calibrate_re_byte_fifo(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_ddr_generic_shmoo_calibrate_rd_dqs(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_ddr_generic_shmoo_calibrate_wr_dq(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_ddr_generic_shmoo_calibrate_wr_dm(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_ddr_generic_shmoo_calibrate_addr(dev_priv);
++	if (ret)
++		return ret;
++
++	return 0;
++}
+diff --git a/drivers/staging/media/facetimehd/fthd_ddr.h b/drivers/staging/media/facetimehd/fthd_ddr.h
+new file mode 100644
+index 0000000..162e7c3
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_ddr.h
+@@ -0,0 +1,30 @@
++/*
++ * Broadcom PCIe 1570 webcam driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software Foundation.
++ *
++ */
++
++#ifndef _FTHD_DDR_H
++#define _FTHD_DDR_H
++
++#define MEM_VERIFY_BASE		0x0 /* 0x1000000 */
++#define MEM_VERIFY_NUM		128
++#define MEM_VERIFY_NUM_FULL	(1 * 1024 * 1024)
++
++int fthd_ddr_calibrate(struct fthd_private *dev_priv);
++int fthd_ddr_verify_mem(struct fthd_private *dev_priv, u32 base, int count);
++
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_debugfs.c b/drivers/staging/media/facetimehd/fthd_debugfs.c
+new file mode 100644
+index 0000000..50ab5a7
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_debugfs.c
+@@ -0,0 +1,198 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/spinlock.h>
++#include <linux/debugfs.h>
++#include "fthd_drv.h"
++#include "fthd_debugfs.h"
++#include "fthd_isp.h"
++#include "fthd_ringbuf.h"
++#include "fthd_hw.h"
++
++static ssize_t fthd_store_debug(struct file *file, const char __user *user_buf,
++				size_t count, loff_t *ppos)
++
++{
++	struct fthd_isp_debug_cmd cmd;
++	struct fthd_private *dev_priv = file->private_data;
++	int ret, opcode;
++	char buf[64];
++	int len;
++
++	len = min(count, sizeof(buf) - 1);
++	if (copy_from_user(buf, user_buf, len))
++		return -EFAULT;
++
++	buf[len] = '\0';
++
++	memset(&cmd, 0, sizeof(cmd));
++
++	if (!strcmp(buf, "ps"))
++		opcode = CISP_CMD_DEBUG_PS;
++	else if (!strcmp(buf, "banner"))
++		opcode = CISP_CMD_DEBUG_BANNER;
++	else if (!strcmp(buf, "get_root"))
++		opcode = CISP_CMD_DEBUG_GET_ROOT_HANDLE;
++	else if (!strcmp(buf, "heap"))
++		opcode = CISP_CMD_DEBUG_HEAP_STATISTICS;
++	else if (!strcmp(buf, "irq"))
++		opcode = CISP_CMD_DEBUG_IRQ_STATISTICS;
++	else if (!strcmp(buf, "semaphore"))
++		opcode = CISP_CMD_DEBUG_SHOW_SEMAPHORE_STATUS;
++	else if (!strcmp(buf, "wiring"))
++		opcode = CISP_CMD_DEBUG_SHOW_WIRING_OPERATIONS;
++	else if (sscanf(buf, "get_object_by_name %s", (char *)&cmd.arg) == 1)
++		opcode = CISP_CMD_DEBUG_GET_OBJECT_BY_NAME;
++	else if (sscanf(buf, "dump_object %x", &cmd.arg[0]) == 1)
++		opcode = CISP_CMD_DEBUG_DUMP_OBJECT;
++	else if (!strcmp(buf, "dump_objects"))
++		opcode = CISP_CMD_DEBUG_DUMP_ALL_OBJECTS;
++	else if (!strcmp(buf, "show_objects"))
++		opcode = CISP_CMD_DEBUG_SHOW_OBJECT_GRAPH;
++	else if (sscanf(buf, "get_debug_level %i", &cmd.arg[0]) == 1)
++		opcode = CISP_CMD_DEBUG_GET_DEBUG_LEVEL;
++	else if (sscanf(buf, "set_debug_level %x %i", &cmd.arg[0], &cmd.arg[1]) == 2)
++		opcode = CISP_CMD_DEBUG_SET_DEBUG_LEVEL;
++	else if (sscanf(buf, "set_debug_level_rec %x %i", &cmd.arg[0], &cmd.arg[1]) == 2)
++		opcode = CISP_CMD_DEBUG_SET_DEBUG_LEVEL_RECURSIVE;
++	else if (!strcmp(buf, "get_fsm_count"))
++		opcode = CISP_CMD_DEBUG_GET_FSM_COUNT;
++	else if (sscanf(buf, "get_fsm_by_name %s", (char *)&cmd.arg[0]) == 1)
++		opcode = CISP_CMD_DEBUG_GET_FSM_BY_NAME;
++	else if (sscanf(buf, "get_fsm_by_index %i", &cmd.arg[0]) == 1)
++		opcode = CISP_CMD_DEBUG_GET_FSM_BY_INDEX;
++	else if (sscanf(buf, "get_fsm_debug_level %x", &cmd.arg[0]) == 1)
++		opcode = CISP_CMD_DEBUG_GET_FSM_DEBUG_LEVEL;
++	else if (sscanf(buf, "set_fsm_debug_level %x", &cmd.arg[0]) == 2)
++		opcode = CISP_CMD_DEBUG_SET_FSM_DEBUG_LEVEL;
++
++	else if (sscanf(buf, "%i %i\n", &opcode, &cmd.arg[0]) != 2)
++		return -EINVAL;
++	cmd.show_errors = 1;
++
++	ret = fthd_isp_debug_cmd(dev_priv, opcode, &cmd, sizeof(cmd), NULL);
++	if (ret)
++		return ret;
++
++	return count;
++}
++
++
++static int seq_channel_read(struct seq_file *seq, struct fthd_private *dev_priv,
++			struct fw_channel *chan)
++{
++	int i;
++	char pos;
++	u32 entry;
++
++	spin_lock_irq(&chan->lock);
++	for( i = 0; i < chan->size; i++) {
++		if (chan->ringbuf.idx == i)
++			pos = '*';
++		else
++			pos = ' ';
++		entry = get_entry_addr(dev_priv, chan, i);
++		seq_printf(seq, "%c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
++			   pos, i,
++			   FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS),
++			   FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
++			   FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE));
++	}
++	spin_unlock_irq(&chan->lock);
++	return 0;
++}
++
++static int seq_channel_terminal_read(struct seq_file *seq, void *data)
++
++{
++	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
++	return seq_channel_read(seq, dev_priv, dev_priv->channel_terminal);
++}
++
++static int seq_channel_sharedmalloc_read(struct seq_file *seq, void *data)
++
++{
++	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
++	return seq_channel_read(seq, dev_priv, dev_priv->channel_shared_malloc);
++}
++
++static int seq_channel_io_read(struct seq_file *seq, void *data)
++
++{
++	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
++	return seq_channel_read(seq, dev_priv, dev_priv->channel_io);
++}
++
++static int seq_channel_io_t2h_read(struct seq_file *seq, void *data)
++
++{
++	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
++	return seq_channel_read(seq, dev_priv, dev_priv->channel_io_t2h);
++}
++
++static int seq_channel_buf_h2t_read(struct seq_file *seq, void *data)
++
++{
++	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
++	return seq_channel_read(seq, dev_priv, dev_priv->channel_buf_h2t);
++}
++
++static int seq_channel_buf_t2h_read(struct seq_file *seq, void *data)
++
++{
++	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
++	return seq_channel_read(seq, dev_priv, dev_priv->channel_buf_t2h);
++}
++
++static int seq_channel_debug_read(struct seq_file *seq, void *data)
++
++{
++	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
++	return seq_channel_read(seq, dev_priv, dev_priv->channel_debug);
++}
++
++static const struct file_operations fops_debug = {
++	.read = NULL,
++	.write = fthd_store_debug,
++	.open = simple_open,
++	.owner = THIS_MODULE,
++	.llseek = default_llseek,
++};
++
++int fthd_debugfs_init(struct fthd_private *dev_priv)
++{
++	struct dentry *d, *top;
++
++	top = debugfs_create_dir("facetimehd", NULL);
++	if (IS_ERR(top))
++		return PTR_ERR(top);
++
++	d = debugfs_create_dir(dev_name(&dev_priv->pdev->dev), top);
++	if (IS_ERR(d)) {
++		debugfs_remove_recursive(top);
++		return PTR_ERR(d);
++	}
++
++	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_terminal", d, seq_channel_terminal_read);
++	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_sharedmalloc", d, seq_channel_sharedmalloc_read);
++	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_io", d, seq_channel_io_read);
++	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_io_t2h", d, seq_channel_io_t2h_read);
++	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_buf_h2t", d, seq_channel_buf_h2t_read);
++	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_buf_t2h", d, seq_channel_buf_t2h_read);
++	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_debug", d, seq_channel_debug_read);
++	debugfs_create_file("debug", S_IRUSR | S_IWUSR, d, dev_priv, &fops_debug);
++	dev_priv->debugfs = top;
++	return 0;
++}
++
++void fthd_debugfs_exit(struct fthd_private *dev_priv)
++{
++	debugfs_remove_recursive(dev_priv->debugfs);
++}
+diff --git a/drivers/staging/media/facetimehd/fthd_debugfs.h b/drivers/staging/media/facetimehd/fthd_debugfs.h
+new file mode 100644
+index 0000000..d3f8b74
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_debugfs.h
+@@ -0,0 +1,17 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++
++#ifndef _FTHD_SYSFS_H
++#define _FTHD_SYSFS_H
++
++struct fthd_private;
++
++int fthd_debugfs_init(struct fthd_private *priv);
++void fthd_debugfs_exit(struct fthd_private *priv);
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_drv.c b/drivers/staging/media/facetimehd/fthd_drv.c
+new file mode 100644
+index 0000000..1468237
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_drv.c
+@@ -0,0 +1,600 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ */
++
++#include <linux/delay.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/pci.h>
++#include <linux/io.h>
++#include <linux/interrupt.h>
++#include <linux/workqueue.h>
++#include <linux/spinlock.h>
++#include <linux/sched.h>
++#include <linux/wait.h>
++#include <linux/videodev2.h>
++#include "fthd_drv.h"
++#include "fthd_hw.h"
++#include "fthd_isp.h"
++#include "fthd_ringbuf.h"
++#include "fthd_buffer.h"
++#include "fthd_v4l2.h"
++#include "fthd_debugfs.h"
++
++/*
++ * Module parameters for direct driver configuration and runtime tuning:
++ *
++ * 1. led_mode: Camera status / privacy LED indicator mode:
++ *    - 0: Auto (hardware default: illuminated during active video streaming)
++ *    - 1: Always Off (stealth mode / suppress indicator light)
++ *    - 2: Always On (indicator illuminated continuously while camera is initialized)
++ *
++ * 2. power_save: Energy profile for ISP co-processor and image sensor:
++ *    - 0: High Performance (low latency, maintains ISP/DDR clocks during idle)
++ *    - 1: Balanced (default: ISP enters low-power standby on idle)
++ *    - 2: Aggressive Low Power (deep sensor power down CISP_CMD_CH_SENSOR_POWER_OFF)
++ *
++ * 3. default_width / default_height: Default boot/initial capture resolution (e.g. 1280x720)
++ *
++ * 4. drc_enable: Dynamic Range Compression / Wide Dynamic Range (HDR) enabled by default (0/1)
++ *
++ * 5. ae_metering: Auto-exposure metering algorithm (0=Average, 1=Center, 2=Spot, 3=Matrix)
++ */
++int fthd_led_mode = 0;
++module_param_named(led_mode, fthd_led_mode, int, 0644);
++MODULE_PARM_DESC(led_mode, "LED indicator mode: 0=Auto (on while streaming), 1=Always Off, 2=Always On");
++
++int fthd_power_save = 1;
++module_param_named(power_save, fthd_power_save, int, 0644);
++MODULE_PARM_DESC(power_save, "Power saving profile: 0=High Performance, 1=Balanced (default), 2=Aggressive Low Power");
++
++int fthd_default_width = 1280;
++module_param_named(default_width, fthd_default_width, int, 0644);
++MODULE_PARM_DESC(default_width, "Default capture width (default: 1280)");
++
++int fthd_default_height = 720;
++module_param_named(default_height, fthd_default_height, int, 0644);
++MODULE_PARM_DESC(default_height, "Default capture height (default: 720)");
++
++int fthd_drc_enable = 0;
++module_param_named(drc_enable, fthd_drc_enable, int, 0644);
++MODULE_PARM_DESC(drc_enable, "Default HDR / Dynamic Range Compression: 0=Disabled (default), 1=Enabled");
++
++int fthd_ae_metering = 3;
++module_param_named(ae_metering, fthd_ae_metering, int, 0644);
++MODULE_PARM_DESC(ae_metering, "Default Auto-Exposure metering mode: 0=Average, 1=Center-Weighted, 2=Spot, 3=Matrix (default)");
++
++static int fthd_pci_reserve_mem(struct fthd_private *dev_priv)
++{
++	unsigned long start;
++	unsigned long len;
++	int ret;
++
++	/* Reserve resources */
++	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_S2_IO, "S2 IO");
++	if (ret) {
++		dev_err(&dev_priv->pdev->dev, "Failed to request S2 IO\n");
++		return ret;
++	}
++
++	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_ISP_IO, "ISP IO");
++	if (ret) {
++		dev_err(&dev_priv->pdev->dev, "Failed to request ISP IO\n");
++		pci_release_region(dev_priv->pdev, FTHD_PCI_S2_IO);
++		return ret;
++	}
++
++	ret = pci_request_region(dev_priv->pdev, FTHD_PCI_S2_MEM, "S2 MEM");
++	if (ret) {
++		pci_release_region(dev_priv->pdev, FTHD_PCI_ISP_IO);
++		pci_release_region(dev_priv->pdev, FTHD_PCI_S2_IO);
++		return ret;
++	}
++
++	/* S2 IO */
++	start = pci_resource_start(dev_priv->pdev, FTHD_PCI_S2_IO);
++	len = pci_resource_len(dev_priv->pdev, FTHD_PCI_S2_IO);
++	dev_priv->s2_io = ioremap(start, len);
++	dev_priv->s2_io_len = len;
++
++	/* S2 MEM */
++	start = pci_resource_start(dev_priv->pdev, FTHD_PCI_S2_MEM);
++	len = pci_resource_len(dev_priv->pdev, FTHD_PCI_S2_MEM);
++	dev_priv->s2_mem = ioremap(start, len);
++	dev_priv->s2_mem_len = len;
++
++	/* ISP IO */
++	start = pci_resource_start(dev_priv->pdev, FTHD_PCI_ISP_IO);
++	len = pci_resource_len(dev_priv->pdev, FTHD_PCI_ISP_IO);
++	dev_priv->isp_io = ioremap(start, len);
++	dev_priv->isp_io_len = len;
++
++	pr_debug("Allocated S2 regs (BAR %d). %u bytes at 0x%p\n",
++		 FTHD_PCI_S2_IO, dev_priv->s2_io_len, dev_priv->s2_io);
++
++	pr_debug("Allocated S2 mem (BAR %d). %u bytes at 0x%p\n",
++		 FTHD_PCI_S2_MEM, dev_priv->s2_mem_len, dev_priv->s2_mem);
++
++	pr_debug("Allocated ISP regs (BAR %d). %u bytes at 0x%p\n",
++		 FTHD_PCI_ISP_IO, dev_priv->isp_io_len, dev_priv->isp_io);
++
++	return 0;
++}
++
++static void sharedmalloc_handler(struct fthd_private *dev_priv,
++				 struct fw_channel *chan,
++				 u32 entry)
++{
++	u32 request_size, response_size, address;
++	struct isp_mem_obj *obj;
++	int ret;
++
++	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
++	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
++	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~ 3;
++
++	if (address) {
++		pr_debug("Firmware wants to free memory at %08x\n", address);
++		FTHD_S2_MEMCPY_FROMIO(&obj, address - 64, sizeof(obj));
++		isp_mem_destroy(obj);
++
++		ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
++		if (ret)
++			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
++	} else {
++		if (!request_size)
++			return;
++		obj = isp_mem_create(dev_priv, FTHD_MEM_SHAREDMALLOC, request_size + 64);
++		if (!obj)
++			return;
++
++		pr_debug("Firmware allocated %d bytes at %08lx (tag %c%c%c%c)\n", request_size, obj->offset,
++			 response_size >> 24,response_size >> 16,
++			 response_size >> 8, response_size);
++		FTHD_S2_MEMCPY_TOIO(obj->offset, &obj, sizeof(obj));
++		ret = fthd_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0, NULL);
++		if (ret)
++			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
++
++	}
++
++}
++
++
++static void terminal_handler(struct fthd_private *dev_priv,
++				 struct fw_channel *chan,
++				 u32 entry)
++{
++	u32 request_size, response_size, address;
++	char buf[512];
++
++	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
++	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
++	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~ 3;
++
++	if (!address || !request_size)
++		return;
++
++	if (request_size > 512)
++		request_size = 512;
++	FTHD_S2_MEMCPY_FROMIO(buf, address, request_size);
++	pr_info("FWMSG: %.*s", request_size, buf);
++}
++
++static void buf_t2h_handler(struct fthd_private *dev_priv,
++			    struct fw_channel *chan,
++			    u32 entry)
++{
++	u32 request_size, response_size, address;
++	int ret;
++	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
++	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
++	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
++
++	if (address & 1)
++		return;
++
++
++	fthd_buffer_return_handler(dev_priv, address & ~3, request_size);
++	ret = fthd_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
++					0, 0x80000000, NULL);
++	if (ret)
++		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
++
++}
++
++static void io_t2h_handler(struct fthd_private *dev_priv,
++				 struct fw_channel *chan,
++				 u32 entry)
++{
++	int ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
++	if (ret)
++		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
++
++}
++
++static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *chan)
++{
++	u32 entry;
++	int ret;
++
++	if (chan == dev_priv->channel_io) {
++		pr_debug("IO channel ready\n");
++		wake_up_interruptible(&chan->wq);
++		return;
++	}
++
++	if (chan == dev_priv->channel_buf_h2t) {
++		pr_debug("H2T channel ready\n");
++		wake_up_interruptible(&chan->wq);
++		return;
++	}
++
++	if (chan == dev_priv->channel_debug) {
++		pr_debug("DEBUG channel ready\n");
++		wake_up_interruptible(&chan->wq);
++		return;
++	}
++
++	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
++		pr_debug("channel %s: message available, address %08x\n", chan->name, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS));
++		if (chan == dev_priv->channel_shared_malloc) {
++			sharedmalloc_handler(dev_priv, chan, entry);
++		} else if (chan == dev_priv->channel_terminal) {
++			terminal_handler(dev_priv, chan, entry);
++			ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
++			if (ret)
++				pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
++		} else if (chan == dev_priv->channel_buf_t2h) {
++			buf_t2h_handler(dev_priv, chan, entry);
++		} else if (chan == dev_priv->channel_io_t2h) {
++			io_t2h_handler(dev_priv, chan, entry);
++		}
++	}
++}
++
++static void fthd_irq_uninstall(struct fthd_private *dev_priv)
++{
++	free_irq(dev_priv->pdev->irq, dev_priv);
++}
++
++static void fthd_irq_work(struct work_struct *work)
++{
++	struct fthd_private *dev_priv = container_of(work, struct fthd_private, irq_work);
++	struct fw_channel *chan;
++
++	u32 pending;
++	int i = 0;
++
++	while(i++ < 500) {
++		spin_lock_irq(&dev_priv->io_lock);
++		pending = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
++		spin_unlock_irq(&dev_priv->io_lock);
++
++		if (!(pending & 0xf0))
++			break;
++
++		pci_write_config_dword(dev_priv->pdev, 0x94, 0);
++		spin_lock_irq(&dev_priv->io_lock);
++		FTHD_ISP_REG_WRITE(pending, ISP_IRQ_CLEAR);
++		spin_unlock_irq(&dev_priv->io_lock);
++		pci_write_config_dword(dev_priv->pdev, 0x90, 0x200);
++
++		for(i = 0; i < dev_priv->num_channels; i++) {
++			chan = dev_priv->channels[i];
++
++
++			BUG_ON(chan->source > 3);
++			if (!((0x10 << chan->source) & pending))
++				continue;
++			fthd_handle_irq(dev_priv, chan);
++		}
++	}
++
++	if (i >= 500) {
++		dev_err(&dev_priv->pdev->dev, "irq stuck, disabling\n");
++		fthd_irq_uninstall(dev_priv);
++	}
++	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
++}
++
++static irqreturn_t fthd_irq_handler(int irq, void *arg)
++{
++	struct fthd_private *dev_priv = arg;
++	u32 pending;
++	unsigned long flags;
++
++	spin_lock_irqsave(&dev_priv->io_lock, flags);
++	pending = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
++	spin_unlock_irqrestore(&dev_priv->io_lock, flags);
++
++	if (!(pending & 0xf0))
++		return IRQ_NONE;
++
++	schedule_work(&dev_priv->irq_work);
++
++	return IRQ_HANDLED;
++}
++
++static int fthd_irq_install(struct fthd_private *dev_priv)
++{
++	int ret;
++
++	ret = request_irq(dev_priv->pdev->irq, fthd_irq_handler, IRQF_SHARED,
++			  KBUILD_MODNAME, (void *)dev_priv);
++
++	if (ret)
++		dev_err(&dev_priv->pdev->dev, "Failed to request IRQ\n");
++
++	return ret;
++}
++
++static int fthd_pci_set_dma_mask(struct fthd_private *dev_priv,
++				 unsigned int mask)
++{
++	int ret;
++
++	ret = dma_set_mask_and_coherent(&dev_priv->pdev->dev, DMA_BIT_MASK(mask));
++	if (ret) {
++		dev_err(&dev_priv->pdev->dev, "Failed to set %u pci dma mask\n",
++			mask);
++		return ret;
++	}
++
++	dev_priv->dma_mask = mask;
++
++	return 0;
++}
++
++static void fthd_stop_firmware(struct fthd_private *dev_priv)
++{
++		fthd_isp_cmd_stop(dev_priv);
++	isp_powerdown(dev_priv);
++}
++
++static void fthd_pci_remove(struct pci_dev *pdev)
++{
++	struct fthd_private *dev_priv;
++
++	dev_priv = pci_get_drvdata(pdev);
++	if (!dev_priv)
++		goto out;
++
++	fthd_debugfs_exit(dev_priv);
++
++	fthd_v4l2_unregister(dev_priv);
++
++	fthd_stop_firmware(dev_priv);
++
++	fthd_irq_uninstall(dev_priv);
++
++	cancel_work_sync(&dev_priv->irq_work);
++
++	isp_uninit(dev_priv);
++
++	fthd_hw_deinit(dev_priv);
++
++	fthd_buffer_exit(dev_priv);
++
++	pci_disable_msi(pdev);
++
++	if (dev_priv->s2_io)
++		iounmap(dev_priv->s2_io);
++	if (dev_priv->s2_mem)
++		iounmap(dev_priv->s2_mem);
++	if (dev_priv->isp_io)
++		iounmap(dev_priv->isp_io);
++
++	pci_release_region(pdev, FTHD_PCI_S2_IO);
++	pci_release_region(pdev, FTHD_PCI_S2_MEM);
++	pci_release_region(pdev, FTHD_PCI_ISP_IO);
++out:
++	pci_disable_device(pdev);
++}
++
++static int fthd_pci_init(struct fthd_private *dev_priv)
++{
++	struct pci_dev *pdev = dev_priv->pdev;
++	int ret;
++
++
++	ret = pci_enable_device(pdev);
++	if (ret) {
++		dev_err(&pdev->dev, "Failed to enable device\n");
++		return ret;
++	}
++
++	/* ASPM must be disabled on the device or it hangs while streaming */
++	pci_disable_link_state(pdev, PCIE_LINK_STATE_L0S | PCIE_LINK_STATE_L1 |
++			       PCIE_LINK_STATE_CLKPM);
++
++	ret = fthd_pci_reserve_mem(dev_priv);
++	if (ret)
++		goto fail_enable;
++
++	ret = pci_enable_msi(pdev);
++	if (ret) {
++		dev_err(&pdev->dev, "Failed to enable MSI\n");
++		goto fail_reserve;
++	}
++
++	ret = fthd_irq_install(dev_priv);
++	if (ret)
++		goto fail_msi;
++
++	ret = fthd_pci_set_dma_mask(dev_priv, 64);
++	if (ret)
++		ret = fthd_pci_set_dma_mask(dev_priv, 32);
++
++	if (ret)
++		goto fail_irq;
++
++	dev_info(&pdev->dev, "Setting %ubit DMA mask\n", dev_priv->dma_mask);
++	dma_set_coherent_mask(&pdev->dev, DMA_BIT_MASK(dev_priv->dma_mask));
++
++	pci_set_master(pdev);
++	pci_set_drvdata(pdev, dev_priv);
++	return 0;
++
++fail_irq:
++	fthd_irq_uninstall(dev_priv);
++fail_msi:
++	pci_disable_msi(pdev);
++fail_reserve:
++	pci_release_region(pdev, FTHD_PCI_S2_IO);
++	pci_release_region(pdev, FTHD_PCI_S2_MEM);
++	pci_release_region(pdev, FTHD_PCI_ISP_IO);
++fail_enable:
++	pci_disable_device(pdev);
++	return ret;
++}
++
++static int fthd_firmware_start(struct fthd_private *dev_priv)
++{
++	int ret;
++
++	ret = fthd_isp_cmd_start(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_print_enable(dev_priv, 1);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_camera_config(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_info(dev_priv);
++	if (ret)
++		return ret;
++
++	return fthd_isp_cmd_set_loadfile(dev_priv);
++
++}
++
++static int fthd_pci_probe(struct pci_dev *pdev,
++			  const struct pci_device_id *entry)
++{
++	struct fthd_private *dev_priv;
++	int ret;
++
++	dev_info(&pdev->dev, "Found FaceTime HD camera with device id: %x\n",
++		 pdev->device);
++
++	dev_priv = kzalloc(sizeof(struct fthd_private), GFP_KERNEL);
++	if (!dev_priv) {
++		dev_err(&pdev->dev, "Failed to allocate memory\n");
++		return -ENOMEM;
++	}
++
++	dev_priv->ddr_model = 4;
++	dev_priv->ddr_speed = 450;
++	dev_priv->frametime = 40; /* 25 fps */
++
++	/* Default full sensor crop window (1280x720) for ePTZ digital zoom */
++	dev_priv->crop_x1 = 0;
++	dev_priv->crop_y1 = 0;
++	dev_priv->crop_x2 = 1280;
++	dev_priv->crop_y2 = 720;
++
++	spin_lock_init(&dev_priv->io_lock);
++	mutex_init(&dev_priv->vb2_queue_lock);
++
++	mutex_init(&dev_priv->ioctl_lock);
++	INIT_LIST_HEAD(&dev_priv->buffer_queue);
++	INIT_WORK(&dev_priv->irq_work, fthd_irq_work);
++
++	dev_priv->pdev = pdev;
++
++	ret = fthd_pci_init(dev_priv);
++	if (ret)
++		goto fail_work;
++
++	ret = fthd_buffer_init(dev_priv);
++	if (ret)
++		goto fail_pci;
++
++	ret = fthd_hw_init(dev_priv);
++	if (ret)
++		goto fail_buffer;
++
++	ret = fthd_firmware_start(dev_priv);
++	if (ret)
++		goto fail_hw;
++
++	ret = fthd_v4l2_register(dev_priv);
++	if (ret)
++		goto fail_firmware;
++
++	ret = fthd_debugfs_init(dev_priv);
++	if (ret)
++		goto fail_v4l2;
++	return 0;
++fail_v4l2:
++	fthd_v4l2_unregister(dev_priv);
++fail_firmware:
++	fthd_stop_firmware(dev_priv);
++fail_hw:
++	fthd_hw_deinit(dev_priv);
++fail_buffer:
++	fthd_buffer_exit(dev_priv);
++fail_pci:
++	fthd_irq_uninstall(dev_priv);
++	pci_disable_msi(pdev);
++	pci_release_region(pdev, FTHD_PCI_S2_IO);
++	pci_release_region(pdev, FTHD_PCI_S2_MEM);
++	pci_release_region(pdev, FTHD_PCI_ISP_IO);
++	pci_disable_device(pdev);
++
++fail_work:
++	cancel_work_sync(&dev_priv->irq_work);
++	kfree(dev_priv);
++	return ret;
++}
++
++#ifdef CONFIG_PM
++static int fthd_pci_suspend(struct pci_dev *pdev, pm_message_t state)
++{
++	fthd_pci_remove(pdev);
++
++	return 0;
++}
++
++static int fthd_pci_resume(struct pci_dev *pdev)
++{
++	fthd_pci_probe(pdev, NULL);
++
++	return 0;
++}
++#endif /* CONFIG_PM */
++
++static const struct pci_device_id fthd_pci_id_table[] = {
++	{ PCI_DEVICE(0x14e4, 0x1570), 4 },
++	{ 0, },
++};
++
++static struct pci_driver fthd_pci_driver = {
++	.name = KBUILD_MODNAME,
++	.probe = fthd_pci_probe,
++	.remove = fthd_pci_remove,
++	.shutdown = fthd_pci_remove,
++	.id_table = fthd_pci_id_table,
++#ifdef CONFIG_PM
++	.suspend = fthd_pci_suspend,
++	.resume = fthd_pci_resume,
++#endif
++};
++
++module_pci_driver(fthd_pci_driver);
++
++MODULE_FIRMWARE("facetimehd/firmware.bin");
++MODULE_DEVICE_TABLE(pci, fthd_pci_id_table);
++MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
++MODULE_DESCRIPTION("FacetimeHD camera driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/staging/media/facetimehd/fthd_drv.h b/drivers/staging/media/facetimehd/fthd_drv.h
+new file mode 100644
+index 0000000..69c57ec
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_drv.h
+@@ -0,0 +1,133 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ */
++
++#ifndef _FTHD_DRV_H
++#define _FTHD_DRV_H
++
++#include <linux/pci.h>
++#include <linux/spinlock.h>
++#include <linux/wait.h>
++#include <linux/mutex.h>
++#include <linux/version.h>
++#include <media/videobuf2-dma-sg.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-ctrls.h>
++#include "fthd_reg.h"
++#include "fthd_ringbuf.h"
++#include "fthd_buffer.h"
++#include "fthd_v4l2.h"
++
++#define FTHD_PCI_S2_IO  0
++#define FTHD_PCI_S2_MEM 2
++#define FTHD_PCI_ISP_IO 4
++
++#define FTHD_BUFFERS 4
++
++enum FW_CHAN_TYPE {
++	FW_CHAN_TYPE_OUT=0,
++	FW_CHAN_TYPE_IN=1,
++	FW_CHAN_TYPE_UNI_IN=2,
++};
++
++struct fw_channel {
++	u32 offset;
++	u32 size;
++	u32 source;
++	u32 type;
++	struct fthd_ringbuf ringbuf;
++	spinlock_t lock;
++	/* waitqueue for signaling completion */
++	wait_queue_head_t wq;
++	char *name;
++};
++
++struct fthd_private {
++	struct pci_dev *pdev;
++	unsigned int dma_mask;
++
++	struct v4l2_device v4l2_dev;
++	struct video_device *videodev;
++	struct mutex ioctl_lock;
++	int users;
++	/* lock for synchronizing with irq/workqueue */
++	spinlock_t io_lock;
++
++	/* Mapped PCI resources */
++	void __iomem *s2_io;
++	u32 s2_io_len;
++
++	void __iomem *s2_mem;
++	u32 s2_mem_len;
++
++	void __iomem *isp_io;
++	u32 isp_io_len;
++
++	struct work_struct irq_work;
++
++	/* Hardware info */
++	u32 core_clk;
++	u32 ddr_model;
++	u32 ddr_speed;
++	u32 vdl_step_size;
++
++	u32 ddr_phy_regs[DDR_PHY_NUM_REG];
++
++	/* Root resource for memory management */
++	struct resource *mem;
++	/* Resource for managing IO mmu slots */
++	struct resource *iommu;
++	/* ISP memory objects */
++	struct isp_mem_obj *firmware;
++	struct isp_mem_obj *set_file;
++	struct isp_mem_obj *ipc_queue;
++	struct isp_mem_obj *heap;
++
++	/* Firmware channels */
++	int num_channels;
++	struct fw_channel **channels;
++	struct fw_channel *channel_terminal;
++	struct fw_channel *channel_io;
++	struct fw_channel *channel_debug;
++	struct fw_channel *channel_buf_h2t;
++	struct fw_channel *channel_buf_t2h;
++	struct fw_channel *channel_shared_malloc;
++	struct fw_channel *channel_io_t2h;
++
++	/* camera config */
++	int sensor_count;
++	int sensor_id0;
++	int sensor_id1;
++
++	struct fthd_fmt fmt;
++
++	struct vb2_queue vb2_queue;
++	struct mutex vb2_queue_lock;
++	struct list_head buffer_queue;
++	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
++
++	struct v4l2_ctrl_handler v4l2_ctrl_handler;
++	int frametime;
++	struct dentry *debugfs;
++
++	/* Digital Zoom / Pan-Tilt (ePTZ) Hardware Crop Coordinates */
++	u32 crop_x1;
++	u32 crop_y1;
++	u32 crop_x2;
++	u32 crop_y2;
++};
++
++/* Module parameters exposed system-wide via /sys/module/facetimehd/parameters/ */
++extern int fthd_led_mode;
++extern int fthd_power_save;
++extern int fthd_default_width;
++extern int fthd_default_height;
++extern int fthd_drc_enable;
++extern int fthd_ae_metering;
++
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_hw.c b/drivers/staging/media/facetimehd/fthd_hw.c
+new file mode 100644
+index 0000000..8180072
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_hw.c
+@@ -0,0 +1,712 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ */
++
++#include <linux/delay.h>
++#include "fthd_drv.h"
++#include "fthd_hw.h"
++#include "fthd_ddr.h"
++#include "fthd_isp.h"
++
++static int fthd_hw_s2_pll_reset(struct fthd_private *dev_priv)
++{
++	FTHD_S2_REG_WRITE(0x40, S2_PLL_CTRL_2C);
++	FTHD_S2_REG_WRITE(0x0, S2_PLL_CTRL_2C);
++	FTHD_S2_REG_WRITE(0xbcbc1500, S2_PLL_CTRL_100);
++	FTHD_S2_REG_WRITE(0x0, S2_PLL_CTRL_14);
++
++	udelay(10000);
++
++	FTHD_S2_REG_WRITE(0x3, S2_PLL_CTRL_14);
++
++	dev_info(&dev_priv->pdev->dev, "PLL reset finished\n");
++
++	return 0;
++}
++
++static int fthd_hw_s2_init_pcie_link(struct fthd_private *dev_priv)
++{
++	u32 reg;
++
++	reg = FTHD_S2_REG_READ(S2_PCIE_LINK_D000);
++	FTHD_S2_REG_WRITE(reg | 0x10, S2_PCIE_LINK_D000);
++
++	FTHD_S2_REG_WRITE(0x1804, S2_PCIE_LINK_D120);
++	FTHD_S2_REG_WRITE(0xac5800, S2_PCIE_LINK_D124);
++	FTHD_S2_REG_WRITE(0x1804, S2_PCIE_LINK_D120);
++
++	/* Check if PLL is powered down when S2 PCIe link is in L1 state */
++	reg = FTHD_S2_REG_READ(S2_PCIE_LINK_D124);
++	if (reg != 0xac5800) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to init S2 PCIe link: %08x\n", reg);
++		return -EIO;
++	}
++
++	/* PLL is powered down */
++	dev_info(&dev_priv->pdev->dev, "S2 PCIe link init succeeded\n");
++
++	FTHD_S2_REG_WRITE(0x1f08, S2_PCIE_LINK_D128);
++	FTHD_S2_REG_WRITE(0x80008610, S2_PCIE_LINK_D12C);
++	FTHD_S2_REG_WRITE(0x1608, S2_PCIE_LINK_D128);
++	FTHD_S2_REG_WRITE(0x8000fc00, S2_PCIE_LINK_D12C);
++	FTHD_S2_REG_WRITE(0x1f08, S2_PCIE_LINK_D128);
++	FTHD_S2_REG_WRITE(0x80008610, S2_PCIE_LINK_D12C);
++	FTHD_S2_REG_WRITE(0x1708, S2_PCIE_LINK_D128);
++	FTHD_S2_REG_WRITE(0x800005bf, S2_PCIE_LINK_D12C);
++
++	return 0;
++}
++
++static int fthd_hw_s2_pll_init(struct fthd_private *dev_priv, u32 ddr_speed)
++{
++	u32 ref_clk_25;
++	u32 reg;
++	int retries = 0;
++
++	reg = FTHD_S2_REG_READ(S2_PLL_REFCLK);
++	ref_clk_25 = reg & S2_PLL_REFCLK_25MHZ ? 1 : 0;
++
++	if (ref_clk_25)
++		dev_info(&dev_priv->pdev->dev, "Refclk: 25MHz (0x%x)\n", reg);
++	else
++		dev_info(&dev_priv->pdev->dev, "Refclk: 24MHz (0x%x\n", reg);
++
++	if (ddr_speed == 400) {
++		if (ref_clk_25) {
++			/* Ref clk 25 */
++			FTHD_S2_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
++			FTHD_S2_REG_WRITE(0x19280804, S2_PLL_CTRL_24);
++		} else {
++			/* Ref clk 24 */
++			FTHD_S2_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
++			FTHD_S2_REG_WRITE(0x14280603, S2_PLL_CTRL_24);
++		}
++	} else if (ddr_speed == 300) {
++		if (ref_clk_25) {
++			/* Ref clk 25 */
++			FTHD_S2_REG_WRITE(0x00480078, S2_PLL_CTRL_510);
++			FTHD_S2_REG_WRITE(0x19280c06, S2_PLL_CTRL_24);
++		} else {
++			/* Ref clk 24 */
++			FTHD_S2_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
++			FTHD_S2_REG_WRITE(0x14280804, S2_PLL_CTRL_24);
++		}
++	} else if (ddr_speed == 200) {
++		if (ref_clk_25) {
++			/* Ref clk 25 */
++			FTHD_S2_REG_WRITE(0x00400078, S2_PLL_CTRL_510);
++			FTHD_S2_REG_WRITE(0x19281008, S2_PLL_CTRL_24);
++		} else {
++			/* Ref clk 24 */
++			FTHD_S2_REG_WRITE(0x03200000, S2_PLL_CTRL_20);
++			FTHD_S2_REG_WRITE(0x14280c06, S2_PLL_CTRL_24);
++		}
++	} else {
++		if (ddr_speed != 450) {
++			dev_err(&dev_priv->pdev->dev,
++				"Unsupported DDR speed %uMHz, using 450MHz\n",
++				ddr_speed);
++			ddr_speed = 450;
++		}
++
++		if (ref_clk_25) {
++			/* Ref clk 25 */
++			FTHD_S2_REG_WRITE(0x0048007d, S2_PLL_CTRL_510);
++			FTHD_S2_REG_WRITE(0x19280904, S2_PLL_CTRL_24);
++		} else {
++			/* Ref clk 24 */
++			FTHD_S2_REG_WRITE(0x04b00000, S2_PLL_CTRL_20);
++			FTHD_S2_REG_WRITE(0x14280904, S2_PLL_CTRL_24);
++
++		}
++	}
++
++	fthd_hw_s2_pll_reset(dev_priv);
++
++	dev_info(&dev_priv->pdev->dev, "Waiting for S2 PLL to lock at %d MHz\n",
++		 ddr_speed);
++
++	do {
++		reg = FTHD_S2_REG_READ(S2_PLL_CMU_STATUS);
++		udelay(10);
++		retries++;
++	} while (((reg & 0xff00) & S2_PLL_CMU_STATUS_LOCKED) && retries <= 10000);
++
++	if (retries > 10000) {
++		dev_info(&dev_priv->pdev->dev, "Failed to lock S2 PLL: 0x%x\n",
++			 reg);
++		return -EINVAL;
++	} else {
++		dev_info(&dev_priv->pdev->dev, "S2 PLL is locked after %d us\n",
++			 (retries * 10));
++	}
++
++	reg = FTHD_S2_REG_READ(S2_PLL_STATUS_A8);
++	FTHD_S2_REG_WRITE(reg | S2_PLL_BYPASS, S2_PLL_STATUS_A8);
++	udelay(10000);
++
++	reg = FTHD_S2_REG_READ(S2_PLL_STATUS_A8);
++	if (reg & S2_PLL_BYPASS)
++		dev_info(&dev_priv->pdev->dev, "S2 PLL is in bypass mode\n");
++	else
++		dev_info(&dev_priv->pdev->dev, "S2 PLL is in non-bypass mode\n");
++
++	return 0;
++}
++
++static int fthd_hw_s2_preinit_ddr_controller_soc(struct fthd_private *dev_priv)
++{
++	/* Wingardium leviosa */
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_1100);
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_1104);
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_1108);
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_110C);
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_1110);
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_1114);
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_1118);
++	FTHD_S2_REG_WRITE(0x203, S2_DDR_REG_111C);
++
++	return 0;
++}
++
++static int fthd_hw_ddr_phy_soft_reset(struct fthd_private *dev_priv)
++{
++	/* Clear status bits? */
++	FTHD_S2_REG_WRITE(0x281, S2_PLL_STATUS_A8);
++
++	FTHD_S2_REG_WRITE(0xfffff, S2_PLL_CTRL_9C);
++
++	udelay(10000);
++
++	FTHD_S2_REG_WRITE(0xffbff, S2_PLL_CTRL_9C);
++
++	return 0;
++}
++
++static inline int fthd_hw_ddr_status_busy(struct fthd_private *dev_priv,
++					  int retries, int delay)
++{
++	int reg = 0, i;
++
++	for (i = 0; i < retries; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR_STATUS_2018);
++		if (!(reg & S2_DDR_STATUS_BUSY))
++			break;
++
++		if (delay > 0)
++			udelay(delay);
++	}
++
++	if (i >= retries) {
++		dev_err(&dev_priv->pdev->dev,
++			"S2_DDR_STATUS_2018 busy: retries=%d, udelay=%d, reg=0x%08x\n",
++			retries, delay, reg);
++		return -EBUSY;
++	}
++
++	return 0;
++}
++
++static int fthd_hw_ddr_rewrite_mode_regs(struct fthd_private *dev_priv)
++{
++	int ret, val;
++
++	FTHD_S2_REG_WRITE(0x02000802, S2_DDR_2014);
++
++	ret = fthd_hw_ddr_status_busy(dev_priv, 500, 5);
++	if (ret != 0)
++		return ret;
++
++	FTHD_S2_REG_WRITE(0x3, S2_DDR_2014);
++
++	ret = fthd_hw_ddr_status_busy(dev_priv, 500, 5);
++	if (ret != 0)
++		return ret;
++
++	FTHD_S2_REG_WRITE(0x1, S2_DDR_2014);
++
++	ret = fthd_hw_ddr_status_busy(dev_priv, 500, 5);
++	if (ret != 0)
++		return ret;
++
++	if (dev_priv->ddr_speed == 450)
++		val = 0x17003000;
++	else
++		val = 0x17002000;
++
++	FTHD_S2_REG_WRITE(val, S2_DDR_2014);
++
++	ret = fthd_hw_ddr_status_busy(dev_priv, 500, 5);
++	if (ret != 0)
++		return ret;
++
++	dev_info(&dev_priv->pdev->dev,
++		 "Rewrite DDR mode registers succeeded\n");
++
++	return 0;
++}
++
++static int fthd_hw_s2_init_ddr_controller_soc(struct fthd_private *dev_priv)
++{
++	u32 cmd;
++	u32 val;
++	u32 reg;
++	u32 step_size, vdl_fine, vdl_coarse;
++	u32 vtt_cons, vtt_ovr;
++	int ret, i;
++
++	/* Read PCI config command register */
++	ret = pci_read_config_dword(dev_priv->pdev, 4, &cmd);
++	if (ret) {
++		dev_err(&dev_priv->pdev->dev, "Failed to read PCI config\n");
++		return -EIO;
++	}
++
++	if ((cmd & 0x07) == 0) {
++		dev_err(&dev_priv->pdev->dev,
++			"PCI link in illegal state, cfg_cmd_reg: 0x%x\n", cmd);
++		return -EIO;
++	}
++
++	reg = FTHD_S2_REG_READ(S2_PLL_CTRL_9C);
++	FTHD_S2_REG_WRITE(reg & 0xfffffcff, S2_PLL_CTRL_9C);
++	FTHD_S2_REG_WRITE(reg | 0x300, S2_PLL_CTRL_9C);
++
++	fthd_hw_s2_pll_init(dev_priv, dev_priv->ddr_speed);
++
++	fthd_hw_ddr_phy_soft_reset(dev_priv);
++
++	FTHD_S2_REG_WRITE(0x2, S2_DDR40_WL_DRV_PAD_CTL);
++	FTHD_S2_REG_WRITE(0x2, S2_DDR40_WL_CLK_PAD_DISABLE);
++
++	/* Disable the hardware frequency change function */
++	FTHD_S2_REG_WRITE(0x3f4, S2_20F8);
++
++	/* Setup the PLL */
++	FTHD_S2_REG_WRITE(0x40, S2_2434);
++	FTHD_S2_REG_WRITE(0x10000000, S2_2438);
++	FTHD_S2_REG_WRITE(0x4, S2_2424);
++	FTHD_S2_REG_WRITE(0x1f37291, S2_2430);
++
++	/* Wait for DDR PLL to lock */
++	for (i = 0; i <= 10000; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR_PLL_STATUS_2444);
++		if (reg & S2_DDR_PLL_STATUS_2444_LOCKED)
++			break;
++		udelay(10);
++	}
++
++	if (i > 10000) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to lock DDR PHY PLL in stage 1\n");
++		return -EIO;
++	}
++
++	FTHD_S2_REG_WRITE(0x1f37205, S2_2430);
++
++	for (i = 0; i <= 10000; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR_PLL_STATUS_241C);
++		if (reg & S2_DDR_PLL_STATUS_241C_LOCKED)
++			break;
++		udelay(10);
++	}
++
++	if (i > 10000) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to lock DDR PHY PLL in stage 2\n");
++		return -EIO;
++	}
++
++	udelay(10000);
++
++	/* WL */
++	FTHD_S2_REG_WRITE(0x0c10, S2_DDR40_PHY_PLL_DIV);
++	FTHD_S2_REG_WRITE(0x0010, S2_DDR40_PHY_PLL_CFG);
++
++	for (i = 0; i <= 10000; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR40_PHY_PLL_STATUS);
++		if (reg & S2_DDR40_PHY_PLL_STATUS_LOCKED)
++			break;
++		udelay(10);
++	}
++
++	if (i > 10000) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to lock DDR PHY PLL in stage 3\n");
++		return -EIO;
++	}
++
++	dev_info(&dev_priv->pdev->dev,
++		 "DDR40 PHY PLL locked on safe settings\n");
++
++	/* Default is DDR model 4 */
++	switch (dev_priv->ddr_model) {
++	case 4:
++		val = 0x46a00c2;
++		break;
++	case 2:
++		val = 0x42500c2;
++		break;
++	default:
++		val = 0;
++	}
++
++	FTHD_S2_REG_WRITE(0x10737545, S2_DDR_20A0);
++	FTHD_S2_REG_WRITE(0x12643173, S2_DDR_20A4);
++	FTHD_S2_REG_WRITE(0xff3f, S2_DDR_20A8);
++	FTHD_S2_REG_WRITE(val, S2_DDR_20B0);
++	FTHD_S2_REG_WRITE(0x101f, S2_DDR_2118);
++	FTHD_S2_REG_WRITE(0x1c0, S2_DDR40_PHY_AUX_CTL);
++
++	switch (dev_priv->ddr_model) {
++	case 4:
++		val = 0x2159518;
++		break;
++	case 2:
++		val = 0x2155558;
++		break;
++	}
++
++	FTHD_S2_REG_WRITE(val, S2_DDR40_STRAP_CTL);
++
++	if (dev_priv->ddr_speed == 450)
++		val = 0x108307;
++	else
++		val = 0x108286;
++
++	FTHD_S2_REG_WRITE(val, S2_DDR40_STRAP_CTL_2);
++
++	/* Strap control */
++	FTHD_S2_REG_WRITE(0x2159559, S2_DDR40_STRAP_CTL);
++
++	/* Polling for STRAP valid */
++	for (i = 0; i < 10000; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR40_STRAP_STATUS);
++		if (reg & 0x1)
++			break;
++		udelay(10);
++	}
++
++	if (i >= 10000) {
++		dev_err(&dev_priv->pdev->dev,
++			"Timeout waiting for STRAP valid\n");
++		return -ENODEV;
++	} else {
++		dev_info(&dev_priv->pdev->dev, "STRAP valid\n");
++	}
++
++	/* Manual DDR40 PHY init */
++	if (dev_priv->ddr_speed != 450) {
++		dev_warn(&dev_priv->pdev->dev,
++			 "DDR frequency is %u (should be 450 MHz)",
++			 dev_priv->ddr_speed);
++	}
++
++	dev_info(&dev_priv->pdev->dev,
++		 "Configuring DDR PLLs for %u MHz\n", dev_priv->ddr_speed);
++
++	if ((dev_priv->ddr_speed * 2) < 500)
++		val = 0x2040;
++	else
++		val = 0x810;
++
++	/* Start programming the DDR PLL */
++
++	reg = FTHD_S2_REG_READ(S2_DDR40_PHY_PLL_DIV);
++	reg &= 0xffffc700;
++	val |= reg;
++
++	FTHD_S2_REG_WRITE(val, S2_DDR40_PHY_PLL_DIV);
++
++	reg = FTHD_S2_REG_READ(S2_DDR40_PHY_PLL_CFG);
++	reg &= 0xfffffffd;
++	FTHD_S2_REG_WRITE(reg, S2_DDR40_PHY_PLL_CFG);
++
++	/* Start polling for the lock */
++	for (i = 0; i < 100; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR40_PHY_PLL_STATUS);
++		if (reg & S2_DDR40_PHY_PLL_STATUS_LOCKED)
++			break;
++		udelay(1);
++	}
++
++	if (i >= 100) {
++		dev_err(&dev_priv->pdev->dev, "Failed to lock the DDR PLL\n");
++		return -ENODEV;
++	}
++
++	dev_info(&dev_priv->pdev->dev, "DDR40 PLL is locked after %d us\n", i);
++
++	/* Configure DDR40 VDL */
++	FTHD_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
++	FTHD_S2_REG_WRITE(0x103, S2_DDR40_PHY_VDL_CTL);
++
++	/* Poll for VDL calibration */
++	for (i = 0; i < 100; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
++		if (reg & 0x1)
++			break;
++		udelay(1);
++	}
++
++	if (reg & 0x1) {
++		dev_info(&dev_priv->pdev->dev,
++			 "First DDR40 VDL calibration completed after %d us",
++			 i);
++
++		if ((reg & 0x2) == 0) {
++			dev_info(&dev_priv->pdev->dev,
++				 "...but failed to lock\n");
++		}
++
++	} else {
++		dev_err(&dev_priv->pdev->dev,
++			"First DDR40 VDL calibration failed\n");
++	}
++
++	FTHD_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL);
++	FTHD_S2_REG_WRITE(0, S2_DDR40_PHY_VDL_CTL); /* Needed? */
++	FTHD_S2_REG_WRITE(0x200, S2_DDR40_PHY_VDL_CTL); /* calib steps */
++
++	for (i = 0; i < 1000; i++) {
++		reg = FTHD_S2_REG_READ(S2_DDR40_PHY_VDL_STATUS);
++		if (reg & 0x1)
++			break;
++		udelay(1);
++	}
++
++	dev_info(&dev_priv->pdev->dev,
++		 "Second DDR40 VDL calibration completed after %d us\n", i);
++
++	if (reg & 0x2) {
++		step_size = (reg & S2_DDR40_PHY_VDL_STEP_MASK) >>
++			    S2_DDR40_PHY_VDL_STEP_SHIFT;
++		dev_info(&dev_priv->pdev->dev, "Using step size %u\n",
++			 step_size);
++	} else {
++
++		val = 1000000 / dev_priv->ddr_speed;
++		step_size = (val * 0x4ec4ec4f) >> 22;
++		dev_info(&dev_priv->pdev->dev, "Using default step size (%u)\n",
++			 step_size);
++	}
++
++	dev_priv->vdl_step_size = step_size;
++
++	vdl_fine = FTHD_S2_REG_READ(S2_DDR40_PHY_VDL_CHAN_STATUS);
++
++	/* lock = 1 and byte_sel = 1 */
++	if ((vdl_fine & 2) == 0) {
++		vdl_fine = (vdl_fine >> 8) & 0x3f;
++		vdl_fine |= 0x10100;
++
++		FTHD_S2_REG_WRITE(vdl_fine, S2_DDR40_PHY_VDL_OVR_FINE);
++
++		vdl_coarse = 0x10000;
++
++		step_size >>= 4;
++		step_size += step_size * 2;
++
++		if (step_size > 10) {
++			step_size = (step_size + 118) >> 1;
++			step_size &= 0x3f;
++			step_size |= 0x10000;
++			vdl_coarse = step_size;
++		}
++
++		FTHD_S2_REG_WRITE(vdl_coarse, S2_DDR40_PHY_VDL_OVR_COARSE);
++
++		dev_info(&dev_priv->pdev->dev,
++			 "VDL set to: coarse=0x%x, fine=0x%x\n",
++			 vdl_coarse, vdl_fine);
++	}
++
++	/* Configure Virtual VTT connections and override */
++
++	vtt_cons = 0x1cf7fff;
++	FTHD_S2_REG_WRITE(vtt_cons, S2_DDR40_PHY_VTT_CONNECTIONS);
++
++	vtt_ovr = 0x77fff;
++	FTHD_S2_REG_WRITE(vtt_ovr, S2_DDR40_PHY_VTT_OVERRIDE);
++
++	FTHD_S2_REG_WRITE(0x4, S2_DDR40_PHY_VTT_CTL);
++
++	dev_info(&dev_priv->pdev->dev, "Virtual VTT enabled");
++
++	/* Process, Voltage and Temperature compensation */
++	FTHD_S2_REG_WRITE(0xc0fff, S2_DDR40_PHY_ZQ_PVT_COMP_CTL);
++	FTHD_S2_REG_WRITE(0x2, S2_DDR40_PHY_DRV_PAD_CTL);
++	FTHD_S2_REG_WRITE(0x2, S2_DDR40_WL_DRV_PAD_CTL);
++
++	val = 1000000 / dev_priv->ddr_speed;
++	reg = 4;
++
++	if (val >= 400) {
++		if (val > 900)
++			reg = 1;
++
++		reg += 5;
++	}
++
++	/* DDR read FIFO delay? */
++	FTHD_S2_REG_WRITE(reg, S2_DDR40_WL_RD_DATA_DLY);
++	FTHD_S2_REG_WRITE(0x2, S2_DDR40_WL_READ_CTL); /* le_adj, te_adj */
++	FTHD_S2_REG_WRITE(0x3, S2_DDR40_WL_WR_PREAMBLE_MODE); /* mode, long */
++
++	/* dq_oeb, dq_reb, dq_iddq, dq_rxenb */
++	reg = FTHD_S2_REG_READ(S2_DDR40_WL_IDLE_PAD_CTL);
++	FTHD_S2_REG_WRITE(reg & 0xff0fffff, S2_DDR40_WL_IDLE_PAD_CTL);
++	udelay(500);
++
++	FTHD_S2_REG_WRITE(0, S2_DDR_2004);
++	udelay(10000);
++
++	FTHD_S2_REG_WRITE(0xab0a, S2_DDR_2014);
++
++	/* Polling for BUSY */
++	ret = fthd_hw_ddr_status_busy(dev_priv, 10000, 10);
++	if (ret != 0)
++		return -EBUSY;
++
++	udelay(10000);
++
++	FTHD_S2_REG_WRITE(0, S2_3204);
++
++	/* Read DRAM mem address (FIXME: Need to mask a few bits here) */
++	reg = FTHD_S2_REG_READ(S2_DDR40_STRAP_STATUS);
++	dev_info(&dev_priv->pdev->dev,
++		 "S2 DRAM memory address: 0x%08x\n", reg);
++
++	switch (dev_priv->ddr_model) {
++	case 4:
++		val = 0x1fffffff;
++		break;
++	case 2:
++		val = 0x0fffffff;
++		break;
++	default:
++		/* Probably just invalid model */
++		val = dev_priv->ddr_model;
++	}
++
++	FTHD_S2_REG_WRITE(val, S2_3208);
++	FTHD_S2_REG_WRITE(0x1040, S2_3200);
++
++	fthd_hw_ddr_rewrite_mode_regs(dev_priv);
++
++	FTHD_S2_REG_WRITE(0x20000, S2_DDR_2014);
++	FTHD_S2_REG_WRITE(1, S2_DDR_2008);
++
++	return 0;
++}
++
++void fthd_ddr_phy_save_regs(struct fthd_private *dev_priv)
++{
++	u32 offset;
++	int i;
++
++	for (i = 0; i < DDR_PHY_NUM_REG; i++) {
++		offset = fthd_ddr_phy_reg_map[i];
++		dev_priv->ddr_phy_regs[i] =
++			FTHD_ISP_REG_READ(DDR_PHY_REG_BASE + offset);
++	}
++}
++
++void fthd_ddr_phy_restore_regs(struct fthd_private *dev_priv)
++{
++	u32 offset;
++	int i;
++
++	for (i = 0; i < DDR_PHY_NUM_REG; i++) {
++		offset = fthd_ddr_phy_reg_map[i];
++		FTHD_S2_REG_WRITE(dev_priv->ddr_phy_regs[i],
++				  DDR_PHY_REG_BASE + offset);
++	}
++}
++
++int fthd_irq_enable(struct fthd_private *dev_priv)
++{
++	FTHD_ISP_REG_WRITE(0xf8, ISP_IRQ_ENABLE);
++	pci_write_config_dword(dev_priv->pdev, 0x94, 0x200);
++
++	return 0;
++}
++
++int fthd_irq_disable(struct fthd_private *dev_priv)
++{
++	FTHD_ISP_REG_WRITE(0, ISP_IRQ_ENABLE);
++	pci_write_config_dword(dev_priv->pdev, 0x94, 0x0);
++
++	return 0;
++}
++
++int fthd_hw_init(struct fthd_private *dev_priv)
++{
++	int ret;
++
++	ret = fthd_hw_s2_init_pcie_link(dev_priv);
++	if (ret)
++		goto out;
++
++	fthd_hw_s2_preinit_ddr_controller_soc(dev_priv);
++	fthd_hw_s2_init_ddr_controller_soc(dev_priv);
++
++/*
++	dev_info(&dev_priv->pdev->dev,
++		 "Dumping DDR PHY reg map before shmoo\n");
++
++	for (i = 0; i < DDR_PHY_NUM_REGS; i++) {
++		if (!(i % 3) && i >  0)
++			printk("\n");
++
++		val = FTHD_S2_REG_READ(ddr_phy_reg_map[i]);
++		printk(KERN_CONT "0x%.3x = 0x%.8x\t",
++			 ddr_phy_reg_map[i], val);
++	}
++*/
++
++	ret = fthd_ddr_verify_mem(dev_priv, 0, MEM_VERIFY_NUM);
++	if (ret) {
++		dev_err(&dev_priv->pdev->dev,
++			"Full memory verification failed! (%d)\n", ret);
++		/*
++		 * Here we should do a shmoo calibration but it's not yet
++		 * fully implemented.
++		 */
++
++		/* fthd_ddr_calibrate(dev_priv); */
++	} else {
++		dev_info(&dev_priv->pdev->dev,
++			 "Full memory verification succeeded! (%d)\n", ret);
++	}
++
++	/* Save our working configuration */
++	fthd_ddr_phy_save_regs(dev_priv);
++
++	FTHD_S2_REG_WRITE(0x8, S2_D108);
++	FTHD_S2_REG_WRITE(0xc, S2_D104);
++
++	FTHD_ISP_REG_WRITE(0, ISP_REG_40004);
++
++	ret = isp_init(dev_priv);
++	if (ret)
++	    goto out;
++
++	dev_info(&dev_priv->pdev->dev, "Enabling interrupts\n");
++	fthd_irq_enable(dev_priv);
++out:
++	return ret;
++}
++
++void fthd_hw_deinit(struct fthd_private *dev_priv)
++{
++	dev_info(&dev_priv->pdev->dev, "%s", __FUNCTION__);
++	FTHD_ISP_REG_WRITE(0, ISP_REG_41020);
++	fthd_irq_disable(dev_priv);
++}
+diff --git a/drivers/staging/media/facetimehd/fthd_hw.h b/drivers/staging/media/facetimehd/fthd_hw.h
+new file mode 100644
+index 0000000..58d8024
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_hw.h
+@@ -0,0 +1,128 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ */
++
++#ifndef _FTHD_HW_H
++#define _FTHD_HW_H
++
++#include <linux/pci.h>
++
++/* Used after most PCI Link IO writes */
++static inline void fthd_hw_pci_post(struct fthd_private *dev_priv)
++{
++	pci_write_config_dword(dev_priv->pdev, 0, 0x12345678);
++}
++
++#define FTHD_S2_REG_READ(offset) _FTHD_S2_REG_READ(dev_priv, (offset))
++#define FTHD_S2_REG_WRITE(val, offset) _FTHD_S2_REG_WRITE(dev_priv, (val), (offset))
++
++#define FTHD_S2_MEM_READ(offset) _FTHD_S2_MEM_READ(dev_priv, (offset))
++#define FTHD_S2_MEM_WRITE(val, offset) _FTHD_S2_MEM_WRITE(dev_priv, (val), (offset))
++#define FTHD_S2_MEMCPY_TOIO(offset, buf, len) _FTHD_S2_MEMCPY_TOIO(dev_priv, (buf), (offset), (len))
++#define FTHD_S2_MEMCPY_FROMIO(buf, offset, len) _FTHD_S2_MEMCPY_FROMIO(dev_priv, (buf), (offset), (len))
++
++#define FTHD_ISP_REG_READ(offset) _FTHD_ISP_REG_READ(dev_priv, (offset))
++#define FTHD_ISP_REG_WRITE(val, offset) _FTHD_ISP_REG_WRITE(dev_priv, (val), (offset))
++
++static inline u32 _FTHD_S2_REG_READ(struct fthd_private *dev_priv, u32 offset)
++{
++	if (offset >= dev_priv->s2_io_len) {
++		dev_err(&dev_priv->pdev->dev,
++			"S2 IO read out of range at %u\n", offset);
++		return 0;
++	}
++
++	// dev_info(&dev_priv->pdev->dev, "Link IO read at %u\n", offset);
++	return ioread32(dev_priv->s2_io + offset);
++}
++
++static inline void _FTHD_S2_REG_WRITE(struct fthd_private *dev_priv, u32 val,
++				      u32 offset)
++{
++	if (offset >= dev_priv->s2_io_len) {
++		dev_err(&dev_priv->pdev->dev,
++			"S2 IO write out of range at %u\n", offset);
++		return;
++	}
++
++	// dev_info(&dev_priv->pdev->dev, "S2 IO write at %u\n", offset);
++	iowrite32(val, dev_priv->s2_io + offset);
++	fthd_hw_pci_post(dev_priv);
++}
++
++static inline u32 _FTHD_S2_MEM_READ(struct fthd_private *dev_priv, u32 offset)
++{
++	if (offset >= dev_priv->s2_mem_len) {
++		dev_err(&dev_priv->pdev->dev,
++			"S2 MEM read out of range at %u\n", offset);
++		return 0;
++	}
++
++	// dev_info(&dev_priv->pdev->dev, "Link IO read at %u\n", offset);
++	return ioread32(dev_priv->s2_mem + offset);
++}
++
++static inline void _FTHD_S2_MEM_WRITE(struct fthd_private *dev_priv, u32 val,
++				      u32 offset)
++{
++	if (offset >= dev_priv->s2_mem_len) {
++		dev_err(&dev_priv->pdev->dev,
++			"S2 MEM write out of range at %u\n", offset);
++		return;
++	}
++
++	// dev_info(&dev_priv->pdev->dev, "S2 IO write at %u\n", offset);
++	iowrite32(val, dev_priv->s2_mem + offset);
++}
++
++static inline void _FTHD_S2_MEMCPY_TOIO(struct fthd_private *dev_priv, const void *buf,
++					u32 offset, int len)
++{
++	memcpy_toio(dev_priv->s2_mem + offset, buf, len);
++}
++
++
++static inline void _FTHD_S2_MEMCPY_FROMIO(struct fthd_private *dev_priv, void *buf,
++					  u32 offset, int len)
++{
++	memcpy_fromio(buf, dev_priv->s2_mem + offset, len);
++}
++
++static inline u32 _FTHD_ISP_REG_READ(struct fthd_private *dev_priv, u32 offset)
++{
++	if (offset >= dev_priv->isp_io_len) {
++		dev_err(&dev_priv->pdev->dev,
++			"ISP IO read out of range at %u\n", offset);
++		return 0;
++	}
++
++	// dev_info(&dev_priv->pdev->dev, "ISP IO read at %u\n", offset);
++	return ioread32(dev_priv->isp_io + offset);
++}
++
++static inline void _FTHD_ISP_REG_WRITE(struct fthd_private *dev_priv, u32 val,
++				       u32 offset)
++{
++	if (offset >= dev_priv->isp_io_len) {
++		dev_err(&dev_priv->pdev->dev,
++			"ISP IO write out of range at %u\n", offset);
++		return;
++	}
++
++	// dev_info(&dev_priv->pdev->dev, "Dev IO write at %u\n", offset);
++	iowrite32(val, dev_priv->isp_io + offset);
++	fthd_hw_pci_post(dev_priv);
++}
++
++extern int fthd_irq_enable(struct fthd_private *dev_priv);
++extern int fthd_irq_disable(struct fthd_private *dev_priv);
++extern int fthd_hw_init(struct fthd_private *dev_priv);
++extern void fthd_hw_deinit(struct fthd_private *priv);
++extern void fthd_ddr_phy_save_regs(struct fthd_private *dev_priv);
++extern void fthd_ddr_phy_restore_regs(struct fthd_private *dev_priv);
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_isp.c b/drivers/staging/media/facetimehd/fthd_isp.c
+new file mode 100644
+index 0000000..908848c
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_isp.c
+@@ -0,0 +1,1483 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/delay.h>
++#include <linux/acpi.h>
++#include <linux/firmware.h>
++#include <linux/dmi.h>
++#include "fthd_drv.h"
++#include "fthd_hw.h"
++#include "fthd_reg.h"
++#include "fthd_ringbuf.h"
++#include "fthd_isp.h"
++
++int isp_mem_init(struct fthd_private *dev_priv)
++{
++	struct resource *root = &dev_priv->pdev->resource[FTHD_PCI_S2_MEM];
++
++        dev_priv->mem = kzalloc(sizeof(struct resource), GFP_KERNEL);
++	if (!dev_priv->mem)
++	    return -ENOMEM;
++
++	dev_priv->mem->start = root->start;
++	dev_priv->mem->end = root->end;
++
++	/* Preallocate 8mb for the firmware */
++	dev_priv->firmware = isp_mem_create(dev_priv, FTHD_MEM_FIRMWARE,
++					    FTHD_MEM_FW_SIZE);
++
++	if (!dev_priv->firmware) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to preallocate firmware memory\n");
++		return -ENOMEM;
++	}
++	return 0;
++}
++
++struct isp_mem_obj *isp_mem_create(struct fthd_private *dev_priv,
++				   unsigned int type, resource_size_t size)
++{
++	struct isp_mem_obj *obj;
++	struct resource *root = dev_priv->mem;
++	int ret;
++
++	obj = kzalloc(sizeof(struct isp_mem_obj), GFP_KERNEL);
++	if (!obj)
++		return NULL;
++
++	obj->type = type;
++	obj->base.name = "S2 ISP";
++	ret = allocate_resource(root, &obj->base, size, root->start, root->end,
++				PAGE_SIZE, NULL, NULL);
++	if (ret) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to allocate resource (size: %Ld, start: %Ld, end: %Ld)\n",
++			size, root->start, root->end);
++		kfree(obj);
++		obj = NULL;
++	}
++
++	obj->offset = obj->base.start - root->start;
++	obj->size = size;
++	obj->size_aligned = obj->base.end - obj->base.start;
++	return obj;
++}
++
++int isp_mem_destroy(struct isp_mem_obj *obj)
++{
++	if (obj) {
++		release_resource(&obj->base);
++		kfree(obj);
++		obj = NULL;
++	}
++
++	return 0;
++}
++
++static int isp_acpi_set_power(struct fthd_private *dev_priv, int power)
++{
++	acpi_status status;
++	acpi_handle handle;
++	struct acpi_object_list arg_list;
++	struct acpi_buffer buffer = {ACPI_ALLOCATE_BUFFER, NULL};
++	union acpi_object args[1];
++	union acpi_object *result;
++	int ret = 0;
++
++
++	handle = ACPI_HANDLE(&dev_priv->pdev->dev);
++	if(!handle) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to get S2 CMPE ACPI handle\n");
++		ret = -ENODEV;
++		goto out;
++	}
++
++	args[0].type = ACPI_TYPE_INTEGER;
++	args[0].integer.value = power;
++
++	arg_list.count = 1;
++	arg_list.pointer = args;
++
++	status = acpi_evaluate_object(handle, "CMPE", &arg_list, &buffer);
++	if (ACPI_FAILURE(status)) {
++		dev_err(&dev_priv->pdev->dev,
++			"Failed to execute S2 CMPE ACPI method\n");
++		ret = -ENODEV;
++		goto out;
++	}
++
++	result = buffer.pointer;
++
++	if (result->type != ACPI_TYPE_INTEGER || result->integer.value != 0) {
++		dev_err(&dev_priv->pdev->dev,
++			"Invalid ACPI response (len: %Ld)\n", buffer.length);
++		ret = -EINVAL;
++	}
++
++out:
++	kfree(buffer.pointer);
++	return ret;
++}
++
++static int isp_enable_sensor(struct fthd_private *dev_priv)
++{
++	return 0;
++}
++
++static int isp_load_firmware(struct fthd_private *dev_priv)
++{
++	const struct firmware *fw;
++	int ret = 0;
++
++	ret = request_firmware(&fw, "facetimehd/firmware.bin", &dev_priv->pdev->dev);
++	if (ret)
++		return ret;
++
++	/* Firmware memory is preallocated at init time */
++	if (!dev_priv->firmware)
++		return -ENOMEM;
++
++	if (dev_priv->firmware->base.start != dev_priv->mem->start) {
++		dev_err(&dev_priv->pdev->dev,
++			"Misaligned firmware memory object (offset: %lu)\n",
++			dev_priv->firmware->offset);
++		isp_mem_destroy(dev_priv->firmware);
++		dev_priv->firmware = NULL;
++		return -EBUSY;
++	}
++
++	FTHD_S2_MEMCPY_TOIO(dev_priv->firmware->offset, fw->data, fw->size);
++
++	/* Might need a flush here if we map ISP memory cached */
++
++	dev_info(&dev_priv->pdev->dev, "Loaded firmware, size: %lukb\n",
++		 fw->size / 1024);
++
++	release_firmware(fw);
++
++	return ret;
++}
++
++static void isp_free_channel_info(struct fthd_private *priv)
++{
++	struct fw_channel *chan;
++	int i;
++	for(i = 0; i < priv->num_channels; i++) {
++		chan = priv->channels[i];
++		if (!chan)
++			continue;
++
++		kfree(chan->name);
++		kfree(chan);
++		priv->channels[i] = NULL;
++	}
++	kfree(priv->channels);
++	priv->channels = NULL;
++}
++
++static struct fw_channel *isp_get_chan_index(struct fthd_private *priv, const char *name)
++{
++	int i;
++	for(i = 0; i < priv->num_channels; i++) {
++		if (!strcasecmp(priv->channels[i]->name, name))
++			return priv->channels[i];
++	}
++	return NULL;
++}
++
++static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int num_channels)
++{
++	struct isp_channel_info info;
++	struct fw_channel *chan;
++	int i;
++
++	if (!num_channels)
++		return -EINVAL;
++
++	dev_priv->channels = kzalloc(num_channels * sizeof(struct fw_channel *), GFP_KERNEL);
++	if (!dev_priv->channels)
++		goto out;
++
++	dev_priv->num_channels = num_channels;
++
++	for(i = 0; i < num_channels; i++) {
++		FTHD_S2_MEMCPY_FROMIO(&info, offset + i * 256, sizeof(info));
++
++		chan = kzalloc(sizeof(struct fw_channel), GFP_KERNEL);
++		if (!chan)
++			goto out;
++
++		dev_priv->channels[i] = chan;
++
++		pr_debug("Channel %d: %s, type %d, source %d, size %d, offset %x\n",
++			 i, info.name, info.type, info.source, info.size, info.offset);
++
++		chan->name = kstrdup(info.name, GFP_KERNEL);
++		if (!chan->name)
++			goto out;
++
++		chan->type = info.type;
++		chan->source = info.source;
++		chan->size = info.size;
++		chan->offset = info.offset;
++		spin_lock_init(&chan->lock);
++		init_waitqueue_head(&chan->wq);
++	}
++
++	dev_priv->channel_terminal = isp_get_chan_index(dev_priv, "TERMINAL");
++	dev_priv->channel_debug = isp_get_chan_index(dev_priv, "DEBUG");
++	dev_priv->channel_shared_malloc = isp_get_chan_index(dev_priv, "SHAREDMALLOC");
++	dev_priv->channel_io = isp_get_chan_index(dev_priv, "IO");
++	dev_priv->channel_buf_h2t = isp_get_chan_index(dev_priv, "BUF_H2T");
++	dev_priv->channel_buf_t2h = isp_get_chan_index(dev_priv, "BUF_T2H");
++	dev_priv->channel_io_t2h = isp_get_chan_index(dev_priv, "IO_T2H");
++
++	if (!dev_priv->channel_terminal || !dev_priv->channel_debug
++	    || !dev_priv->channel_shared_malloc || !dev_priv->channel_io
++	    || !dev_priv->channel_buf_h2t || !dev_priv->channel_buf_t2h
++	    || !dev_priv->channel_io_t2h) {
++		dev_err(&dev_priv->pdev->dev, "did not find all of the required channels\n");
++		goto out;
++	}
++	return 0;
++out:
++	isp_free_channel_info(dev_priv);
++	return -ENOMEM;
++}
++
++static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
++			int request_len, int *response_len)
++{
++	struct isp_mem_obj *request;
++	struct isp_cmd_hdr cmd;
++	u32 address, request_size, response_size;
++	u32 entry;
++	int len, ret;
++
++	memset(&cmd, 0, sizeof(cmd));
++
++	if (response_len) {
++		len = max(request_len, *response_len);
++	} else {
++		len = request_len;
++	}
++	len += sizeof(struct isp_cmd_hdr);
++
++	pr_debug("sending cmd %d to firmware\n", command);
++
++	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, len);
++	if (!request) {
++		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
++		return -ENOMEM;
++	}
++
++	cmd.opcode = command;
++
++	FTHD_S2_MEMCPY_TOIO(request->offset, &cmd, sizeof(struct isp_cmd_hdr));
++	if (request_len)
++		FTHD_S2_MEMCPY_TOIO(request->offset + sizeof(struct isp_cmd_hdr), buf, request_len);
++
++	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_io,
++					  request->offset, request_len + 8, (response_len ? *response_len : 0) + 8, &entry);
++	if (ret)
++		goto out;
++
++	if (entry == (u32)-1) {
++		ret = -EIO;
++		goto out;
++	}
++
++	if (command == CISP_CMD_POWER_DOWN) {
++		/* powerdown doesn't seem to generate a response */
++		ret = 0;
++		goto out;
++	}
++
++        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_io, entry, 2000);
++	if (ret) {
++		if (response_len)
++			*response_len = 0;
++		goto out;
++	}
++
++	FTHD_S2_MEMCPY_FROMIO(&cmd, request->offset, sizeof(struct isp_cmd_hdr));
++	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
++	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
++	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
++
++	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
++	        verification done? */
++	if (response_len && *response_len)
++		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
++				     *response_len);
++
++	pr_debug("status %04x, request_len %d response len %d address_flags %x\n", cmd.status,
++		request_size, response_size, address);
++
++	ret = cmd.status ? -EIO : 0;
++out:
++	isp_mem_destroy(request);
++	return ret;
++}
++
++int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
++			int request_len, int *response_len)
++{
++	struct isp_mem_obj *request;
++	struct isp_cmd_hdr cmd;
++	u32 address, request_size, response_size;
++	u32 entry;
++	int len, ret;
++
++	memset(&cmd, 0, sizeof(cmd));
++
++	if (response_len) {
++		len = max(request_len, *response_len);
++	} else {
++		len = request_len;
++	}
++	len += sizeof(struct isp_cmd_hdr);
++
++	pr_debug("sending debug cmd %d to firmware\n", command);
++
++	request = isp_mem_create(dev_priv, FTHD_MEM_CMD, len);
++	if (!request) {
++		dev_err(&dev_priv->pdev->dev, "failed to allocate cmd memory object\n");
++		return -ENOMEM;
++	}
++
++	cmd.opcode = command;
++
++	FTHD_S2_MEMCPY_TOIO(request->offset, &cmd, sizeof(struct isp_cmd_hdr));
++	if (request_len)
++		FTHD_S2_MEMCPY_TOIO(request->offset + sizeof(struct isp_cmd_hdr), buf, request_len);
++
++	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_debug,
++					  request->offset, request_len + 8, (response_len ? *response_len : 0) + 8, &entry);
++	if (ret)
++		goto out;
++
++	if (entry == (u32)-1) {
++		ret = -EIO;
++		goto out;
++	}
++
++        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_debug, entry, 20000);
++	if (ret) {
++		if (response_len)
++			*response_len = 0;
++		goto out;
++	}
++
++	FTHD_S2_MEMCPY_FROMIO(&cmd, request->offset, sizeof(struct isp_cmd_hdr));
++	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
++	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
++	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
++
++	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
++	        verification done? */
++	if (response_len && *response_len)
++		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
++				     *response_len);
++
++	pr_info("status %04x, request_len %d response len %d address_flags %x\n", cmd.status,
++		request_size, response_size, address);
++
++	ret = 0;
++out:
++	isp_mem_destroy(request);
++	return ret;
++}
++
++
++
++int fthd_isp_cmd_start(struct fthd_private *dev_priv)
++{
++	pr_debug("sending start cmd to firmware\n");
++	return fthd_isp_cmd(dev_priv, CISP_CMD_START, NULL, 0, NULL);
++}
++
++int fthd_isp_cmd_channel_start(struct fthd_private *dev_priv)
++{
++	struct isp_cmd_channel_start cmd;
++	pr_debug("sending channel start cmd to firmware\n");
++
++	cmd.channel = 0;
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_START, &cmd, sizeof(cmd), NULL);
++}
++
++int fthd_isp_cmd_channel_stop(struct fthd_private *dev_priv)
++{
++	struct isp_cmd_channel_stop cmd;
++
++	cmd.channel = 0;
++	pr_debug("sending channel stop cmd to firmware\n");
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_STOP, &cmd, sizeof(cmd), NULL);
++}
++
++int fthd_isp_cmd_stop(struct fthd_private *dev_priv)
++{
++	return fthd_isp_cmd(dev_priv, CISP_CMD_STOP, NULL, 0, NULL);
++}
++
++static int fthd_isp_cmd_powerdown(struct fthd_private *dev_priv)
++{
++	return fthd_isp_cmd(dev_priv, CISP_CMD_POWER_DOWN, NULL, 0, NULL);
++}
++
++static void isp_free_set_file(struct fthd_private *dev_priv)
++{
++	if (dev_priv->set_file)
++		isp_mem_destroy(dev_priv->set_file);
++}
++
++int isp_powerdown(struct fthd_private *dev_priv)
++{
++	int retries;
++	u32 reg;
++
++	FTHD_ISP_REG_WRITE(0xf7fbdff9, 0xc3000);
++	fthd_isp_cmd_powerdown(dev_priv);
++
++	for (retries = 0; retries < 100; retries++) {
++		reg = FTHD_ISP_REG_READ(0xc3000);
++		if (reg == 0x8042006)
++			break;
++		mdelay(10);
++	}
++
++	if (retries >= 100) {
++		dev_info(&dev_priv->pdev->dev, "deinit failed!\n");
++		return -EIO;
++	}
++	return 0;
++}
++
++int isp_uninit(struct fthd_private *dev_priv)
++{
++	FTHD_ISP_REG_WRITE(0x00000000, 0x40004);
++	FTHD_ISP_REG_WRITE(0x00000000, ISP_IRQ_ENABLE);
++	FTHD_ISP_REG_WRITE(0xffffffff, 0xc0008);
++	FTHD_ISP_REG_WRITE(0xffffffff, 0xc000c);
++	FTHD_ISP_REG_WRITE(0xffffffff, 0xc0010);
++	FTHD_ISP_REG_WRITE(0x00000000, 0xc1004);
++	FTHD_ISP_REG_WRITE(0xffffffff, 0xc100c);
++	FTHD_ISP_REG_WRITE(0xffffffff, 0xc1014);
++	FTHD_ISP_REG_WRITE(0xffffffff, 0xc101c);
++	FTHD_ISP_REG_WRITE(0xffffffff, 0xc1024);
++	mdelay(1);
++
++	FTHD_ISP_REG_WRITE(0, 0xc0000);
++	FTHD_ISP_REG_WRITE(0, 0xc0004);
++	FTHD_ISP_REG_WRITE(0, 0xc0008);
++	FTHD_ISP_REG_WRITE(0, 0xc000c);
++	FTHD_ISP_REG_WRITE(0, 0xc0010);
++	FTHD_ISP_REG_WRITE(0, 0xc0014);
++	FTHD_ISP_REG_WRITE(0, 0xc0018);
++	FTHD_ISP_REG_WRITE(0, 0xc001c);
++	FTHD_ISP_REG_WRITE(0, 0xc0020);
++	FTHD_ISP_REG_WRITE(0, 0xc0024);
++
++	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
++	isp_free_channel_info(dev_priv);
++	isp_free_set_file(dev_priv);
++	isp_mem_destroy(dev_priv->firmware);
++	kfree(dev_priv->mem);
++	return 0;
++}
++
++
++int fthd_isp_cmd_print_enable(struct fthd_private *dev_priv, int enable)
++{
++	struct isp_cmd_print_enable cmd;
++
++	cmd.enable = enable;
++
++	return fthd_isp_cmd(dev_priv, CISP_CMD_PRINT_ENABLE, &cmd, sizeof(cmd), NULL);
++}
++
++int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
++{
++	struct isp_cmd_set_loadfile cmd;
++	struct isp_mem_obj *file;
++	const struct firmware *fw;
++	const char *filename = NULL;
++	const char *vendor, *board;
++	int ret = 0;
++
++	pr_debug("set loadfile\n");
++
++	vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
++	board = dmi_get_system_info(DMI_BOARD_NAME);
++
++	memset(&cmd, 0, sizeof(cmd));
++
++	switch(dev_priv->sensor_id1) {
++	case 0x164:
++		filename = "facetimehd/8221_01XX.dat";
++		break;
++	case 0x190:
++		filename = "facetimehd/1222_01XX.dat";
++		break;
++	case 0x8830:
++		filename = "facetimehd/9112_01XX.dat";
++		break;
++	case 0x9770:
++		if (vendor && board && !strcmp(vendor, "Apple Inc.") &&
++		    !strncmp(board, "MacBookAir", sizeof("MacBookAir")-1)) {
++			filename = "facetimehd/1771_01XX.dat";
++			break;
++		}
++
++		switch(dev_priv->sensor_id0) {
++		case 4:
++			filename = "facetimehd/1874_01XX.dat";
++			break;
++		default:
++			filename = "facetimehd/1871_01XX.dat";
++			break;
++		}
++		break;
++	case 0x9774:
++		switch(dev_priv->sensor_id0) {
++		case 4:
++			filename = "facetimehd/1674_01XX.dat";
++			break;
++		case 5:
++			filename = "facetimehd/1675_01XX.dat";
++			break;
++		default:
++			filename = "facetimehd/1671_01XX.dat";
++			break;
++		}
++		break;
++	default:
++		break;
++
++	}
++
++	if (!filename) {
++		pr_debug("no set file for sensorid %04x %04x found\n",
++			 dev_priv->sensor_id0, dev_priv->sensor_id1);
++		return 0;
++	}
++
++	/* The set file is allowed to be missing but we don't get calibration */
++	ret = request_firmware(&fw, filename, &dev_priv->pdev->dev);
++	if (ret)
++		return 0;
++
++	/* Firmware memory is preallocated at init time */
++	BUG_ON(dev_priv->set_file);
++
++	file = isp_mem_create(dev_priv, FTHD_MEM_SET_FILE, fw->size);
++	FTHD_S2_MEMCPY_TOIO(file->offset, fw->data, fw->size);
++
++	release_firmware(fw);
++
++	dev_priv->set_file = file;
++	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
++	cmd.addr = file->offset;
++	cmd.length = file->size;
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
++}
++
++int fthd_isp_cmd_channel_info(struct fthd_private *dev_priv)
++{
++	struct isp_cmd_channel_info cmd;
++	int ret, len;
++
++	pr_debug("sending ch info\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	len = sizeof(cmd);
++	ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_INFO_GET, &cmd, sizeof(cmd), &len);
++	print_hex_dump_bytes("CHINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
++	pr_debug("sensor id: %04x %04x\n", cmd.sensorid0, cmd.sensorid1);
++	pr_debug("sensor count: %d\n", cmd.sensor_count);
++	pr_debug("camera module serial number string: %s\n", cmd.camera_module_serial_number);
++	pr_debug("sensor serial number: %02X%02X%02X%02X%02X%02X%02X%02X\n",
++		 cmd.sensor_serial_number[0], cmd.sensor_serial_number[1],
++		 cmd.sensor_serial_number[2], cmd.sensor_serial_number[3],
++		 cmd.sensor_serial_number[4], cmd.sensor_serial_number[5],
++		 cmd.sensor_serial_number[6], cmd.sensor_serial_number[7]);
++	dev_priv->sensor_id0 = cmd.sensorid0;
++	dev_priv->sensor_id1 = cmd.sensorid1;
++	dev_priv->sensor_count = cmd.sensor_count;
++	return ret;
++}
++
++int fthd_isp_cmd_camera_config(struct fthd_private *dev_priv)
++{
++	struct isp_cmd_config cmd;
++	int ret, len;
++
++	pr_debug("sending camera config\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++
++	len = sizeof(cmd);
++	ret = fthd_isp_cmd(dev_priv, CISP_CMD_CONFIG_GET, &cmd, sizeof(cmd), &len);
++	if (!ret)
++		print_hex_dump_bytes("CAMINFO ", DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
++	return ret;
++}
++
++int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv)
++{
++	struct isp_cmd_channel_camera_config cmd;
++	int ret, len, i;
++	char prefix[16];
++	pr_debug("sending ch camera config\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	for(i = 0; i < dev_priv->sensor_count; i++) {
++		cmd.channel = i;
++
++		len = sizeof(cmd);
++		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_CONFIG_GET, &cmd, sizeof(cmd), &len);
++		if (ret)
++			break;
++		snprintf(prefix, sizeof(prefix)-1, "CAMCONF%d ", i);
++		print_hex_dump_bytes(prefix, DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
++	}
++	return ret;
++}
++
++int fthd_isp_cmd_channel_camera_config_select(struct fthd_private *dev_priv, int channel, int config)
++{
++	struct isp_cmd_channel_camera_config_select cmd;
++	int len;
++
++	pr_debug("set camera config: %d\n", config);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.config = config;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_CONFIG_SELECT, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
++				  int x1, int y1, int x2, int y2)
++{
++	struct isp_cmd_channel_set_crop cmd;
++	int len;
++
++	pr_debug("set crop: [%d, %d] -> [%d, %d]\n", x1, y1, x2, y2);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.x1 = x1;
++	cmd.y2 = y2;
++	cmd.x2 = x2;
++	cmd.y2 = y2;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_output_config_set(struct fthd_private *dev_priv, int channel, int x, int y, int pixelformat)
++{
++	struct isp_cmd_channel_output_config cmd;
++	int len;
++
++	pr_debug("output config: [%d, %d]\n", x, y);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.x1 = x; /* Y size */
++	cmd.x2 = x * 2; /* Chroma size? */
++	cmd.x3 = x;
++	cmd.y1 = y;
++
++	/* pixel formats:
++	 * 0 - plane 0 Y plane 1 UV
++	   1 - YUYV
++	   2 - YVYU
++	*/
++	cmd.pixelformat = pixelformat;
++	cmd.unknown3 = 0;
++	cmd.unknown5 = 0x7ff;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_OUTPUT_CONFIG_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_recycle_mode(struct fthd_private *dev_priv, int channel, int mode)
++{
++	struct isp_cmd_channel_recycle_mode cmd;
++	int len;
++
++	pr_debug("set recycle mode %d\n", mode);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.mode = mode;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RECYCLE_MODE_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_buffer_return(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_buffer_return cmd;
++	int len;
++
++	pr_debug("buffer return\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RETURN, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_recycle_start(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_recycle_mode cmd;
++	int len;
++
++	pr_debug("start recycle\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_BUFFER_RECYCLE_START, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_drc_start(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_drc_start cmd;
++	int len;
++
++	pr_debug("start drc\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_DRC_START, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_tone_curve_adaptation_start(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_tone_curve_adaptation_start cmd;
++	int len;
++
++	pr_debug("tone curve adaptation start\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TONE_CURVE_ADAPTATION_START, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_sif_pixel_format(struct fthd_private *dev_priv, int channel, int param1, int param2)
++{
++	struct isp_cmd_channel_sif_format_set cmd;
++	int len;
++
++	pr_debug("set pixel format %d, %d\n", param1, param2);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.param1 = param1;
++	cmd.param2 = param2;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SIF_PIXEL_FORMAT_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_error_handling_config(struct fthd_private *dev_priv, int channel, int param1, int param2)
++{
++	struct isp_cmd_channel_camera_err_handle_config cmd;
++	int len;
++
++	pr_debug("set error handling config %d, %d\n", param1, param2);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.param1 = param1;
++	cmd.param2 = param2;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CAMERA_ERR_HANDLE_CONFIG, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_streaming_mode(struct fthd_private *dev_priv, int channel, int mode)
++{
++	struct isp_cmd_channel_streaming_mode cmd;
++	int len;
++
++	pr_debug("set streaming mode %d\n", mode);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.mode = mode;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_STREAMING_MODE_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_frame_rate_min(struct fthd_private *dev_priv, int channel, int rate)
++{
++	struct isp_cmd_channel_frame_rate_set cmd;
++	int len;
++
++	pr_debug("set ae frame rate min %d\n", rate);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.rate = rate;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MIN_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_frame_rate_max(struct fthd_private *dev_priv, int channel, int rate)
++{
++	struct isp_cmd_channel_frame_rate_set cmd;
++	int len;
++
++	pr_debug("set ae frame rate max %d\n", rate);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.rate = rate;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_FRAME_RATE_MAX_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_ae_speed_set(struct fthd_private *dev_priv, int channel, int speed)
++{
++	struct isp_cmd_channel_ae_speed_set cmd;
++	int len;
++
++	pr_debug("set ae speed %d\n", speed);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.speed = speed;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_SPEED_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_ae_stability_set(struct fthd_private *dev_priv, int channel, int stability)
++{
++	struct isp_cmd_channel_ae_stability_set cmd;
++	int len;
++
++	pr_debug("set ae stability %d\n", stability);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.stability = stability;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_ae_stability_to_stable_set(struct fthd_private *dev_priv, int channel, int value)
++{
++	struct isp_cmd_channel_ae_stability_to_stable_set cmd;
++	int len;
++
++	pr_debug("set ae stability to stable %d\n", value);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.value = value;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_AE_STABILITY_TO_STABLE_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_face_detection_start(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_face_detection_start cmd;
++	int len;
++
++	pr_debug("face detection start\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_START, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_face_detection_stop(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_face_detection_stop cmd;
++	int len;
++
++	pr_debug("face detection stop\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_STOP, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_face_detection_enable(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_face_detection_enable cmd;
++	int len;
++
++	pr_debug("face detection enable\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_ENABLE, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_face_detection_disable(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_face_detection_disable cmd;
++	int len;
++
++	pr_debug("face detection disable\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_FACE_DETECTION_DISABLE, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_temporal_filter_start(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_temporal_filter_start cmd;
++	int len;
++
++	pr_debug("temporal filter start\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_START, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_temporal_filter_stop(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_temporal_filter_stop cmd;
++	int len;
++
++	pr_debug("temporal filter stop\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_STOP, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_temporal_filter_enable(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_temporal_filter_enable cmd;
++	int len;
++
++	pr_debug("temporal filter enable\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_ENABLE, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_temporal_filter_disable(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_temporal_filter_disable cmd;
++	int len;
++
++	pr_debug("temporal filter disable\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_TEMPORAL_FILTER_DISABLE, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_motion_history_start(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_motion_history_start cmd;
++	int len;
++
++	pr_debug("motion history start\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_START, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_motion_history_stop(struct fthd_private *dev_priv, int channel)
++{
++	struct isp_cmd_channel_motion_history_stop cmd;
++	int len;
++
++	pr_debug("motion history stop\n");
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_MOTION_HISTORY_STOP, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_ae_metering_mode_set(struct fthd_private *dev_priv, int channel, int mode)
++{
++	struct isp_cmd_channel_ae_metering_mode_set cmd;
++	int len;
++
++	pr_debug("ae metering mode %d\n", mode);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.mode = mode;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_AE_METERING_MODE_SET, &cmd, sizeof(cmd), &len);
++}
++
++/*
++ * Control camera indicator LED:
++ * mode 0: Auto (firmware illuminates LED during active capture)
++ * mode 1: Force Off (stealth mode / disable indicator)
++ * mode 2: Force On (keep indicator illuminated)
++ */
++int fthd_isp_cmd_set_led(struct fthd_private *dev_priv, int channel, int mode)
++{
++	struct {
++		u32 channel;
++	} cmd;
++	int len = sizeof(cmd);
++	int ret = 0;
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++
++	if (mode == 1) {
++		/* Turn off LED indicator */
++		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_LED_TORCH_OFF, &cmd, sizeof(cmd), &len);
++	} else if (mode == 2) {
++		/* Turn on indicator */
++		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_LED_TORCH_ON_INDICATOR, &cmd, sizeof(cmd), &len);
++	}
++
++	pr_debug("set_led mode %d ret=%d\n", mode, ret);
++	return 0;
++}
++
++int fthd_isp_cmd_channel_brightness_set(struct fthd_private *dev_priv, int channel, int brightness)
++{
++	struct isp_cmd_channel_brightness_set cmd;
++	int len;
++
++	pr_debug("set brightness %d\n", brightness);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.brightness = brightness;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_BRIGHTNESS_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_contrast_set(struct fthd_private *dev_priv, int channel, int contrast)
++{
++	struct isp_cmd_channel_contrast_set cmd;
++	int len;
++
++	pr_debug("set contrast %d\n", contrast);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.contrast = contrast;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_CONTRAST_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_saturation_set(struct fthd_private *dev_priv, int channel, int saturation)
++{
++	struct isp_cmd_channel_saturation_set cmd;
++	int len;
++
++	pr_debug("set saturation %d\n", saturation);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.contrast = saturation;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_SATURATION_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_hue_set(struct fthd_private *dev_priv, int channel, int hue)
++{
++	struct isp_cmd_channel_hue_set cmd;
++	int len;
++
++	pr_debug("set hue %d\n", hue);
++
++	memset(&cmd, 0, sizeof(cmd));
++	cmd.channel = channel;
++	cmd.contrast = hue;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SCALER_HUE_SET, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_isp_cmd_channel_awb(struct fthd_private *dev_priv, int channel, int enable)
++{
++	struct isp_cmd_channel cmd;
++	enum fthd_isp_cmds op;
++	int len;
++
++	pr_debug("set awb %s\n", enable ? "on" : "off");
++
++	cmd.channel = channel;
++	op = enable ? CISP_CMD_CH_AWB_START : CISP_CMD_CH_AWB_STOP;
++	len = sizeof(cmd);
++	return fthd_isp_cmd(dev_priv, op, &cmd, sizeof(cmd), &len);
++}
++
++int fthd_start_channel(struct fthd_private *dev_priv, int channel)
++{
++	int ret, x1 = 0, x2 = 0, pixelformat;
++
++	ret = fthd_isp_cmd_channel_camera_config(dev_priv);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_camera_config_select(dev_priv, 0, 0);
++	if (ret)
++		return ret;
++
++	if (dev_priv->fmt.fmt.width < 1280 ||
++	    dev_priv->fmt.fmt.height < 720) {
++		x1 = 160;
++		x2 = 960;
++	} else {
++		x1 = 0;
++		x2 = 1280;
++	}
++
++	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2, 720);
++	if (ret)
++		return ret;
++
++	switch(dev_priv->fmt.fmt.pixelformat) {
++	case V4L2_PIX_FMT_YUYV:
++		pixelformat = 1;
++		break;
++	case V4L2_PIX_FMT_YVYU:
++		pixelformat = 2;
++		break;
++	case V4L2_PIX_FMT_NV16:
++		pixelformat = 0;
++		break;
++	default:
++		pixelformat = 1;
++		WARN_ON(1);
++	}
++	ret = fthd_isp_cmd_channel_output_config_set(dev_priv, 0,
++						     dev_priv->fmt.fmt.width,
++						     dev_priv->fmt.fmt.height,
++						     pixelformat);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_recycle_mode(dev_priv, 0, 1);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_recycle_start(dev_priv, 0);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, fthd_ae_metering);
++	if (ret)
++		return ret;
++	if (fthd_drc_enable) {
++		ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
++		if (ret)
++			return ret;
++		ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
++		if (ret)
++			return ret;
++	}
++	ret = fthd_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_ae_stability_set(dev_priv, 0, 75);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_ae_stability_to_stable_set(dev_priv, 0, 8);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_sif_pixel_format(dev_priv, 0, 1, 1);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_error_handling_config(dev_priv, 0, 2, 1);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_face_detection_enable(dev_priv, 0);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_face_detection_start(dev_priv, 0);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frametime * 256);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0, dev_priv->frametime * 256);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_temporal_filter_start(dev_priv, 0);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_motion_history_start(dev_priv, 0);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_temporal_filter_enable(dev_priv, 0);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
++	if (ret)
++		return ret;
++	ret = fthd_isp_cmd_channel_start(dev_priv);
++	if (ret)
++		return ret;
++
++	/* Apply LED indicator override if configured */
++	if (fthd_led_mode != 0)
++		fthd_isp_cmd_set_led(dev_priv, 0, fthd_led_mode);
++
++	mdelay(1000); /* Needed to settle AE */
++	return 0;
++}
++
++int fthd_stop_channel(struct fthd_private *dev_priv, int channel)
++{
++	int ret;
++
++	ret = fthd_isp_cmd_channel_stop(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_buffer_return(dev_priv, 0);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_face_detection_stop(dev_priv, 0);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_face_detection_disable(dev_priv, 0);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_temporal_filter_disable(dev_priv, 0);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_motion_history_stop(dev_priv, 0);
++	if (ret)
++		return ret;
++
++	ret = fthd_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
++	if (ret)
++		return ret;
++
++	/* Aggressive Low Power: power down sensor on stop */
++	if (fthd_power_save == 2) {
++		struct {
++			u32 channel;
++		} pcmd;
++		memset(&pcmd, 0, sizeof(pcmd));
++		pcmd.channel = 0;
++		fthd_isp_cmd(dev_priv, CISP_CMD_CH_SENSOR_POWER_OFF, &pcmd, sizeof(pcmd), NULL);
++	}
++
++	return 0;
++}
++
++int isp_init(struct fthd_private *dev_priv)
++{
++	struct isp_mem_obj *fw_queue, *heap, *fw_args;
++	struct isp_fw_args fw_args_data;
++	u32 num_channels, queue_size, heap_size, reg, offset;
++	int i, retries, ret;
++
++	ret = isp_mem_init(dev_priv);
++	if (ret)
++		return ret;
++
++	ret = isp_load_firmware(dev_priv);
++	if (ret)
++		return ret;
++
++	isp_acpi_set_power(dev_priv, 1);
++	mdelay(20);
++
++	pci_set_power_state(dev_priv->pdev, PCI_D0);
++	mdelay(10);
++
++	isp_enable_sensor(dev_priv);
++	FTHD_ISP_REG_WRITE(0, ISP_FW_CHAN_CTRL);
++	FTHD_ISP_REG_WRITE(0, ISP_FW_QUEUE_CTRL);
++	FTHD_ISP_REG_WRITE(0, ISP_FW_SIZE);
++	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE);
++	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
++	FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
++	FTHD_ISP_REG_WRITE(0, ISP_REG_C3018);
++	FTHD_ISP_REG_WRITE(0, ISP_REG_C301C);
++
++	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
++
++	/*
++	 * Probably the IPC queue
++	 * FIXME: Check if we can do 64bit writes on PCIe
++	 */
++	for (i = ISP_FW_CHAN_START; i <= ISP_FW_CHAN_END; i += 8) {
++		FTHD_ISP_REG_WRITE(0xffffffff, i);
++		FTHD_ISP_REG_WRITE(0, i + 4);
++	}
++
++	FTHD_ISP_REG_WRITE(0x80000000, ISP_REG_40008);
++	FTHD_ISP_REG_WRITE(0x1, ISP_REG_40004);
++
++	for (retries = 0; retries < 1000; retries++) {
++		reg = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
++		if ((reg & 0xf0) > 0)
++			break;
++		mdelay(10);
++	}
++
++	if (retries >= 1000) {
++		dev_info(&dev_priv->pdev->dev, "Init failed! No wake signal\n");
++		return -EIO;
++	}
++
++	dev_info(&dev_priv->pdev->dev, "ISP woke up after %dms\n",
++		 (retries - 1) * 10);
++
++	FTHD_ISP_REG_WRITE(0xffffffff, ISP_IRQ_CLEAR);
++
++	num_channels = FTHD_ISP_REG_READ(ISP_FW_CHAN_CTRL);
++	queue_size = FTHD_ISP_REG_READ(ISP_FW_QUEUE_CTRL) + 1;
++
++	dev_info(&dev_priv->pdev->dev,
++		 "Number of IPC channels: %u, queue size: %u\n",
++		 num_channels, queue_size);
++
++	if (num_channels > 32) {
++		dev_info(&dev_priv->pdev->dev, "Too many IPC channels: %u\n",
++			 num_channels);
++		return -EIO;
++	}
++
++	fw_queue = isp_mem_create(dev_priv, FTHD_MEM_FW_QUEUE, queue_size);
++	if (!fw_queue)
++		return -ENOMEM;
++
++	/* Firmware heap max size is 4mb */
++	heap_size = FTHD_ISP_REG_READ(ISP_FW_HEAP_SIZE);
++
++	if (heap_size == 0) {
++		FTHD_ISP_REG_WRITE(0, ISP_FW_CHAN_CTRL);
++		FTHD_ISP_REG_WRITE(fw_queue->offset, ISP_FW_QUEUE_CTRL);
++		FTHD_ISP_REG_WRITE(dev_priv->firmware->size_aligned, ISP_FW_SIZE);
++		FTHD_ISP_REG_WRITE(0x10000000 - dev_priv->firmware->size_aligned,
++				   ISP_FW_HEAP_SIZE);
++		FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_ADDR);
++		FTHD_ISP_REG_WRITE(0, ISP_FW_HEAP_SIZE2);
++	} else {
++		/* Must be at least 0x1000 bytes */
++		heap_size = (heap_size < 0x1000) ? 0x1000 : heap_size;
++
++		if (heap_size > 0x400000) {
++			dev_info(&dev_priv->pdev->dev,
++				 "Firmware heap request size too big (%ukb)\n",
++				 heap_size / 1024);
++			return -ENOMEM;
++		}
++
++		dev_info(&dev_priv->pdev->dev, "Firmware requested heap size: %ukb\n",
++			 heap_size / 1024);
++
++		heap = isp_mem_create(dev_priv, FTHD_MEM_HEAP, heap_size);
++		if (!heap)
++			return -ENOMEM;
++
++		FTHD_ISP_REG_WRITE(0, ISP_FW_CHAN_CTRL);
++
++		/* Set IPC queue base addr */
++		FTHD_ISP_REG_WRITE(fw_queue->offset, ISP_FW_QUEUE_CTRL);
++
++		FTHD_ISP_REG_WRITE(FTHD_MEM_FW_SIZE, ISP_FW_SIZE);
++
++		FTHD_ISP_REG_WRITE(0x10000000 - FTHD_MEM_FW_SIZE, ISP_FW_HEAP_SIZE);
++
++		FTHD_ISP_REG_WRITE(heap->offset, ISP_FW_HEAP_ADDR);
++
++		FTHD_ISP_REG_WRITE(heap->size, ISP_FW_HEAP_SIZE2);
++
++		/* Set FW args */
++		fw_args = isp_mem_create(dev_priv, FTHD_MEM_FW_ARGS, sizeof(struct isp_fw_args));
++		if (!fw_args)
++			return -ENOMEM;
++
++		fw_args_data.__unknown = 2;
++		fw_args_data.fw_arg = 0;
++		fw_args_data.full_stats_mode = 0;
++
++		FTHD_S2_MEMCPY_TOIO(fw_args->offset, &fw_args_data, sizeof(fw_args_data));
++
++		FTHD_ISP_REG_WRITE(fw_args->offset, ISP_REG_C301C);
++
++		FTHD_ISP_REG_WRITE(0x10, ISP_REG_41020);
++
++		for (retries = 0; retries < 1000; retries++) {
++			reg = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
++			if ((reg & 0xf0) > 0)
++				break;
++			mdelay(10);
++		}
++
++		if (retries >= 1000) {
++			dev_info(&dev_priv->pdev->dev, "Init failed! No second int\n");
++			return -EIO;
++		} /* FIXME: free on error path */
++
++		dev_info(&dev_priv->pdev->dev, "ISP second int after %dms\n",
++			 (retries - 1) * 10);
++
++		offset = FTHD_ISP_REG_READ(ISP_FW_CHAN_CTRL);
++		dev_info(&dev_priv->pdev->dev, "Channel description table at %08x\n", offset);
++		ret = isp_fill_channel_info(dev_priv, offset, num_channels);
++		if (ret)
++			return ret;
++
++		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_terminal);
++		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_io);
++		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_debug);
++		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_h2t);
++		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_buf_t2h);
++		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_shared_malloc);
++		fthd_channel_ringbuf_init(dev_priv, dev_priv->channel_io_t2h);
++
++		FTHD_ISP_REG_WRITE(0x8042006, ISP_FW_HEAP_SIZE);
++
++		for (retries = 0; retries < 1000; retries++) {
++			reg = FTHD_ISP_REG_READ(ISP_FW_HEAP_SIZE);
++			if (!reg)
++				break;
++			mdelay(10);
++		}
++
++		if (retries >= 1000) {
++			dev_info(&dev_priv->pdev->dev, "Init failed! No magic value\n");
++			isp_uninit(dev_priv);
++			return -EIO;
++		} /* FIXME: free on error path */
++		dev_info(&dev_priv->pdev->dev, "magic value: %08x after %d ms\n", reg, (retries - 1) * 10);
++	}
++
++	return 0;
++}
+diff --git a/drivers/staging/media/facetimehd/fthd_isp.h b/drivers/staging/media/facetimehd/fthd_isp.h
+new file mode 100644
+index 0000000..5b05016
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_isp.h
+@@ -0,0 +1,768 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ */
++
++#ifndef _ISP_H
++#define _ISP_H
++
++/* ISP memory types */
++#define FTHD_MEM_FIRMWARE	1
++#define FTHD_MEM_HEAP		2
++#define FTHD_MEM_FW_QUEUE	3
++#define FTHD_MEM_FW_ARGS        4
++#define FTHD_MEM_CMD            5
++#define FTHD_MEM_SHAREDMALLOC   6
++#define FTHD_MEM_SET_FILE       7
++#define FTHD_MEM_BUFFER         8
++
++#define FTHD_MEM_SIZE		0x8000000	/* 128mb */
++#define FTHD_MEM_FW_SIZE	0x800000	/* 8mb */
++
++enum fthd_isp_cmds {
++	CISP_CMD_START = 0x0,
++	CISP_CMD_STOP = 0x1,
++	CISP_CMD_RESET = 0x2,
++	CISP_CMD_CONFIG_GET = 0x3,
++	CISP_CMD_PRINT_ENABLE = 0x4,
++	CISP_CMD_REG_FILE_LOAD = 0x5,
++	CISP_CMD_BUILDINFO = 0x6,
++	CISP_CMD_TIMEPROFILE_START = 0x7,
++	CISP_CMD_TIMEPROFILE_STOP = 0x8,
++	CISP_CMD_TIMEPROFILE_SHOW = 0x9,
++	CISP_CMD_POWER_DOWN = 0xa,
++	CISP_CMD_CH_START = 0x100,
++	CISP_CMD_CH_STOP = 0x101,
++	CISP_CMD_CH_RESET = 0x102,
++	CISP_CMD_CH_STANDBY = 0x103,
++	CISP_CMD_CH_BUFFER_RETURN = 0x104,
++	CISP_CMD_CH_CAMERA_CONFIG_CURRENT_GET = 0x105,
++	CISP_CMD_CH_CAMERA_CONFIG_GET = 0x106,
++	CISP_CMD_CH_CAMERA_CONFIG_SELECT = 0x107,
++	CISP_CMD_CH_RAW_FRAME_PROCESS = 0x108,
++	CISP_CMD_CH_RAW_FRAME_PROCESS_START = 0x109,
++	CISP_CMD_CH_RAW_FRAME_PROCESS_STOP = 0x10a,
++	CISP_CMD_CH_I2C_READ = 0x10b,
++	CISP_CMD_CH_I2C_WRITE = 0x10c,
++	CISP_CMD_CH_INFO_GET = 0x10d,
++	CISP_CMD_CH_BUFFER_RECYCLE_MODE_SET = 0x10e,
++	CISP_CMD_CH_BUFFER_RECYCLE_START = 0x10f,
++	CISP_CMD_CH_BUFFER_RECYCLE_STOP = 0x110,
++	CISP_CMD_CH_SET_FILE_LOAD = 0x111,
++	CISP_CMD_CH_CAPTURE_MODE_SET = 0x112,
++	CISP_CMD_CH_RAW_FRAME_PROCESS_GO = 0x113,
++	CISP_CMD_CH_EDGE_MAP_CONFIG_GET = 0x114,
++	CISP_CMD_CH_SIF_PIXEL_FORMAT_SET = 0x115,
++	CISP_CMD_CH_RPU_DMAOUT_CONFIG_GET = 0x116,
++	CISP_CMD_CH_RPU_DMAOUT_ENABLE = 0x117,
++	CISP_CMD_CH_RPU_DMAOUT_DISABLE = 0x118,
++	CISP_CMD_CH_CAMERA_MIPI_FREQ_CURRENT_GET = 0x119,
++	CISP_CMD_CH_CAMERA_MIPI_FREQUENCY_GET = 0x11a,
++	CISP_CMD_CH_CAMERA_MIPI_FREQ_SELECT = 0x11b,
++	CISP_CMD_CH_ISO_PARAMS_SET = 0x11c,
++	CISP_CMD_CH_ISO_PARAMS_GET = 0x11d,
++	CISP_CMD_CH_CAMERA_PIX_FREQ_CURRENT_GET = 0x11e,
++	CISP_CMD_CH_CAMERA_PIX_FREQUENCY_GET = 0x11f,
++	CISP_CMD_CH_CAMERA_PIX_FREQ_SELECT = 0x120,
++	CISP_CMD_CH_CAMERA_ERR_COUNT_GET = 0x121,
++	CISP_CMD_CH_CAMERA_CLOCK_DIVISOR_SET = 0x122,
++	CISP_CMD_CH_CAMERA_CLOCK_DIVISOR_AUTO_MODE_SET = 0x123,
++	CISP_CMD_CH_CAMERA_ERR_HANDLE_CONFIG = 0x124,
++	CISP_CMD_CH_CAMERA_CHROMATIC_TYPE_SET = 0x125,
++	CISP_CMD_CH_CAMERA_CHROMATIC_TYPE_GET = 0x126,
++	CISP_CMD_CH_AE_START = 0x200,
++	CISP_CMD_CH_AE_STOP = 0x201,
++	CISP_CMD_CH_AE_AGC_PARAM_SET = 0x202,
++	CISP_CMD_CH_AE_BIAS_EXPOSURE_GET = 0x203,
++	CISP_CMD_CH_AE_BIAS_EXPOSURE_SET = 0x204,
++	CISP_CMD_CH_AE_CLIP_GET = 0x205,
++	CISP_CMD_CH_AE_CLIP_SET = 0x206,
++	CISP_CMD_CH_AE_FRAME_RATE_MAX_GET = 0x207,
++	CISP_CMD_CH_AE_FRAME_RATE_MAX_SET = 0x208,
++	CISP_CMD_CH_AE_FRAME_RATE_MIN_GET = 0x209,
++	CISP_CMD_CH_AE_FRAME_RATE_MIN_SET = 0x20a,
++	CISP_CMD_CH_AE_GAIN_CAP_GET = 0x20b,
++	CISP_CMD_CH_AE_GAIN_CAP_SET = 0x20c,
++	CISP_CMD_CH_AE_INTEGRATION_TIME_MAX_GET = 0x20d,
++	CISP_CMD_CH_AE_INTEGRATION_TIME_MAX_SET = 0x20e,
++	CISP_CMD_CH_AE_INTEGRATION_TIME_SET = 0x20f,
++	CISP_CMD_CH_AE_NOISE_REDUCTION_CONTROL_PARAM_GET = 0x210,
++	CISP_CMD_CH_AE_NOISE_REDUCTION_CONTROL_PARAM_SET = 0x211,
++	CISP_CMD_CH_AE_PARAM_GET = 0x212,
++	CISP_CMD_CH_AE_PRE_FRAME_RATE_GET = 0x213,
++	CISP_CMD_CH_AE_PRE_FRAME_RATE_SET = 0x214,
++	CISP_CMD_CH_AE_RED_EYE_PARAM_GET = 0x215,
++	CISP_CMD_CH_AE_RED_EYE_PARAM_SET = 0x216,
++	CISP_CMD_CH_AE_SPEED_GET = 0x217,
++	CISP_CMD_CH_AE_SPEED_SET = 0x218,
++	CISP_CMD_CH_AE_STABILITY_GET = 0x219,
++	CISP_CMD_CH_AE_STABILITY_SET = 0x21a,
++	CISP_CMD_CH_AE_STROBE_PARAM_GET = 0x21b,
++	CISP_CMD_CH_AE_STROBE_PARAM_SET = 0x21c,
++	CISP_CMD_CH_AE_WINDOW_PARAM_GET = 0x21d,
++	CISP_CMD_CH_AE_WINDOW_PARAM_SET = 0x21e,
++	CISP_CMD_CH_AE_SDGC_PARAM_SET = 0x21f,
++	CISP_CMD_CH_AE_DGC_PARAM_SET = 0x220,
++	CISP_CMD_CH_AE_LUX_CALC_PARAMS_SET = 0x221,
++	CISP_CMD_CH_AE_BRACKETING_PARAMS_SET = 0x222,
++	CISP_CMD_CH_AE_TARGET_GET = 0x223,
++	CISP_CMD_CH_AE_TARGET_SET = 0x224,
++	CISP_CMD_CH_AE_PREFLASH_PARAM_SET = 0x225,
++	CISP_CMD_CH_AE_UPDATE_SUSPEND = 0x226,
++	CISP_CMD_CH_AE_UPDATE_RESUME = 0x227,
++	CISP_CMD_CH_AE_STABILITY_TO_STABLE_GET = 0x228,
++	CISP_CMD_CH_AE_STABILITY_TO_STABLE_SET = 0x229,
++	CISP_CMD_CH_AE_SENSOR_INTEGRATION_TIME_MIN_GET = 0x22a,
++	CISP_CMD_CH_AE_MANUAL_MODE_SET = 0x22b,
++	CISP_CMD_CH_AE_SENSOR_INTEGRATION_TIME_MAX_GET = 0x22c,
++	CISP_CMD_CH_AE_GAIN_CAP_MIN_GET = 0x22d,
++	CISP_CMD_CH_AE_GAIN_CAP_MIN_SET = 0x22e,
++	CISP_CMD_CH_AE_GAIN_CAP_MAX_WITH_EXP_GET = 0x22f,
++	CISP_CMD_CH_AE_GAIN_CAP_MAX_WITH_EXP_SET = 0x230,
++	CISP_CMD_CH_AE_GAIN_CAP_OFF_GET = 0x231,
++	CISP_CMD_CH_AE_GAIN_CAP_OFF_SET = 0x232,
++	CISP_CMD_CH_AE_BRACKETING_MANUAL_SET = 0x233,
++	CISP_CMD_CH_AE_BRACKETING_MODE_SET = 0x234,
++	CISP_CMD_CH_AE_MODE_SET = 0x235,
++	CISP_CMD_CH_AE_MODE_GET = 0x236,
++	CISP_CMD_CH_AE_PANO_LIMIT_SET = 0x237,
++	CISP_CMD_CH_AE_INTEGRATION_GAIN_SET = 0x238,
++	CISP_CMD_CH_AE_2WAYSPEED_SET = 0x239,
++	CISP_CMD_CH_AE_2WAYSPEED_GET = 0x23a,
++	CISP_CMD_CH_AWB_START = 0x300,
++	CISP_CMD_CH_AWB_STOP = 0x301,
++	CISP_CMD_CH_AWB_WINDOW_PARAM_GET = 0x302,
++	CISP_CMD_CH_AWB_WINDOW_PARAM_SET = 0x303,
++	CISP_CMD_CH_AWB_CCT_GET = 0x304,
++	CISP_CMD_CH_AWB_CCT_MANUAL = 0x305,
++	CISP_CMD_CH_AWB_CALIB_TABLE_SET = 0x306,
++	CISP_CMD_CH_AWB_BRACKETING_PARAMS_SET = 0x307,
++	CISP_CMD_CH_AWB_CCM_WARMUP_PARAMS_SET = 0x308,
++	CISP_CMD_CH_AWB_CCM_WARMUP_MATRIX_SET = 0x309,
++	CISP_CMD_CH_AWB_CCM_WARMUP_MATRIX_GET = 0x30a,
++	CISP_CMD_CH_AWB_2ND_GAIN_ADAPTIVE_THRESHOLDS_SET = 0x30b,
++	CISP_CMD_CH_AWB_2ND_GAIN_MANUAL = 0x30c,
++	CISP_CMD_CH_AWB_2ND_GAIN_GET = 0x30d,
++	CISP_CMD_CH_AWB_FLASH_GAIN_SET = 0x30e,
++	CISP_CMD_CH_AWB_UPDATE_SUSPEND = 0x30f,
++	CISP_CMD_CH_AWB_UPDATE_RESUME = 0x310,
++	CISP_CMD_CH_AWB_1ST_GAIN_MANUAL = 0x311,
++	CISP_CMD_CH_AF_START = 0x400,
++	CISP_CMD_CH_AF_STOP = 0x401,
++	CISP_CMD_CH_AF_EARLYOUT_GET = 0x402,
++	CISP_CMD_CH_AF_EARLYOUT_SET = 0x403,
++	CISP_CMD_CH_AF_FOCUS_POS_GET = 0x404,
++	CISP_CMD_CH_AF_SEARCH_POS_GET = 0x405,
++	CISP_CMD_CH_AF_SEARCH_POS_SET = 0x406,
++	CISP_CMD_CH_AF_ONE_SHOT = 0x407,
++	CISP_CMD_CH_AF_WINDOW_PARAM_GET = 0x408,
++	CISP_CMD_CH_AF_WINDOW_PARAM_SET = 0x409,
++	CISP_CMD_CH_AF_UPDATE_SUSPEND = 0x40a,
++	CISP_CMD_CH_AF_UPDATE_RESUME = 0x40b,
++	CISP_CMD_CH_AF_SOFTLANDING_SET = 0x40c,
++	CISP_CMD_CH_AF_SOFTLANDING_GET = 0x40d,
++	CISP_CMD_CH_SENSOR_FRAME_RATE_SET = 0x500,
++	CISP_CMD_CH_SENSOR_NVM_GET = 0x501,
++	CISP_CMD_CH_SENSOR_NVM_RELOAD = 0x502,
++	CISP_CMD_CH_SENSOR_TEST_PATTERN_CONFIG = 0x503,
++	CISP_CMD_CH_SENSOR_WARM_STARTUP_CONFIG = 0x504,
++	CISP_CMD_CH_SENSOR_CUSTOM_SETTING_CONFIG = 0x505,
++	CISP_CMD_CH_SENSOR_TEMPERATURE_GET = 0x506,
++	CISP_CMD_CH_SENSOR_PERMODULE_LSC_INFO_GET = 0x507,
++	CISP_CMD_CH_SENSOR_PERMODULE_LSC_GET = 0x508,
++	CISP_CMD_CH_SENSOR_BLC_UPDATE_SUSPEND = 0x509,
++	CISP_CMD_CH_SENSOR_BLC_UPDATE_RESUME = 0x50a,
++	CISP_CMD_CH_SENSOR_POWER_ON = 0x50b,
++	CISP_CMD_CH_SENSOR_POWER_OFF = 0x50c,
++	CISP_CMD_CH_FOCUS_LIMITS_SET = 0x700,
++	CISP_CMD_CH_FOCUS_LIMITS_GET = 0x701,
++	CISP_CMD_CH_FOCUS_POSITION_SET = 0x702,
++	CISP_CMD_CH_FOCUS_POSITION_GET = 0x703,
++	CISP_CMD_CH_FOCUS_STEP_SIZE_SET = 0x704,
++	CISP_CMD_CH_FOCUS_STEP_SIZE_GET = 0x705,
++	CISP_CMD_CH_FOCUS_CAL_BITSHIFT_SET = 0x706,
++	CISP_CMD_CH_FOCUS_REINIT = 0x707,
++	CISP_CMD_CH_LED_TORCH_PARAM_GET = 0x600,
++	CISP_CMD_CH_LED_TORCH_PARAM_SET = 0x601,
++	CISP_CMD_CH_LED_TORCH_OFF = 0x602,
++	CISP_CMD_CH_LED_TORCH_ON = 0x603,
++	CISP_CMD_CH_LED_TORCH_ON_INDICATOR = 0x604,
++	CISP_CMD_CH_LED_TORCH_MANUAL_SET = 0x605,
++	CISP_CMD_CH_STATUS_LED_BrightnessMan_SET = 0x606,
++	CISP_CMD_CH_STATUS_LED_BrightnessMan_GET = 0x607,
++	CISP_CMD_CH_STATUS_LED_DEBUG_SET = 0x608,
++	CISP_CMD_CH_CROP_GET = 0x800,
++	CISP_CMD_CH_CROP_SET = 0x801,
++	CISP_CMD_CH_BPC_START = 0x802,
++	CISP_CMD_CH_BPC_STOP = 0x803,
++	CISP_CMD_CH_COLOR_CAL_DATA_SET = 0x804,
++	CISP_CMD_CH_COLOR_CAL_DATA_GET = 0x805,
++	CISP_CMD_CH_COLOR_CAL_IDEAL_SET = 0x806,
++	CISP_CMD_CH_COLOR_CAL_IDEAL_GET = 0x807,
++	CISP_CMD_CH_COLOR_CAL_ABS_GET = 0x808,
++	CISP_CMD_CH_COLOR_CAL_ABS_OVERRIDE = 0x809,
++	CISP_CMD_CH_SCALER_CROP_SET = 0x80a,
++	CISP_CMD_CH_COLOR_SATURATION_GET = 0xa00,
++	CISP_CMD_CH_COLOR_SATURATION_SET = 0xa01,
++	CISP_CMD_CH_TONE_CURVE_CUSTOM_GET = 0xa02,
++	CISP_CMD_CH_TONE_CURVE_CUSTOM_SET = 0xa03,
++	CISP_CMD_CH_COLOR_LSC_TABLE_SET = 0xa04,
++	CISP_CMD_CH_COLOR_LSC_START = 0xa05,
++	CISP_CMD_CH_COLOR_LSC_STOP = 0xa06,
++	CISP_CMD_CH_SCALER_SHARPNESS_SET = 0xa07,
++	CISP_CMD_CH_SCALER_SHARPNESS_GET = 0xa08,
++	CISP_CMD_CH_SHARPNESS_SET = 0xa09,
++	CISP_CMD_CH_SHARPNESS_GET = 0xa0a,
++	CISP_CMD_CH_NOISE_REDUCTION_SET = 0xa0b,
++	CISP_CMD_CH_NOISE_REDUCTION_GET = 0xa0c,
++	CISP_CMD_CH_CHROMA_SUPPRESSION_SET = 0xa0d,
++	CISP_CMD_CH_CHROMA_SUPPRESSION_GET = 0xa0e,
++	CISP_CMD_CH_HISTOGRAM_ENABLE = 0xa0f,
++	CISP_CMD_CH_COLOR_FULL_RES_LSC_TABLE_SET = 0xa10,
++	CISP_CMD_CH_COLOR_FULL_RES_LSC_ENABLE = 0xa11,
++	CISP_CMD_CH_COLOR_FULL_RES_LSC_DISABLE = 0xa12,
++	CISP_CMD_CH_KNOB_MANUAL_CONTROL_ENABLE = 0xa13,
++	CISP_CMD_CH_KNOB_MANUAL_CONTROL_DISABLE = 0xa14,
++	CISP_CMD_CH_BE_LASETTING_SET = 0xa15,
++	CISP_CMD_CH_BE_LASETTING_GET = 0xa16,
++	CISP_CMD_CH_BE_LA_INPUTMODE_SET = 0xa17,
++	CISP_CMD_CH_BE_LA_INPUTMODE_GET = 0xa18,
++	CISP_CMD_CH_DRC_SET = 0xa19,
++	CISP_CMD_CH_DRC_GET = 0xa1a,
++	CISP_CMD_CH_RPU_HISTOGRAM_PARAM_SET = 0xa1b,
++	CISP_CMD_CH_ALS_ENABLE = 0xa1c,
++	CISP_CMD_CH_ALS_DISABLE = 0xa1d,
++	CISP_CMD_CH_ALS_MODE_SET = 0xa1e,
++	CISP_CMD_CH_ALS_CCT_MANUAL = 0xa1f,
++	CISP_CMD_CH_ALS_POLYNOMIAL_SET = 0xa20,
++	CISP_CMD_CH_ALS_POLYNOMIAL_GET = 0xa21,
++	CISP_CMD_CH_COLOR_LSC_TABLE_GET = 0xa22,
++	CISP_CMD_CH_ALS_TEST_PATTERN_SET = 0xa23,
++	CISP_CMD_CH_BE_LA_SUSPEND = 0xa24,
++	CISP_CMD_CH_BE_LA_RESUME = 0xa25,
++	CISP_CMD_CH_COLOR_LSC_IDEAL_TABLE_SET = 0xa26,
++	CISP_CMD_CH_ALS_CCT_LIMIT_SET = 0xa27,
++	CISP_CMD_CH_TONE_CURVE_CUSTOM_BRACKETING_SET = 0xa28,
++	CISP_CMD_CH_MANUAL_BPC_GAIN_THRESHOLD_SET = 0xa29,
++	CISP_CMD_CH_COLOR_LSC_TABLE_SOURCE_SET = 0xa2a,
++	CISP_CMD_CH_ALS_SUSPEND = 0xa2b,
++	CISP_CMD_CH_ALS_RESUME = 0xa2c,
++	CISP_CMD_CH_OUTPUT_CONFIG_GET = 0xb00,
++	CISP_CMD_CH_OUTPUT_CONFIG_SET = 0xb01,
++	CISP_CMD_CH_SCALER_BRIGHTNESS_SET = 0xb02,
++	CISP_CMD_CH_SCALER_CONTRAST_SET = 0xb03,
++	CISP_CMD_CH_SCALER_SATURATION_SET = 0xb04,
++	CISP_CMD_CH_SCALER_HUE_SET = 0xb05,
++	CISP_CMD_CH_DRC_START = 0xc00,
++	CISP_CMD_CH_DRC_STOP = 0xc01,
++	CISP_CMD_CH_DRC_OFFLINE = 0xc02,
++	CISP_CMD_CH_DRC_OFFLINE_START = 0xc03,
++	CISP_CMD_CH_DRC_OFFLINE_STOP = 0xc04,
++	CISP_CMD_CH_FACE_DETECTION_START = 0xd00,
++	CISP_CMD_CH_FACE_DETECTION_STOP = 0xd01,
++	CISP_CMD_CH_FACE_DETECTION_CONFIG_GET = 0xd02,
++	CISP_CMD_CH_FACE_DETECTION_CONFIG_SET = 0xd03,
++	CISP_CMD_CH_FACE_DETECTION_DISABLE = 0xd04,
++	CISP_CMD_CH_FACE_DETECTION_ENABLE = 0xd05,
++	CISP_CMD_CH_FACE_DETECTION_INPUT_SET = 0xd06,
++	CISP_CMD_CH_FACE_DETECTION_IMAGE_ORIENTATION_SET = 0xd07,
++	CISP_CMD_CH_FACE_DETECTION_OFFLINE = 0xd08,
++	CISP_CMD_CH_FACE_DETECTION_OFFLINE_START = 0xd09,
++	CISP_CMD_CH_FACE_DETECTION_OFFLINE_STOP = 0xd0a,
++	CISP_CMD_CH_FACE_DETECTION_MODE_SET = 0xd0b,
++	CISP_CMD_CH_FACE_DETECTION_WINDOW_PARAM_SET = 0xd0c,
++	CISP_CMD_CH_FACE_DETECTION_WINDOW_PARAM_GET = 0xd0d,
++	CISP_CMD_CH_FRAMEDONE_TIMEOUT = 0xe00,
++	CISP_CMD_CH_FOCUS_DRIVER_INIT_FAILED = 0xe01,
++	CISP_CMD_CH_NVSTORAGE_INFO_GET = 0xf00,
++	CISP_CMD_CH_NVSTORAGE_DATA_GET = 0xf01,
++	CISP_CMD_CH_NVSTORAGE_DATA_SET = 0xf02,
++	CISP_CMD_APPLE_SET_FILE_LOAD = 0x8000,
++	CISP_CMD_APPLE_BUFFER_INFO_SET_GET = 0x8001,
++	CISP_CMD_APPLE_CH_HARDWARE_BLOCK_ENABLE = 0x8100,
++	CISP_CMD_APPLE_CH_HARDWARE_BLOCK_DISABLE = 0x8101,
++	CISP_CMD_APPLE_CH_CONTEXTSWITCH_ENABLE = 0x8102,
++	CISP_CMD_APPLE_CH_CONTEXTSWITCH_DISABLE = 0x8103,
++	CISP_CMD_APPLE_CH_SENSOR_NOISE_MODEL_SET = 0x8104,
++	CISP_CMD_APPLE_CH_SENSOR_NOISE_MODEL_GET = 0x8105,
++	CISP_CMD_APPLE_CH_STREAMING_MODE_SET = 0x8106,
++	CISP_CMD_APPLE_CH_STREAMING_MODE_GET = 0x8107,
++	CISP_CMD_APPLE_CH_AE_WINDOW_PARAM_SET = 0x8200,
++	CISP_CMD_APPLE_CH_AE_DYNAMIC_SCENE_METERING_CONFIG_SET = 0x8201,
++	CISP_CMD_APPLE_CH_AE_DYNAMIC_SCENE_METERING_START = 0x8202,
++	CISP_CMD_APPLE_CH_AE_DYNAMIC_SCENE_METERING_STOP = 0x8203,
++	CISP_CMD_APPLE_CH_AE_WINDOW_PARAM_GET = 0x8204,
++	CISP_CMD_APPLE_CH_AE_WINDOW_WEIGHT_SET = 0x8205,
++	CISP_CMD_APPLE_CH_AE_METERING_MODE_SET = 0x8206,
++	CISP_CMD_APPLE_CH_AE_METERING_MODE_GET = 0x8207,
++	CISP_CMD_APPLE_CH_AE_FLICKER_FREQ_SET = 0x8208,
++	CISP_CMD_APPLE_CH_AE_MAX_FRAMERATE_GAIN_LIMIT_SET = 0x8209,
++	CISP_CMD_APPLE_CH_AE_MAX_FRAMERATE_GAIN_LIMIT_GET = 0x820a,
++	CISP_CMD_APPLE_CH_AE_TILES_MATRIX_METADATA_ENABLE = 0x820b,
++	CISP_CMD_APPLE_CH_AE_BINNING_GAIN_LUX_THRESHOLD_SET = 0x820c,
++	CISP_CMD_APPLE_CH_AE_PSEUDO_Y_WEIGHT_SET = 0x820d,
++	CISP_CMD_APPLE_CH_AE_FD_SCENE_METERING_CONFIG_SET = 0x820e,
++	CISP_CMD_APPLE_CH_AE_GAIN_CONVERGENCE_NORMALIZATION_SET = 0x820f,
++	CISP_CMD_APPLE_CH_AE_GAIN_CONVERGENCE_NORMALIZATION_GET = 0x8210,
++	CISP_CMD_APPLE_CH_AE_FD_SCENE_METERING_CONFIG_GET = 0x8211,
++	CISP_CMD_APPLE_CH_AWB_CCT_GET = 0x8300,
++	CISP_CMD_APPLE_CH_AWB_CCT_MANUAL = 0x8301,
++	CISP_CMD_APPLE_CH_AWB_WINDOW_PARAM_GET = 0x8302,
++	CISP_CMD_APPLE_CH_AWB_WINDOW_PARAM_SET = 0x8303,
++	CISP_CMD_APPLE_CH_AWB_CALIB_TABLE_SET = 0x8304,
++	CISP_CMD_APPLE_CH_AWB_SCHEME_SET = 0x8305,
++	CISP_CMD_APPLE_CH_AWB_SCHEME_GET = 0x8306,
++	CISP_CMD_APPLE_CH_AWB_HISTOGRAM_WEIGHT_SET = 0x8307,
++	CISP_CMD_APPLE_CH_AWB_LUXTABLE_PARAM_SET = 0x8308,
++	CISP_CMD_APPLE_CH_AWB_PROJECTION_POINT_SET = 0x8309,
++	CISP_CMD_APPLE_CH_AWB_HISTOGRAM_X_TO_CCT_LUT_SET = 0x830a,
++	CISP_CMD_APPLE_CH_AWB_2D_CCM_SET = 0x830b,
++	CISP_CMD_APPLE_CH_AWB_PRE_CCM_GAIN_GET = 0x830c,
++	CISP_CMD_APPLE_CH_AWB_CCM_GET = 0x830d,
++	CISP_CMD_APPLE_CH_AWB_TEMPORAL_COHERENCE_FILTER_SET = 0x830e,
++	CISP_CMD_APPLE_CH_AWB_SUSPEND_UPON_AE_STABLE_SET = 0x830f,
++	CISP_CMD_APPLE_CH_AWB_SUSPEND_UPON_AE_STABLE_GET = 0x8310,
++	CISP_CMD_APPLE_CH_AWB_POST_TINT_PARAM_SET = 0x8311,
++	CISP_CMD_APPLE_CH_AWB_MIX_LIGHTING_X_LOC_SET = 0x8312,
++	CISP_CMD_APPLE_CH_AWB_MIX_LIGHTING_CCM_SET = 0x8313,
++	CISP_CMD_APPLE_CH_AWB_TILE_STATS_Y_THRESHOLD_SET = 0x8314,
++	CISP_CMD_APPLE_CH_AWB_RATIO_SPACE_2ND_GAIN_THRESHOLD_SET = 0x8315,
++	CISP_CMD_APPLE_CH_AWB_HISTOGRAM_TRIM_FILTER_V_SET = 0x8316,
++	CISP_CMD_APPLE_CH_AWB_HISTOGRAM_TRIM_FILTER_H_SET = 0x8317,
++	CISP_CMD_APPLE_CH_AWB_HISTOGRAM_TRIM_SCALE_PROFILE_SET = 0x8318,
++	CISP_CMD_APPLE_CH_AWB_CCM_LUX_CLIP_SET = 0x8319,
++	CISP_CMD_APPLE_CH_AWB_MANUAL_WB_GAIN_SET = 0x831a,
++	CISP_CMD_APPLE_CH_AWB_CALIBRATION_MATRIX_GET = 0x831b,
++	CISP_CMD_APPLE_CH_AF_WINDOW_PARAM_GET = 0x8400,
++	CISP_CMD_APPLE_CH_AF_WINDOW_PARAM_SET = 0x8401,
++	CISP_CMD_APPLE_CH_AF_WINDOW_WEIGHT_GET = 0x8402,
++	CISP_CMD_APPLE_CH_AF_WINDOW_WEIGHT_SET = 0x8403,
++	CISP_CMD_APPLE_CH_AF_WINDOW_FD_CONFIG = 0x8404,
++	CISP_CMD_APPLE_CH_AF_PEAK_PREDICT_ENABLE_SET = 0x8405,
++	CISP_CMD_APPLE_CH_AF_FOCUS_POS_OVERRIDE_SET = 0x8406,
++	CISP_CMD_APPLE_CH_AF_PEAK_TRACKING_ENABLE = 0x8407,
++	CISP_CMD_APPLE_CH_AF_PEAK_TRACKING_START = 0x8408,
++	CISP_CMD_APPLE_CH_AF_FOCUS_MODE_SET = 0x8409,
++	CISP_CMD_APPLE_CH_AF_FOCUS_MODE_GET = 0x840a,
++	CISP_CMD_APPLE_CH_AF_MATRIX_MODE_CONFIG_SET = 0x840b,
++	CISP_CMD_APPLE_CH_AF_MATRIX_MODE_CONFIG_GET = 0x840c,
++	CISP_CMD_APPLE_CH_AF_MATRIX_MODE_DEBUG_GET = 0x840d,
++	CISP_CMD_APPLE_CH_AF_SCAN_HISTORY_GET = 0x840e,
++	CISP_CMD_APPLE_CH_FESTAT_CONFIG_GET = 0xc000,
++	CISP_CMD_APPLE_CH_TILE_REGION_SET = 0xc001,
++	CISP_CMD_APPLE_CH_TILE_WEIGHT_SET = 0xc002,
++	CISP_CMD_APPLE_CH_COLOR_LSC_TABLE_SET = 0xc003,
++	CISP_CMD_APPLE_CH_PIXEL_FILTER_TABLE_SET = 0xc004,
++	CISP_CMD_APPLE_CH_CSC_CONFIG_SET = 0xc005,
++	CISP_CMD_APPLE_CH_CSC_CONFIG_GET = 0xc006,
++	CISP_CMD_APPLE_CH_CSC2_CONFIG_SET = 0xc007,
++	CISP_CMD_APPLE_CH_CSC2_CONFIG_GET = 0xc008,
++	CISP_CMD_APPLE_CH_COLOR_HIST_CONFIG_SET = 0xc009,
++	CISP_CMD_APPLE_CH_COLOR_HIST_CONFIG_GET = 0xc00a,
++	CISP_CMD_APPLE_CH_CSC_GAMMA_SET = 0xc00b,
++	CISP_CMD_APPLE_CH_COLOR_HIST_CAPTURE = 0xc00c,
++	CISP_CMD_APPLE_CH_COLOR_LSC_IDEAL_TABLE_SET = 0xc00d,
++	CISP_CMD_APPLE_CH_STATPIXELDMAOUTPUT_SOURCE_SET = 0xc00e,
++	CISP_CMD_APPLE_CH_STATPIXELDMAOUTPUT_INFO_GET = 0xc00f,
++	CISP_CMD_APPLE_CH_AFFILTER_COEFF_SET = 0xc010,
++	CISP_CMD_APPLE_CH_AFFILTER_COEFF_GET = 0xc011,
++	CISP_CMD_APPLE_CH_EDGE_MAP_CONFIGURE = 0xc012,
++	CISP_CMD_APPLE_CH_AFHORZFILT_COEFF_SET = 0xc013,
++	CISP_CMD_APPLE_CH_AFHORZFILT_ENABLE_SET = 0xc014,
++	CISP_CMD_APPLE_CH_AFHORZFILT_SUMMODE_SET = 0xc015,
++	CISP_CMD_APPLE_CH_AFHORZFILT_THD_SET = 0xc016,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_START = 0xc100,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_STOP = 0xc101,
++	CISP_CMD_APPLE_CH_MOTION_HISTORY_START = 0xc102,
++	CISP_CMD_APPLE_CH_MOTION_HISTORY_STOP = 0xc103,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_CONFIG_SET = 0xc104,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_CONFIG_GET = 0xc105,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_GAIN_SET = 0xc106,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_GAIN_GET = 0xc107,
++	CISP_CMD_APPLE_CH_MOTION_LUT_SET = 0xc108,
++	CISP_CMD_APPLE_CH_MOTION_LUT_GET = 0xc109,
++	CISP_CMD_APPLE_CH_LUMA_LUT_SET = 0xc10a,
++	CISP_CMD_APPLE_CH_LUMA_LUT_GET = 0xc10b,
++	CISP_CMD_APPLE_CH_TNR_MODE_SET = 0xc10c,
++	CISP_CMD_APPLE_CH_TNR_MODE_GET = 0xc10d,
++	CISP_CMD_APPLE_CH_TNR_PARAM_SET = 0xc10e,
++	CISP_CMD_APPLE_CH_TNR_PARAM_GET = 0xc10f,
++	CISP_CMD_APPLE_CH_TNR_INTERPOLATION_ENABLE = 0xc110,
++	CISP_CMD_APPLE_CH_TNR_AVERAGE_START = 0xc111,
++	CISP_CMD_APPLE_CH_TNR_AVERAGE_STOP = 0xc112,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_ENABLE = 0xc113,
++	CISP_CMD_APPLE_CH_TEMPORAL_FILTER_DISABLE = 0xc114,
++	CISP_CMD_APPLE_CH_TNR_AVERAGE_FRAME_COUNT_SET = 0xc115,
++	CISP_CMD_APPLE_CH_TNR_TUNING_PARAMS_SET = 0xc116,
++	CISP_CMD_APPLE_CH_TNR_LSC_GAIN_SET = 0xc117,
++	CISP_CMD_APPLE_CH_BINNING_COMPENSATION_FILTER_START = 0xc200,
++	CISP_CMD_APPLE_CH_BINNING_COMPENSATION_FILTER_STOP = 0xc201,
++	CISP_CMD_APPLE_CH_TONE_CURVE_ADAPTATION_START = 0xc300,
++	CISP_CMD_APPLE_CH_TONE_CURVE_ADAPTATION_STOP = 0xc301,
++	CISP_CMD_APPLE_CH_TONE_CURVE_PARAM_SET = 0xc302,
++	CISP_CMD_APPLE_CH_TONE_CURVE_PARAM_GET = 0xc303,
++	CISP_CMD_APPLE_CH_TONE_CURVE_UPDATE_SUSPEND = 0xc304,
++	CISP_CMD_APPLE_CH_TONE_CURVE_UPDATE_RESUME = 0xc305,
++	CISP_CMD_APPLE_CH_TONE_CURVE_MANUAL_CONTROL_ENABLE = 0xc306,
++	CISP_CMD_APPLE_CH_TONE_CURVE_MANUAL_CONTROL_DISABLE = 0xc307,
++	CISP_CMD_APPLE_CH_TONE_CURVE_LUX_ADAPTATION_TABLE_SET = 0xc308,
++	CISP_CMD_APPLE_CH_TONE_CURVE_LUX_ADAPTATION_TABLE_GET = 0xc309,
++	CISP_CMD_APPLE_CH_TONE_CURVE_LUX_ADAPTATION_LUXSCALE_SET = 0xc30a,
++	CISP_CMD_APPLE_CH_TONE_CURVE_LUX_ADAPTATION_LUXSCALE_GET = 0xc30b,
++	CISP_CMD_APPLE_CH_TONE_CURVE_STABILITY_SET = 0xc30c,
++	CISP_CMD_APPLE_CH_TONE_CURVE_STABILITY_GET = 0xc30d,
++	CISP_CMD_APPLE_CH_AUTO_HDR_HISTOGRAM_ENABLE = 0xc30e,
++	CISP_CMD_APPLE_CH_AUTO_HDR_HISTOGRAM_DISABLE = 0xc30f,
++	CISP_CMD_APPLE_CH_SNF_START = 0xc400,
++	CISP_CMD_APPLE_CH_SNF_STOP = 0xc401,
++	CISP_CMD_APPLE_CH_SNF_SET = 0xc402,
++	CISP_CMD_APPLE_CH_SNF_GET = 0xc403,
++	CISP_CMD_APPLE_CH_SNF_RADIAL_GAIN_SET = 0xc404,
++	CISP_CMD_APPLE_CH_DPC_ENABLE = 0xc500,
++	CISP_CMD_APPLE_CH_DPC_START = 0xc501,
++	CISP_CMD_APPLE_CH_DPC_STOP = 0xc502,
++	CISP_CMD_APPLE_CH_DPC_CTRLVALUE_OVERRIDE = 0xc503,
++	CISP_CMD_APPLE_CH_DPC_MAX_DYN_COUNT_OVERRIDE = 0xc504,
++	CISP_CMD_APPLE_CH_DPC_DYN_THRESHOLD0_OVERRIDE = 0xc505,
++	CISP_CMD_APPLE_CH_DPC_DYN_THRESHOLD1_OVERRIDE = 0xc506,
++	CISP_CMD_APPLE_CH_DPC_DESP_THRESHOLD0_OVERRIDE = 0xc507,
++	CISP_CMD_APPLE_CH_DPC_DESP_THRESHOLD1_OVERRIDE = 0xc508,
++	CISP_CMD_APPLE_CH_DPC_MAX_CORNER_OVERRIDE = 0xc509,
++	CISP_CMD_APPLE_CH_DPC_MAX_EDGE_OVERRIDE = 0xc50a,
++	CISP_CMD_APPLE_CH_DPC_MAX_CENTER_OVERRIDE = 0xc50b,
++	CISP_CMD_APPLE_CH_DPC_STATIC_DEFECTS_TABLE_SET = 0xc50c,
++};
++
++enum isp_debug_cmds {
++	CISP_CMD_DEBUG_BANNER=0,
++	CISP_CMD_DEBUG_NOP1,
++	CISP_CMD_DEBUG_NOP2,
++	CISP_CMD_DEBUG_PS,
++	CISP_CMD_DEBUG_GET_ROOT_HANDLE,
++	CISP_CMD_DEBUG_GET_OBJECT_BY_NAME,
++	CISP_CMD_DEBUG_GET_NUMBER_OF_CHILDREN,
++	CISP_CMD_DEBUG_GET_CHILDREN_BY_INDEX,
++	CISP_CMD_DEBUG_SHOW_OBJECT_GRAPH,
++	CISP_CMD_DEBUG_DUMP_OBJECT,
++	CISP_CMD_DEBUG_DUMP_ALL_OBJECTS,
++	CISP_CMD_DEBUG_GET_DEBUG_LEVEL,
++	CISP_CMD_DEBUG_SET_DEBUG_LEVEL,
++	CISP_CMD_DEBUG_SET_DEBUG_LEVEL_RECURSIVE,
++	CISP_CMD_DEBUG_GET_FSM_COUNT,
++	CISP_CMD_DEBUG_GET_FSM_BY_INDEX,
++	CISP_CMD_DEBUG_GET_FSM_BY_NAME,
++	CISP_CMD_DEBUG_GET_FSM_DEBUG_LEVEL,
++	CISP_CMD_DEBUG_SET_FSM_DEBUG_LEVEL,
++	CISP_CMD_DEBUG_FSM_UNKNOWN, /* XXX: don't know what this cmd is doing yet */
++	CISP_CMD_DEBUG_HEAP_STATISTICS,
++	CISP_CMD_DEBUG_IRQ_STATISTICS,
++	CISP_CMD_DEBUG_SHOW_SEMAPHORE_STATUS,
++	CISP_CMD_DEBUG_START_CPU_PERFORMANCE_COUNTER,
++	CISP_CMD_DEBUG_STOP_CPU_PERFORMANCE_COUNTER,
++	CISP_CMD_DEBUG_SHOW_WIRING_OPERATIONS,
++	CISP_CMD_DEBUG_SHOW_UNIT_TEST_STATUS,
++	CISP_CMD_DEBUG_GET_ENVIRONMENT,
++};
++
++struct isp_mem_obj {
++	struct resource base;
++	unsigned int type;
++	resource_size_t size;
++	resource_size_t size_aligned;
++	unsigned long offset;
++};
++
++struct isp_fw_args {
++	u32 __unknown;
++	u32 fw_arg;
++	u32 full_stats_mode;
++};
++
++struct isp_channel_info {
++	char name[64]; /* really that big? */
++	u32 type;
++	u32 source;
++	u32 size;
++	u32 offset;
++};
++
++struct isp_cmd_hdr {
++	u32 unknown0;
++	u16 opcode;
++	u16 status;
++} __attribute__((packed));
++
++struct isp_cmd_print_enable {
++	u32 enable;
++} __attribute__((packed));
++
++struct isp_cmd_config {
++	u32 field0;
++	u32 field4;
++	u32 field8;
++	u32 fieldc;
++	u32 field10;
++	u32 field14;
++	u32 field18;
++	u32 field1c;
++} __attribute__((packed));
++
++struct isp_cmd_set_loadfile {
++	u32 unknown;
++	u32 addr;
++	u32 length;
++} __attribute__((packed));
++
++struct isp_cmd_channel_info {
++	u32 field_0;
++	u32 field_4;
++	u32 field_8;
++	u32 field_c;
++	u16 sensorid0; /* field 10 */
++	u16 field_12;
++	u32 field_14;
++	u16 sensorid1; /* field 18 */
++	u16 field_1a;
++	u32 field_1c;
++	u32 field_20;
++	u8 unknown[52];
++	u32 sensor_count;
++	u8 unknown2[40];
++	u8 sensor_serial_number[8];
++	u8 camera_module_serial_number[18];
++} __attribute__((packed));
++
++struct isp_cmd_channel_camera_config {
++	u32 unknown;
++	u32 channel;
++	u8 data[88];
++};
++
++struct isp_cmd_channel_set_crop {
++	u32 channel;
++	u32 x1;
++	u32 y1;
++	u32 x2;
++	u32 y2;
++};
++
++struct isp_cmd_channel_output_config {
++	u32 channel;
++	u32 x1;
++	u32 y1;
++	u32 unknown3;
++	u32 pixelformat;
++	u32 x2;
++	u32 x3;
++	u32 unknown5;
++};
++
++struct isp_cmd_channel_recycle_mode {
++	u32 channel;
++	u32 mode;
++};
++
++struct isp_cmd_channel_camera_config_select {
++	u32 channel;
++	u32 config;
++};
++
++struct isp_cmd_channel_drc_start {
++	u32 channel;
++};
++
++struct isp_cmd_channel_tone_curve_adaptation_start {
++	u32 channel;
++};
++
++struct isp_cmd_channel_sif_format_set {
++	u32 channel;
++	u8 param1;
++	u8 param2;
++	u8 unknown0;
++	u8 unknown1;
++};
++
++struct isp_cmd_channel_camera_err_handle_config {
++	u32 channel;
++	u16 param1;
++	u16 param2;
++};
++
++struct isp_cmd_channel_streaming_mode {
++	u32 channel;
++	u16 mode;
++	u16 unknown;
++};
++
++struct isp_cmd_channel_frame_rate_set {
++	u32 channel;
++	u16 rate;
++};
++
++struct isp_cmd_channel_ae_speed_set {
++	u32 channel;
++	u16 speed;
++};
++
++struct isp_cmd_channel_ae_stability_set {
++	u32 channel;
++	u16 stability;
++};
++
++struct isp_cmd_channel_ae_stability_to_stable_set {
++	u32 channel;
++	u16 value;
++};
++
++struct isp_cmd_channel_face_detection_start {
++	u32 channel;
++};
++
++struct isp_cmd_channel_face_detection_stop {
++	u32 channel;
++};
++
++struct isp_cmd_channel_face_detection_enable {
++	u32 channel;
++};
++
++struct isp_cmd_channel_face_detection_disable {
++	u32 channel;
++};
++
++struct isp_cmd_channel_temporal_filter_start {
++	u32 channel;
++};
++
++struct isp_cmd_channel_temporal_filter_stop {
++	u32 channel;
++};
++
++struct isp_cmd_channel_temporal_filter_enable {
++	u32 channel;
++};
++
++struct isp_cmd_channel_temporal_filter_disable {
++	u32 channel;
++};
++
++struct isp_cmd_channel_motion_history_start {
++	u32 channel;
++};
++
++struct isp_cmd_channel_motion_history_stop {
++	u32 channel;
++};
++
++struct isp_cmd_channel_ae_metering_mode_set {
++	u32 channel;
++	u32 mode;
++};
++
++struct isp_cmd_channel_start {
++	u32 channel;
++};
++
++struct isp_cmd_channel_stop {
++	u32 channel;
++};
++
++struct isp_cmd_channel_brightness_set {
++	u32 channel;
++	u32 brightness;
++};
++
++struct isp_cmd_channel_contrast_set {
++	u32 channel;
++	u32 contrast;
++};
++
++struct isp_cmd_channel_saturation_set {
++	u32 channel;
++	u32 contrast;
++};
++
++struct isp_cmd_channel_hue_set {
++	u32 channel;
++	u32 contrast;
++};
++
++struct isp_cmd_channel {
++	u32 channel;
++};
++
++struct isp_cmd_channel_buffer_return {
++	u32 channel;
++};
++
++
++struct fthd_isp_debug_cmd {
++	u32 show_errors;
++	u32 arg[64];
++};
++
++#define to_isp_mem_obj(x) container_of((x), struct isp_mem_obj, base)
++
++extern int isp_init(struct fthd_private *dev_priv);
++extern int isp_uninit(struct fthd_private *dev_priv);
++
++extern int isp_mem_init(struct fthd_private *dev_priv);
++extern struct isp_mem_obj *isp_mem_create(struct fthd_private *dev_priv,
++					  unsigned int type,
++					  resource_size_t size);
++extern int isp_mem_destroy(struct isp_mem_obj *obj);
++extern int fthd_isp_cmd_start(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_stop(struct fthd_private *dev_priv);
++extern int isp_powerdown(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_print_enable(struct fthd_private *dev_priv, int enable);
++extern int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_channel_info(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_channel_start(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_channel_stop(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
++					 int x1, int y1, int x2, int y2);
++extern int fthd_isp_cmd_channel_output_config_set(struct fthd_private *dev_priv, int channel, int x, int y, int pixelformat);
++extern int fthd_isp_cmd_channel_recycle_mode(struct fthd_private *dev_priv, int channel, int mode);
++extern int fthd_isp_cmd_channel_recycle_start(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_camera_config_select(struct fthd_private *dev_priv, int channel, int config);
++extern int fthd_isp_cmd_channel_drc_start(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_tone_curve_adaptation_start(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_sif_pixel_format(struct fthd_private *dev_priv, int channel, int param1, int param2);
++extern int fthd_isp_cmd_channel_error_handling_config(struct fthd_private *dev_priv, int channel, int param1, int param2);
++extern int fthd_isp_cmd_channel_streaming_mode(struct fthd_private *dev_priv, int channel, int mode);
++extern int fthd_isp_cmd_channel_frame_rate_min(struct fthd_private *dev_priv, int channel, int rate);
++extern int fthd_isp_cmd_channel_frame_rate_max(struct fthd_private *dev_priv, int channel, int rate);
++extern int fthd_isp_cmd_camera_config(struct fthd_private *dev_priv);
++extern int fthd_isp_cmd_channel_ae_speed_set(struct fthd_private *dev_priv, int channel, int speed);
++extern int fthd_isp_cmd_channel_ae_stability_set(struct fthd_private *dev_priv, int channel, int stability);
++extern int fthd_isp_cmd_channel_ae_stability_to_stable_set(struct fthd_private *dev_priv, int channel, int value);
++extern int fthd_isp_cmd_channel_face_detection_enable(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_face_detection_disable(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_face_detection_start(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_face_detection_stop(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_temporal_filter_start(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_temporal_filter_stop(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_temporal_filter_enable(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_temporal_filter_disable(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_motion_history_start(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_motion_history_stop(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_channel_ae_metering_mode_set(struct fthd_private *dev_priv, int channel, int mode);
++extern int fthd_isp_cmd_channel_brightness_set(struct fthd_private *dev_priv, int channel, int brightness);
++extern int fthd_isp_cmd_channel_contrast_set(struct fthd_private *dev_priv, int channel, int contrast);
++extern int fthd_isp_cmd_channel_saturation_set(struct fthd_private *dev_priv, int channel, int saturation);
++extern int fthd_isp_cmd_channel_hue_set(struct fthd_private *dev_priv, int channel, int hue);
++extern int fthd_isp_cmd_channel_awb(struct fthd_private *dev_priv, int channel, int hue);
++extern int fthd_isp_cmd_channel_buffer_return(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_cmd_set_led(struct fthd_private *dev_priv, int channel, int mode);
++extern int fthd_start_channel(struct fthd_private *dev_priv, int channel);
++extern int fthd_stop_channel(struct fthd_private *dev_priv, int channel);
++extern int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command, void *buf,
++			      int request_len, int *response_len);
++
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_reg.h b/drivers/staging/media/facetimehd/fthd_reg.h
+new file mode 100644
+index 0000000..27da24a
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_reg.h
+@@ -0,0 +1,184 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
++ *
++ */
++
++#ifndef _FTHD_REG_H
++#define _FTHD_REG_H
++
++#include <linux/kernel.h>
++
++/* PCIE link regs */
++#define S2_PCIE_LINK_D000	0xd000
++#define S2_PCIE_LINK_D120	0xd120
++#define S2_PCIE_LINK_D124	0xd124
++#define S2_PCIE_LINK_D128	0xd128
++#define S2_PCIE_LINK_D12C	0xd12c
++
++/* Unknown */
++#define S2_D104			0xd104
++#define S2_D108			0xd108
++
++/* These are written to 0x203 before DDR soc init */
++#define S2_DDR_REG_1100		0x1100
++#define S2_DDR_REG_1104		0x1104
++#define S2_DDR_REG_1108		0x1108
++#define S2_DDR_REG_110C		0x110c
++#define S2_DDR_REG_1110		0x1110
++#define S2_DDR_REG_1114		0x1114
++#define S2_DDR_REG_1118		0x1118
++#define S2_DDR_REG_111C		0x111c
++
++#define S2_PLL_REFCLK		0x04
++#define S2_PLL_REFCLK_25MHZ	(1 << 3) /* 1 = 25MHz, 0 = 24MHz */
++
++#define S2_PLL_CMU_STATUS	0x0c	/* Register is called CMU_R_PLL_STS_MEMADDR */
++#define S2_PLL_CMU_STATUS_LOCKED (1 << 15) /* 1 = PLL locked, 0 = PLL not locked */
++
++#define S2_PLL_STATUS_A8	0xa8
++#define S2_PLL_BYPASS		(1 << 0) /* 1 = bypass, 0 = non-bypass */
++
++#define S2_PLL_CTRL_14		0x0014
++#define S2_PLL_CTRL_20		0x0020
++#define S2_PLL_CTRL_24		0x0024
++#define S2_PLL_CTRL_2C		0x002c
++#define S2_PLL_CTRL_9C		0x009c
++#define S2_PLL_CTRL_100		0x0100
++#define S2_PLL_CTRL_510		0x0510
++
++/* Probably DDR PHY PLL registers */
++#define S2_DDR_2004			0x2004
++#define S2_DDR_2008			0x2008
++#define S2_DDR_2014			0x2014
++#define S2_DDR_STATUS_2018		0x2018
++#define S2_DDR_STATUS_BUSY		(1 << 0)
++
++#define S2_DDR_20A0			0x20a0
++#define S2_DDR_20A4			0x20a4
++#define S2_DDR_20A8			0x20a8
++#define S2_DDR_20B0			0x20b0
++
++#define S2_20F8				0x20f8
++#define S2_DDR_2118			0x2118
++
++#define S2_2424				0x2424
++#define S2_2430				0x2430
++#define S2_2434				0x2434
++#define S2_2438				0x2438
++
++/* PLL for stage 2 */
++#define S2_DDR_PLL_STATUS_241C		0x241c
++#define S2_DDR_PLL_STATUS_241C_LOCKED	(1 << 10)
++
++/* PLL for stage 1 */
++#define S2_DDR_PLL_STATUS_2444		0x2444
++#define S2_DDR_PLL_STATUS_2444_LOCKED	(1 << 13)
++
++/*
++ * These registers must be saved and restored across suspend/resume
++ * FIXME: Double check these
++ */
++static const u32 fthd_ddr_phy_reg_map[] = {
++	0x0000, 0x0004, 0x0010, 0x0014, 0x0018, 0x001c, 0x0020, 0x0030,
++	0x0034, 0x0038, 0x003c, 0x0040, 0x0044, 0x0048, 0x004c, 0x0050,
++	0x0054, 0x0058, 0x005c, 0x0060, 0x0064, 0x0068, 0x006c, 0x0070,
++	0x0074, 0x0078, 0x007c, 0x0080, 0x0084, 0x0090, 0x0094, 0x0098,
++	0x009c, 0x00a0, 0x00a4, 0x00b0, 0x00b4, 0x00b8, 0x00bc, 0x00c0,
++	0x0200, 0x0204, 0x0208, 0x020c, 0x0210, 0x0214, 0x0218, 0x021c,
++	0x0220, 0x0224, 0x0228, 0x022c, 0x0230, 0x0234, 0x0238, 0x023c,
++	0x0240, 0x0244, 0x0248, 0x024c, 0x0250, 0x0254, 0x0258, 0x025c,
++	0x0260, 0x0264, 0x0268, 0x026c, 0x0270, 0x0274, 0x02a4, 0x02a8,
++	0x02ac, 0x02b0, 0x02b4, 0x02b8, 0x02bc, 0x02c0, 0x02c4, 0x02c8,
++	0x02cc, 0x02d0, 0x02d4, 0x02d8, 0x02dc, 0x02e0, 0x02e4, 0x02e8,
++	0x02ec, 0x02f0, 0x02f4, 0x02f8, 0x02fc, 0x0300, 0x0304, 0x0308,
++	0x030c, 0x0310, 0x0314, 0x0328, 0x032c, 0x0330, 0x0334, 0x0338,
++	0x033c, 0x0348, 0x034c, 0x0350, 0x0354, 0x0358, 0x035c, 0x0360,
++	0x0364, 0x0370, 0x0374, 0x0378, 0x037c, 0x0380, 0x0384, 0x0388,
++	0x038c, 0x0390, 0x0394, 0x03a0, 0x03a4, 0x03a8, 0x03ac,
++};
++
++#define DDR_PHY_NUM_REG ARRAY_SIZE(fthd_ddr_phy_reg_map)
++#define DDR_PHY_REG_BASE		0x2800
++
++/* DDR40 */
++#define S2_DDR40_PHY_PLL_STATUS		0x2810
++#define S2_DDR40_PHY_PLL_STATUS_LOCKED	(1 << 0)
++#define S2_DDR40_PHY_PLL_CFG		0x2814
++#define S2_DDR40_PHY_PLL_DIV		0x281c
++#define S2_DDR40_PHY_AUX_CTL		0x2820
++
++#define S2_DDR40_PHY_VDL_OVR_COARSE	0x2830
++#define S2_DDR40_PHY_VDL_OVR_FINE	0x2834
++
++#define S2_DDR40_PHY_ZQ_PVT_COMP_CTL	0x283c
++#define S2_DDR40_PHY_DRV_PAD_CTL	0x2840
++
++#define S2_DDR40_PHY_VDL_CTL		0x2848
++
++#define S2_DDR40_PHY_VDL_STATUS		0x284c
++#define S2_DDR40_PHY_VDL_STEP_MASK	0x0ffc
++#define S2_DDR40_PHY_VDL_STEP_SHIFT	2
++
++#define S2_DDR40_PHY_DQ_CALIB_STATUS	0x2850
++#define S2_DDR40_PHY_VDL_CHAN_STATUS	0x2854
++
++#define S2_DDR40_PHY_VTT_CTL		0x285c
++#define S2_DDR40_PHY_VTT_STATUS		0x2860
++#define S2_DDR40_PHY_VTT_CONNECTIONS	0x2864
++#define S2_DDR40_PHY_VTT_OVERRIDE	0x2868
++
++#define S2_DDR40_STRAP_CTL		0x28b0
++#define S2_DDR40_STRAP_CTL_2		0x28b4
++#define S2_DDR40_STRAP_STATUS		0x28b8
++
++/* FIXME: Come up with a better name */
++#define S2_DDR40_BYTE_LANE_SIZE		0xa0
++#define S2_DDR40_NUM_BYTE_LANES		2
++
++#define S2_DDR40_RDEN_BYTE		0x2a00
++#define S2_DDR40_2A08			0x2a08
++#define S2_DDR40_2A0C			0x2a0c
++#define S2_DDR40_2A10			0x2a10
++#define S2_DDR40_2A34			0x2a34
++#define S2_DDR40_2A38			0x2a38
++#define S2_DDR40_RDEN_BYTE0		0x2a74
++#define S2_DDR40_2AA8			0x2aa8
++#define S2_DDR40_2AAC			0x2aac
++#define S2_DDR40_RDEN_BYTE1		0x2b14
++#define S2_DDR40_WL_RD_DATA_DLY		0x2b60
++#define S2_DDR40_WL_READ_CTL		0x2b64
++#define S2_DDR40_WL_READ_FIFO_STATUS	0x2b90
++#define S2_DDR40_WL_READ_FIFO_CLEAR	0x2b94
++#define S2_DDR40_WL_DRV_PAD_CTL		0x2ba4
++#define S2_DDR40_WL_CLK_PAD_DISABLE	0x2ba8
++#define S2_DDR40_WL_IDLE_PAD_CTL	0x2ba0
++#define S2_DDR40_WL_WR_PREAMBLE_MODE	0x2bac
++
++#define S2_3200				0x3200
++#define S2_3204				0x3204
++#define S2_3208				0x3208
++
++/* On iomem with pointer at 0x0ff0 (Bar 4: 1MB) */
++#define ISP_FW_CHAN_CTRL	0xc3000
++#define ISP_FW_QUEUE_CTRL	0xc3004
++#define ISP_FW_SIZE		0xc3008
++#define ISP_FW_HEAP_SIZE	0xc300c
++#define ISP_FW_HEAP_ADDR	0xc3010
++#define ISP_FW_HEAP_SIZE2	0xc3014
++#define ISP_REG_C3018		0xc3018 /* Module params or cmd buf? */
++#define ISP_REG_C301C		0xc301c
++#define ISP_REG_40004		0x40004
++#define ISP_REG_40008		0x40008
++#define ISP_IRQ_STATUS		0x41000
++#define ISP_IRQ_ENABLE		0x41004
++#define ISP_REG_41020		0x41020
++#define ISP_IRQ_CLEAR		0x41024
++
++#define ISP_FW_CHAN_START	0x0128
++#define ISP_FW_CHAN_END		0x0220
++
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_ringbuf.c b/drivers/staging/media/facetimehd/fthd_ringbuf.c
+new file mode 100644
+index 0000000..7b099ae
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_ringbuf.c
+@@ -0,0 +1,135 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/pci.h>
++#include <linux/io.h>
++#include <linux/delay.h>
++#include "fthd_drv.h"
++#include "fthd_hw.h"
++#include "fthd_ringbuf.h"
++#include "fthd_isp.h"
++
++u32 get_entry_addr(struct fthd_private *dev_priv,
++			  struct fw_channel *chan, int num)
++{
++	return chan->offset + num * FTHD_RINGBUF_ENTRY_SIZE;
++}
++
++void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel *chan)
++{
++	u32 entry;
++	char pos;
++	int i;
++
++	for( i = 0; i < chan->size; i++) {
++		if (chan->ringbuf.idx == i)
++			pos = '*';
++		else
++			pos = ' ';
++		entry = get_entry_addr(dev_priv, chan, i);
++	    pr_debug("%s: %c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
++		     chan->name, pos, i,
++		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS),
++		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
++		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE));
++	}
++}
++
++void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel *chan)
++{
++	u32 entry;
++	int i;
++
++	chan->ringbuf.idx = 0;
++
++	if (chan->type == RINGBUF_TYPE_H2T) {
++		pr_debug("clearing ringbuf %s at %08x (size %d)\n",
++			 chan->name, chan->offset, chan->size);
++
++		spin_lock_irq(&chan->lock);
++		for(i = 0; i < chan->size; i++) {
++			entry = get_entry_addr(dev_priv, chan, i);
++			FTHD_S2_MEM_WRITE(1, entry + FTHD_RINGBUF_ADDRESS_FLAGS);
++			FTHD_S2_MEM_WRITE(0, entry + FTHD_RINGBUF_REQUEST_SIZE);
++			FTHD_S2_MEM_WRITE(0, entry + FTHD_RINGBUF_RESPONSE_SIZE);
++			entry += FTHD_RINGBUF_ENTRY_SIZE;
++		}
++		spin_unlock_irq(&chan->lock);
++	}
++}
++
++int fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
++			      u32 data_offset, u32 request_size, u32 response_size, u32 *entryp)
++{
++	u32 entry;
++
++	pr_debug("send %08x\n", data_offset);
++
++	spin_lock_irq(&chan->lock);
++	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx);
++
++	if (++chan->ringbuf.idx >= chan->size)
++		chan->ringbuf.idx = 0;
++
++	if (!(FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1) ^ (chan->type != 0)) {
++		spin_unlock_irq(&chan->lock);
++		return -EAGAIN;
++	}
++
++	FTHD_S2_MEM_WRITE(request_size, entry + FTHD_RINGBUF_REQUEST_SIZE);
++	FTHD_S2_MEM_WRITE(response_size, entry + FTHD_RINGBUF_RESPONSE_SIZE);
++	wmb();
++	FTHD_S2_MEM_WRITE(data_offset | (chan->type == 0 ? 0 : 1),
++			  entry + FTHD_RINGBUF_ADDRESS_FLAGS);
++	spin_unlock_irq(&chan->lock);
++
++	spin_lock_irq(&dev_priv->io_lock);
++	FTHD_ISP_REG_WRITE(0x10 << chan->source, ISP_REG_41020);
++	spin_unlock_irq(&dev_priv->io_lock);
++	if (entryp)
++		*entryp = entry;
++	return 0;
++}
++
++u32 fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
++							struct fw_channel *chan)
++{
++	u32 entry, ret = (u32)-1;
++
++	spin_lock_irq(&chan->lock);
++
++	entry = get_entry_addr(dev_priv, chan, chan->ringbuf.idx);
++
++
++	if (!(FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1) ^ (chan->type != 0))
++		goto out;
++
++	ret = entry;
++
++	if (chan->type == FW_CHAN_TYPE_OUT && ++chan->ringbuf.idx >= chan->size)
++		chan->ringbuf.idx = 0;
++
++out:
++	spin_unlock_irq(&chan->lock);
++	return ret;
++}
++
++int fthd_channel_wait_ready(struct fthd_private *dev_priv, struct fw_channel *chan, u32 entry, int timeout)
++{
++	if (wait_event_interruptible_timeout(chan->wq,
++					     (FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & 1) ^ (chan->type != 0),
++		msecs_to_jiffies(timeout)) <= 0) {
++		dev_err(&dev_priv->pdev->dev, "%s: timeout\n", chan->name);
++		fthd_channel_ringbuf_dump(dev_priv, chan);
++		return -ETIMEDOUT;
++	}
++	return 0;
++}
+diff --git a/drivers/staging/media/facetimehd/fthd_ringbuf.h b/drivers/staging/media/facetimehd/fthd_ringbuf.h
+new file mode 100644
+index 0000000..a59fb5e
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_ringbuf.h
+@@ -0,0 +1,44 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++
++#ifndef _FTHD_RINGBUF_H
++#define _FTHD_RINGBUF_H
++
++#define FTHD_RINGBUF_ENTRY_SIZE 64
++
++#define FTHD_RINGBUF_ADDRESS_FLAGS 0
++#define FTHD_RINGBUF_REQUEST_SIZE 4
++#define FTHD_RINGBUF_RESPONSE_SIZE 8
++
++enum ringbuf_type_t {
++	RINGBUF_TYPE_H2T=0,
++	RINGBUF_TYPE_T2H=1,
++	RINGBUF_TYPE_UNIDIRECTIONAL,
++};
++
++struct fthd_ringbuf {
++	void *doorbell;
++	int idx;
++};
++
++struct fw_channel;
++struct fthd_private;
++extern void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel *chan);
++extern void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel *chan);
++extern u32 fthd_channel_ringbuf_get_entry(struct fthd_private *, struct fw_channel *);
++extern int fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *chan,
++				     u32 data_offset, u32 request_size, u32 response_size, u32 *entry);
++
++extern u32 fthd_channel_ringbuf_receive(struct fthd_private *dev_priv,
++					struct fw_channel *chan);
++
++extern int fthd_channel_wait_ready(struct fthd_private *dev_priv, struct fw_channel *chan, u32 entry, int timeout);
++extern u32 get_entry_addr(struct fthd_private *dev_priv,
++			  struct fw_channel *chan, int num);
++#endif
+diff --git a/drivers/staging/media/facetimehd/fthd_v4l2.c b/drivers/staging/media/facetimehd/fthd_v4l2.c
+new file mode 100644
+index 0000000..a799ce2
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_v4l2.c
+@@ -0,0 +1,881 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++
++#include <linux/kernel.h>
++#include <linux/spinlock.h>
++#include <linux/sched.h>
++#include <linux/wait.h>
++#include <linux/delay.h>
++#include <linux/version.h>
++#include <linux/videodev2.h>
++#include <media/v4l2-dev.h>
++#include <media/v4l2-ioctl.h>
++#include <media/v4l2-ctrls.h>
++#include <media/v4l2-event.h>
++#include <media/videobuf2-dma-sg.h>
++#include "fthd_drv.h"
++#include "fthd_hw.h"
++#include "fthd_isp.h"
++#include "fthd_ringbuf.h"
++#include "fthd_buffer.h"
++
++struct fthd_frame_size {
++	u32 width;
++	u32 height;
++	u32 max_fps;
++};
++
++static const struct fthd_frame_size fthd_sizes[] = {
++	{ 1280, 720,  30 }, /* 720p HD 16:9 - Default */
++	{ 1920, 1080, 30 }, /* 1080p Full HD 16:9 */
++	{ 640,  480,  30 }, /* VGA 4:3 - Required by WebRTC / Chrome / Cheese */
++	{ 320,  240,  30 }, /* QVGA 4:3 */
++};
++
++#define FTHD_MAX_WIDTH 1920
++#define FTHD_MAX_HEIGHT 1080
++#define FTHD_MIN_WIDTH 320
++#define FTHD_MIN_HEIGHT 240
++#define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
++
++static int fthd_buffer_queue_setup(struct vb2_queue *vq,
++				   unsigned int *nbuffers,
++				   unsigned int *nplanes,
++				   unsigned int sizes[],
++				   struct device *alloc_devs[])
++{
++	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
++	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
++	int i, total_size = 0;
++
++	if (*nplanes)
++		return sizes[0] < (cur_fmt->bytesperline * cur_fmt->height) ? -EINVAL : 0;
++
++	*nplanes = dev_priv->fmt.planes;
++
++	if (!*nplanes)
++		return -EINVAL;
++
++	/* FIXME: We assume single plane format here but not below */
++	for (i = 0; i < *nplanes; i++) {
++		sizes[i] = cur_fmt->sizeimage;
++		alloc_devs[i] = &dev_priv->pdev->dev;
++		total_size += sizes[i];
++	}
++
++	*nbuffers = (32 * 1024 * 1024) / total_size;
++	if (*nbuffers > 4)
++		*nbuffers = 4;
++	if (*nbuffers < 2)
++		*nbuffers = 2;
++	pr_debug("using %d buffers\n", *nbuffers);
++
++	return 0;
++}
++
++static void fthd_buffer_cleanup(struct vb2_buffer *vb)
++{
++	struct fthd_private *dev_priv = vb2_get_drv_priv(vb->vb2_queue);
++	struct h2t_buf_ctx *ctx = NULL;
++	int i;
++
++	pr_debug("%p\n", vb);
++	for(i = 0; i < FTHD_BUFFERS; i++) {
++		if (dev_priv->h2t_bufs[i].vb == vb) {
++			ctx = dev_priv->h2t_bufs + i;
++			break;
++		};
++	}
++	if (!ctx || ctx->state == BUF_FREE)
++		return;
++
++	ctx->state = BUF_FREE;
++	ctx->vb = NULL;
++	isp_mem_destroy(ctx->dma_desc_obj);
++	for(i = 0; i < dev_priv->fmt.planes; i++) {
++		iommu_free(dev_priv, ctx->plane[i]);
++		ctx->plane[i] = NULL;
++	}
++	ctx->dma_desc_obj = NULL;
++}
++
++static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ctx *ctx)
++{
++	u32 entry;
++	int ret;
++
++	pr_debug("sending buffer %p size %ld, ctx %p\n", ctx->vb, sizeof(ctx->dma_desc_list), ctx);
++	FTHD_S2_MEMCPY_TOIO(ctx->dma_desc_obj->offset, &ctx->dma_desc_list, sizeof(ctx->dma_desc_list));
++	ret = fthd_channel_ringbuf_send(dev_priv, dev_priv->channel_buf_h2t,
++					ctx->dma_desc_obj->offset, 0x180, 0x30000000, &entry);
++
++	if (ret) {
++		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
++		return ret;
++	}
++	return fthd_channel_wait_ready(dev_priv, dev_priv->channel_buf_h2t, entry, 2000);
++}
++
++static void fthd_buffer_queue(struct vb2_buffer *vb)
++{
++	struct fthd_private *dev_priv = vb2_get_drv_priv(vb->vb2_queue);
++	struct dma_descriptor_list *list;
++	struct h2t_buf_ctx *ctx = NULL;
++
++	int i;
++	pr_debug("vb = %p\n", vb);
++	for(i = 0; i < FTHD_BUFFERS; i++) {
++		if (dev_priv->h2t_bufs[i].vb == vb) {
++			ctx = dev_priv->h2t_bufs + i;
++			break;
++		};
++	}
++
++	if (!ctx)
++		return;
++
++	if (ctx->state != BUF_ALLOC)
++		return;
++
++	if (!vb->vb2_queue->streaming) {
++		ctx->state = BUF_DRV_QUEUED;
++	} else {
++		list = &ctx->dma_desc_list;
++		list->field0 = 1;
++		ctx->state = BUF_HW_QUEUED;
++		wmb();
++		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p\n", i, list->field0,
++			 list->desc[i].count, list->desc[i].pool, list->desc[i].addr0, list->desc[i].addr1, list->desc[i].tag, ctx->vb);
++
++		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
++			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
++			ctx->state = BUF_ALLOC;
++		}
++	}
++	return;
++}
++
++static int fthd_buffer_prepare(struct vb2_buffer *vb)
++{
++	struct fthd_private *dev_priv = vb2_get_drv_priv(vb->vb2_queue);
++	struct sg_table *sgtable;
++	struct h2t_buf_ctx *ctx = NULL;
++	struct dma_descriptor_list *dma_list;
++	int i;
++
++	pr_debug("%p\n", vb);
++	for(i = 0; i < FTHD_BUFFERS; i++) {
++		if (dev_priv->h2t_bufs[i].state == BUF_FREE ||
++		    (dev_priv->h2t_bufs[i].state == BUF_ALLOC && dev_priv->h2t_bufs[i].vb == vb)) {
++			ctx = dev_priv->h2t_bufs + i;
++			break;
++		}
++	}
++
++	if (!ctx)
++		return -ENOBUFS;
++
++	if (ctx->state == BUF_FREE) {
++		pr_debug("allocating new entry\n");
++		ctx->dma_desc_obj = isp_mem_create(dev_priv, FTHD_MEM_BUFFER, 0x180);
++		if (!ctx->dma_desc_obj)
++			return -ENOMEM;
++
++		ctx->vb = vb;
++		ctx->state = BUF_ALLOC;
++
++		for(i = 0; i < dev_priv->fmt.planes; i++) {
++		  sgtable = vb2_dma_sg_plane_desc(vb, i);
++		  ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
++		  if(!ctx->plane[i])
++			  return -ENOMEM;
++		}
++	}
++
++	vb2_set_plane_payload(vb, 0, dev_priv->fmt.fmt.sizeimage);
++
++	dma_list = &ctx->dma_desc_list;
++	memset(dma_list, 0, 0x180);
++
++	dma_list->field0 = 1;
++	dma_list->count = 1;
++	dma_list->desc[0].count = 1;
++	dma_list->desc[0].pool = 0x02;
++	dma_list->desc[0].addr0 = (ctx->plane[0]->offset << 12) | 0xc0000000;
++
++	if (dev_priv->fmt.planes >= 2)
++		dma_list->desc[0].addr1 = (ctx->plane[1]->offset << 12) | 0xc0000000;
++	if (dev_priv->fmt.planes >= 3)
++		dma_list->desc[0].addr2 = (ctx->plane[2]->offset << 12) | 0xc0000000;
++
++	dma_list->desc[0].tag = (u64)ctx;
++	init_waitqueue_head(&ctx->wq);
++	return 0;
++}
++
++void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size)
++{
++	struct dma_descriptor_list list;
++	struct h2t_buf_ctx *ctx;
++	int i;
++
++	FTHD_S2_MEMCPY_FROMIO(&list, offset, sizeof(list));
++
++	for(i = 0; i < list.count; i++) {
++		ctx = (struct h2t_buf_ctx *)list.desc[i].tag;
++		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p, ctx = %p\n", i, list.field0,
++			 list.desc[i].count, list.desc[i].pool, list.desc[i].addr0, list.desc[i].addr1, list.desc[i].tag, ctx->vb, ctx);
++
++		if (ctx->state == BUF_HW_QUEUED || ctx->state == BUF_DRV_QUEUED) {
++			ctx->state = BUF_ALLOC;
++			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
++		}
++
++	}
++}
++
++static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
++{
++	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
++	struct h2t_buf_ctx *ctx;
++	int i, ret;
++
++	pr_debug("count = %d\n", count);
++	ret = fthd_start_channel(dev_priv, 0);
++	if (ret)
++		return ret;
++
++	for(i = 0; i < FTHD_BUFFERS && count; i++, count--) {
++		ctx = dev_priv->h2t_bufs + i;
++		if (ctx->state != BUF_DRV_QUEUED)
++			continue;
++
++		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
++			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
++			ctx->state = BUF_ALLOC;
++		}
++			ctx->state = BUF_HW_QUEUED;
++	}
++	return 0;
++}
++
++static void fthd_stop_streaming(struct vb2_queue *vq)
++{
++	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
++	struct h2t_buf_ctx *ctx;
++	int ret, i;
++
++	ret = fthd_stop_channel(dev_priv, 0);
++	if (!ret) {
++		pr_debug("waiting for buffers...\n");
++		vb2_wait_for_all_buffers(vq);
++		pr_debug("done\n");
++	} else {
++	    /* Firmware doesn't respond. */
++	    for(i = 0; i < FTHD_BUFFERS;i++) {
++		    ctx = dev_priv->h2t_bufs + i;
++		    if (ctx->state == BUF_DRV_QUEUED || ctx->state == BUF_HW_QUEUED) {
++			    vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
++			    ctx->vb = NULL;
++			    ctx->state = BUF_ALLOC;
++		}
++	    }
++	}
++}
++
++static struct vb2_ops vb2_queue_ops = {
++	.queue_setup            = fthd_buffer_queue_setup,
++	.buf_prepare            = fthd_buffer_prepare,
++	.buf_cleanup            = fthd_buffer_cleanup,
++	.start_streaming        = fthd_start_streaming,
++	.stop_streaming         = fthd_stop_streaming,
++	.buf_queue              = fthd_buffer_queue,
++};
++
++static struct v4l2_file_operations fthd_vdev_fops = {
++	.owner          = THIS_MODULE,
++	.open           = v4l2_fh_open,
++
++	.read		= vb2_fop_read,
++	.release        = vb2_fop_release,
++	.poll           = vb2_fop_poll,
++	.mmap           = vb2_fop_mmap,
++	.unlocked_ioctl = video_ioctl2
++};
++
++static int fthd_v4l2_ioctl_enum_input(struct file *filp, void *priv,
++				      struct v4l2_input *input)
++{
++	if (input->index != 0)
++		return -EINVAL;
++
++	memset(input, 0, sizeof(*input));
++	strcpy(input->name, "Camera");
++	input->type = V4L2_INPUT_TYPE_CAMERA;
++	input->std = 0;
++
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_g_input(struct file *filp, void *priv, unsigned int *i)
++{
++	*i = 0;
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_s_input(struct file *filp, void *priv, unsigned int i)
++{
++	if (i != 0)
++		return -EINVAL;
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
++				    struct v4l2_capability *cap)
++{
++	struct fthd_private *dev_priv = video_drvdata(filp);
++
++	strcpy(cap->driver, "facetimehd");
++	strcpy(cap->card, "Apple Facetime HD");
++	snprintf(cap->bus_info, sizeof(cap->bus_info), "PCI:%s",
++		 pci_name(dev_priv->pdev));
++
++	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_READWRITE |
++			   V4L2_CAP_STREAMING;
++	cap->capabilities = cap->device_caps | V4L2_CAP_DEVICE_CAPS;
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
++				   struct v4l2_fmtdesc *fmt)
++{
++	char *desc = NULL;
++
++	switch (fmt->index) {
++	case 0:
++		fmt->pixelformat = V4L2_PIX_FMT_YUYV;
++		desc = "YUYV";
++		break;
++	case 1:
++		fmt->pixelformat = V4L2_PIX_FMT_YVYU;
++		desc = "YVYU";
++		break;
++	/* We don't support the mplane yet
++	case 2:
++		fmt->pixelformat = V4L2_PIX_FMT_NV16;
++		desc = "NV16";
++		break;
++	*/
++	default:
++		return -EINVAL;
++	}
++
++	fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++	strncpy(fmt->description, desc, sizeof(fmt->description));
++
++	return 0;
++}
++
++static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
++				   struct v4l2_pix_format *pix)
++{
++
++	if (pix->pixelformat != V4L2_PIX_FMT_YUYV &&
++	    pix->pixelformat != V4L2_PIX_FMT_YVYU)
++		pix->pixelformat = V4L2_PIX_FMT_YUYV;
++
++	if (pix->width < FTHD_MIN_WIDTH)
++		pix->width = FTHD_MIN_WIDTH;
++	if (pix->width > FTHD_MAX_WIDTH)
++		pix->width = FTHD_MAX_WIDTH;
++	if (pix->height < FTHD_MIN_HEIGHT)
++		pix->height = FTHD_MIN_HEIGHT;
++	if (pix->height > FTHD_MAX_HEIGHT)
++		pix->height = FTHD_MAX_HEIGHT;
++
++	pix->colorspace = V4L2_COLORSPACE_SRGB;
++	pix->field = V4L2_FIELD_NONE;
++	pix->width = ALIGN(pix->width, 7);
++
++	switch (pix->pixelformat) {
++/*
++	case V4L2_PIX_FMT_NV16:
++		pix->sizeimage = pix->width * pix->height;
++		pix->bytesperline = pix->width;
++		break;
++*/
++	case V4L2_PIX_FMT_YUYV:
++	case V4L2_PIX_FMT_YVYU:
++	default:
++		pix->bytesperline = pix->width * 2;
++		pix->sizeimage = pix->bytesperline * pix->height;
++		break;
++	}
++
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_try_fmt_vid_cap(struct file *filp, void *_priv,
++					   struct v4l2_format *fmt)
++{
++	struct fthd_private *dev_priv = video_drvdata(filp);
++
++	pr_debug("%s: %dx%d\n", __FUNCTION__, fmt->fmt.pix.width, fmt->fmt.pix.height);
++
++	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
++		return -EINVAL;
++
++	return fthd_v4l2_adjust_format(dev_priv, &fmt->fmt.pix);
++}
++
++static int fthd_v4l2_ioctl_g_fmt_vid_cap(struct file *filp, void *priv,
++					 struct v4l2_format *fmt)
++{
++	struct fthd_private *dev_priv = video_drvdata(filp);
++
++	pr_debug("%s\n", __FUNCTION__);
++	fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++	fmt->fmt.pix = dev_priv->fmt.fmt;
++
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
++					 struct v4l2_format *fmt)
++{
++	struct fthd_private *dev_priv = video_drvdata(filp);
++	int ret;
++
++	if (fmt->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
++		return -EINVAL;
++
++	/* FIXME: Check if hardware is busy */
++
++	ret = fthd_v4l2_adjust_format(dev_priv, &fmt->fmt.pix);
++	if (ret)
++		return ret;
++
++	pr_debug("%c%c%c%c\n", fmt->fmt.pix.pixelformat, fmt->fmt.pix.pixelformat >> 8,
++		 fmt->fmt.pix.pixelformat >> 16, fmt->fmt.pix.pixelformat >> 24);
++
++	dev_priv->fmt.fmt = fmt->fmt.pix;
++
++	switch (fmt->fmt.pix.pixelformat) {
++	case V4L2_PIX_FMT_NV16:
++		dev_priv->fmt.planes = 2;
++		break;
++	case V4L2_PIX_FMT_YUYV:
++	case V4L2_PIX_FMT_YVYU:
++		dev_priv->fmt.planes = 1;
++		break;
++	}
++
++	return 0;
++}
++
++
++static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
++		struct v4l2_streamparm *parm)
++{
++        struct fthd_private *priv_dev = video_drvdata(filp);
++	struct v4l2_fract timeperframe = {
++		.numerator = priv_dev->frametime,
++		.denominator = 1000,
++	};
++
++	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
++		return -EINVAL;
++
++	parm->parm.capture.readbuffers = FTHD_BUFFERS;
++	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
++	parm->parm.capture.timeperframe = timeperframe;
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
++		struct v4l2_streamparm *parm)
++{
++
++        struct fthd_private *dev_priv = video_drvdata(filp);
++	struct v4l2_fract *timeperframe;
++
++	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
++		return -EINVAL;
++
++	timeperframe = &parm->parm.capture.timeperframe;
++
++	if(timeperframe->denominator == 0) {
++		timeperframe->numerator = 20;
++		timeperframe->denominator = 1000;
++	}
++
++	dev_priv->frametime = clamp_t(unsigned int, timeperframe->numerator * 1000 /
++				timeperframe->denominator, 20, 500);
++
++	return fthd_v4l2_ioctl_g_parm(filp, priv, parm);
++}
++
++static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
++		struct v4l2_frmsizeenum *sizes)
++{
++	if (sizes->index >= ARRAY_SIZE(fthd_sizes))
++		return -EINVAL;
++
++	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV &&
++	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
++		return -EINVAL;
++
++	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
++	sizes->discrete.width = fthd_sizes[sizes->index].width;
++	sizes->discrete.height = fthd_sizes[sizes->index].height;
++
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
++		struct v4l2_frmivalenum *interval)
++{
++	int i;
++	u32 fps = 30;
++
++	pr_debug("%s: %dx%d fmt=%x idx=%d\n", __FUNCTION__,
++		 interval->width, interval->height, interval->pixel_format, interval->index);
++
++	if (interval->index != 0)
++		return -EINVAL;
++
++	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
++	    interval->pixel_format != V4L2_PIX_FMT_YVYU &&
++	    interval->pixel_format != V4L2_PIX_FMT_NV16)
++		return -EINVAL;
++
++	for (i = 0; i < ARRAY_SIZE(fthd_sizes); i++) {
++		if (interval->width == fthd_sizes[i].width &&
++		    interval->height == fthd_sizes[i].height) {
++			fps = fthd_sizes[i].max_fps;
++			break;
++		}
++	}
++
++	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
++	interval->discrete.numerator = 1;
++	interval->discrete.denominator = fps;
++
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
++		const struct v4l2_event_subscription *sub)
++{
++	switch (sub->type) {
++	case V4L2_EVENT_CTRL:
++		return v4l2_ctrl_subscribe_event(fh, sub);
++	}
++
++	return -EINVAL;
++}
++
++/*
++ * ============================================================================
++ * Digital Zoom, Pan and Tilt (ePTZ) Hardware Cropping
++ * ============================================================================
++ * Educational Note for Developers:
++ * The BCM1570 ISP coprocessor contains a dedicated silicon scaling and cropping
++ * engine. Instead of burdening the host CPU, we instruct the ISP directly to
++ * extract a sub-window of the sensor array (x1, y1 to x2, y2) and scale it to
++ * the active video stream size.
++ *
++ * This provides lossless digital zoom, pan, and tilt (ePTZ) compatible with
++ * standard Linux tools (OBS Studio, GStreamer, OpenCV, v4l2-ctl).
++ */
++static int fthd_v4l2_ioctl_g_selection(struct file *filp, void *fh,
++				       struct v4l2_selection *s)
++{
++	struct fthd_private *dev_priv = video_drvdata(filp);
++
++	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
++		return -EINVAL;
++
++	switch (s->target) {
++	case V4L2_SEL_TGT_CROP_BOUNDS:
++	case V4L2_SEL_TGT_CROP_DEFAULT:
++		/* Entire sensor bounds available for cropping */
++		s->r.left = 0;
++		s->r.top = 0;
++		s->r.width = FTHD_MAX_WIDTH;
++		s->r.height = FTHD_MAX_HEIGHT;
++		break;
++	case V4L2_SEL_TGT_CROP:
++		/* Currently active crop rectangle */
++		s->r.left = dev_priv->crop_x1;
++		s->r.top = dev_priv->crop_y1;
++		s->r.width = dev_priv->crop_x2 - dev_priv->crop_x1;
++		s->r.height = dev_priv->crop_y2 - dev_priv->crop_y1;
++		break;
++	default:
++		return -EINVAL;
++	}
++
++	return 0;
++}
++
++static int fthd_v4l2_ioctl_s_selection(struct file *filp, void *fh,
++				       struct v4l2_selection *s)
++{
++	struct fthd_private *dev_priv = video_drvdata(filp);
++	int ret;
++
++	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE || s->target != V4L2_SEL_TGT_CROP)
++		return -EINVAL;
++
++	/*
++	 * Clamp crop coordinates within valid physical bounds:
++	 * Minimum width/height: 320x240
++	 * Maximum width/height: 1920x1080
++	 */
++	s->r.left = clamp_t(u32, s->r.left, 0, FTHD_MAX_WIDTH - FTHD_MIN_WIDTH);
++	s->r.top = clamp_t(u32, s->r.top, 0, FTHD_MAX_HEIGHT - FTHD_MIN_HEIGHT);
++	s->r.width = clamp_t(u32, s->r.width, FTHD_MIN_WIDTH, FTHD_MAX_WIDTH - s->r.left);
++	s->r.height = clamp_t(u32, s->r.height, FTHD_MIN_HEIGHT, FTHD_MAX_HEIGHT - s->r.top);
++
++	dev_priv->crop_x1 = s->r.left;
++	dev_priv->crop_y1 = s->r.top;
++	dev_priv->crop_x2 = s->r.left + s->r.width;
++	dev_priv->crop_y2 = s->r.top + s->r.height;
++
++	pr_info("fthd: Applying hardware ePTZ crop [%u, %u -> %u, %u]\n",
++		dev_priv->crop_x1, dev_priv->crop_y1,
++		dev_priv->crop_x2, dev_priv->crop_y2);
++
++	/* Dispatch command CISP_CMD_CH_CROP_SET directly to the ISP coprocessor */
++	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0,
++					    dev_priv->crop_x1, dev_priv->crop_y1,
++					    dev_priv->crop_x2, dev_priv->crop_y2);
++	return ret;
++}
++
++static struct v4l2_ioctl_ops fthd_ioctl_ops = {
++	.vidioc_enum_input      = fthd_v4l2_ioctl_enum_input,
++	.vidioc_g_input         = fthd_v4l2_ioctl_g_input,
++	.vidioc_s_input         = fthd_v4l2_ioctl_s_input,
++	.vidioc_enum_fmt_vid_cap = fthd_v4l2_ioctl_enum_fmt_vid_cap,
++	.vidioc_try_fmt_vid_cap = fthd_v4l2_ioctl_try_fmt_vid_cap,
++
++	.vidioc_g_fmt_vid_cap   = fthd_v4l2_ioctl_g_fmt_vid_cap,
++	.vidioc_s_fmt_vid_cap   = fthd_v4l2_ioctl_s_fmt_vid_cap,
++	.vidioc_querycap        = fthd_v4l2_ioctl_querycap,
++
++	.vidioc_reqbufs         = vb2_ioctl_reqbufs,
++	.vidioc_create_bufs     = vb2_ioctl_create_bufs,
++	.vidioc_querybuf        = vb2_ioctl_querybuf,
++	.vidioc_qbuf            = vb2_ioctl_qbuf,
++	.vidioc_dqbuf           = vb2_ioctl_dqbuf,
++	.vidioc_expbuf          = vb2_ioctl_expbuf,
++	.vidioc_streamon        = vb2_ioctl_streamon,
++	.vidioc_streamoff       = vb2_ioctl_streamoff,
++
++	.vidioc_g_parm          = fthd_v4l2_ioctl_g_parm,
++	.vidioc_s_parm          = fthd_v4l2_ioctl_s_parm,
++	.vidioc_enum_framesizes = fthd_v4l2_ioctl_enum_framesizes,
++	.vidioc_enum_frameintervals = fthd_v4l2_ioctl_enum_frameintervals,
++
++	/* Hardware ePTZ digital zoom & pan/tilt cropping */
++	.vidioc_g_selection     = fthd_v4l2_ioctl_g_selection,
++	.vidioc_s_selection     = fthd_v4l2_ioctl_s_selection,
++
++	.vidioc_subscribe_event	= fthd_v4l2_ioctl_subscribe_event,
++	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
++};
++
++static int fthd_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
++{
++	pr_debug("id = %x\n", ctrl->id);
++	return -EINVAL;
++}
++
++static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
++{
++	struct fthd_private *dev_priv = container_of(ctrl->handler, struct fthd_private, v4l2_ctrl_handler);
++	int ret = -EINVAL;
++
++	pr_info("id = %x, val = %d\n", ctrl->id, ctrl->val);
++
++	switch(ctrl->id) {
++	case V4L2_CID_CONTRAST:
++		ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, ctrl->val);
++		break;
++	case V4L2_CID_BRIGHTNESS:
++		ret = fthd_isp_cmd_channel_brightness_set(dev_priv, 0, ctrl->val);
++		break;
++	case V4L2_CID_SATURATION:
++		ret = fthd_isp_cmd_channel_saturation_set(dev_priv, 0, ctrl->val);
++		break;
++	case V4L2_CID_HUE:
++		ret = fthd_isp_cmd_channel_hue_set(dev_priv, 0, ctrl->val);
++		break;
++	case V4L2_CID_AUTO_WHITE_BALANCE:
++		ret = fthd_isp_cmd_channel_awb(dev_priv, 0, ctrl->val);
++		break;
++	case V4L2_CID_EXPOSURE_METERING:
++		/*
++		 * Auto-Exposure Metering Mode:
++		 * Configures on-chip photometer sampling window:
++		 * 0 = Average (evaluates the whole scene)
++		 * 1 = Center-Weighted (prioritizes center)
++		 * 2 = Spot (sharp spot metering for faces/backlit subjects)
++		 * 3 = Matrix (evaluates multi-zone grid)
++		 */
++		ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, ctrl->val);
++		break;
++	case V4L2_CID_WIDE_DYNAMIC_RANGE:
++		/*
++		 * Dynamic Range Compression (DRC / HDR):
++		 * Enables hardware tone curve adaptation to balance extreme highlights
++		 * and deep shadows without clipping.
++		 */
++		fthd_drc_enable = ctrl->val;
++		if (ctrl->val) {
++			ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
++			if (!ret)
++				ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
++		} else {
++			ret = 0;
++		}
++		break;
++
++	case V4L2_CID_ILLUMINATORS_1:
++		/*
++		 * Camera Status / Privacy LED Indicator:
++		 * 0 = Auto (illuminated while video streaming is active)
++		 * 1 = Force Off (stealth mode / indicator disabled)
++		 * 2 = Force On (indicator continuously illuminated)
++		 */
++		fthd_led_mode = ctrl->val;
++		ret = fthd_isp_cmd_set_led(dev_priv, 0, ctrl->val);
++		break;
++
++	default:
++		break;
++
++	}
++	pr_debug("ret = %d\n", ret);
++	return ret;
++}
++
++static const struct v4l2_ctrl_ops fthd_ctrl_ops = {
++	.g_volatile_ctrl = fthd_g_volatile_ctrl,
++	.s_ctrl = fthd_s_ctrl,
++};
++
++int fthd_v4l2_register(struct fthd_private *dev_priv)
++{
++	struct v4l2_device *v4l2_dev = &dev_priv->v4l2_dev;
++	struct video_device *vdev;
++	struct vb2_queue *q;
++	int ret;
++
++	ret = v4l2_device_register(&dev_priv->pdev->dev, v4l2_dev);
++	if (ret) {
++		pr_err("v4l2_device_register: %d\n", ret);
++		return ret;
++	}
++
++	vdev = video_device_alloc();
++	if (!vdev) {
++		ret = -ENOMEM;
++		goto fail;
++	}
++	dev_priv->videodev = vdev;
++
++	q = &dev_priv->vb2_queue;
++	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
++	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
++	q->drv_priv = dev_priv;
++	q->ops = &vb2_queue_ops;
++	q->mem_ops = &vb2_dma_sg_memops;
++	q->buf_struct_size = 0;//sizeof(struct vpif_cap_buffer);
++	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
++	q->min_queued_buffers = 1;
++	q->lock = &dev_priv->vb2_queue_lock;
++
++	ret = vb2_queue_init(q);
++	if (ret)
++		goto fail;
++
++	v4l2_ctrl_handler_init(&dev_priv->v4l2_ctrl_handler, 10);
++	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			  V4L2_CID_BRIGHTNESS, 0, 0xff, 1, 0x80);
++	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			  V4L2_CID_CONTRAST, 0, 0xff, 1, 0x80);
++	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			  V4L2_CID_SATURATION, 0, 0xff, 1, 0x80);
++	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			  V4L2_CID_HUE, 0, 0xff, 1, 0x80);
++	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			  V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
++
++	/* Auto-Exposure Metering: Average (0), Center-Weighted (1), Spot (2), Matrix (3) */
++	v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			       V4L2_CID_EXPOSURE_METERING,
++			       V4L2_EXPOSURE_METERING_MATRIX, 0,
++			       fthd_ae_metering);
++
++	/* Wide Dynamic Range (HDR / Dynamic Range Compression in hardware) */
++	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			  V4L2_CID_WIDE_DYNAMIC_RANGE, 0, 1, 1, fthd_drc_enable);
++
++	/* Camera status LED / indicator control (0 = Auto, 1 = Force Off, 2 = Force On) */
++	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
++			  V4L2_CID_ILLUMINATORS_1, 0, 2, 1, fthd_led_mode);
++
++	if (dev_priv->v4l2_ctrl_handler.error) {
++		pr_err("failed to setup control handlers\n");
++		v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
++		goto fail;
++	}
++
++	vdev->v4l2_dev = v4l2_dev;
++	strcpy(vdev->name, "Apple Facetime HD"); // XXX: Length?
++	vdev->vfl_dir = VFL_DIR_RX;
++	vdev->fops = &fthd_vdev_fops;
++	vdev->ioctl_ops = &fthd_ioctl_ops;
++	vdev->queue = q;
++	vdev->release = video_device_release;
++	vdev->ctrl_handler = &dev_priv->v4l2_ctrl_handler;
++	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_READWRITE |
++			    V4L2_CAP_STREAMING;
++
++	video_set_drvdata(vdev, dev_priv);
++	ret = video_register_device(vdev, VFL_TYPE_VIDEO, -1);
++	if (ret) {
++		video_device_release(vdev);
++		goto fail_vdev;
++	}
++	dev_priv->fmt.fmt.pixelformat = V4L2_PIX_FMT_YUYV;
++	dev_priv->fmt.fmt.width = fthd_default_width;
++	dev_priv->fmt.fmt.height = fthd_default_height;
++	dev_priv->fmt.fmt.sizeimage = dev_priv->fmt.fmt.width * dev_priv->fmt.fmt.height * 2;
++	dev_priv->fmt.planes = 1;
++
++	fthd_v4l2_adjust_format(dev_priv, &dev_priv->fmt.fmt);
++
++	return 0;
++fail_vdev:
++	v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
++fail:
++	v4l2_device_unregister(&dev_priv->v4l2_dev);
++	return ret;
++}
++
++void fthd_v4l2_unregister(struct fthd_private *dev_priv)
++{
++	v4l2_ctrl_handler_free(&dev_priv->v4l2_ctrl_handler);
++	video_unregister_device(dev_priv->videodev);
++	v4l2_device_unregister(&dev_priv->v4l2_dev);
++}
+diff --git a/drivers/staging/media/facetimehd/fthd_v4l2.h b/drivers/staging/media/facetimehd/fthd_v4l2.h
+new file mode 100644
+index 0000000..8e4f9d5
+--- /dev/null
++++ b/drivers/staging/media/facetimehd/fthd_v4l2.h
+@@ -0,0 +1,34 @@
++/*
++ * SPDX-License-Identifier: GPL-2.0-only
++ *
++ * FacetimeHD camera driver
++ *
++ * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
++ *
++ */
++
++#ifndef _FTHD_V4L2_H
++#define _FTHD_V4L2_H
++
++#include <linux/pci.h>
++#include <linux/spinlock.h>
++#include <linux/wait.h>
++#include <linux/mutex.h>
++#include <media/v4l2-device.h>
++
++struct fthd_fmt {
++	struct v4l2_pix_format fmt;
++	const char *desc;
++	int range; /* CISP_COMMAND_CH_OUTPUT_CONFIG_SET */
++	int planes;
++	int x1; /* for CISP_CMD_CH_CROP_SET */
++	int y1;
++	int x2;
++	int y2;
++};
++
++struct fthd_private;
++extern int fthd_v4l2_register(struct fthd_private *dev_priv);
++extern void fthd_v4l2_unregister(struct fthd_private *dev_priv);
++
++#endif
+-- 
+2.53.0
+
