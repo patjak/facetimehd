@@ -42,8 +42,21 @@ struct iommu_obj *iommu_allocate_sgtable(struct fthd_private *dev_priv, struct s
 	int total_len = 0, dma_length;
 	dma_addr_t dma_addr;
 	
-	for(i = 0; i < sgtable->nents; i++)
-		total_len += sg_dma_len(sgtable->sgl + i);
+	for(i = 0; i < sgtable->nents; i++) {
+		sg = sgtable->sgl + i;
+
+		/* The S2 IOMMU descriptor holds page numbers only. A segment
+		 * that is not page-aligned causes offset drift and memory corruption.
+		 */
+		if (sg->offset || (sg_dma_address(sg) & 0xfff)) {
+			dev_err(&dev_priv->pdev->dev,
+				"Buffer segment %d is not page aligned (offset %u), refusing\n",
+				i, sg->offset);
+			return NULL;
+		}
+
+		total_len += sg_dma_len(sg);
+	}
 	
 	if (!total_len)
 		return NULL;

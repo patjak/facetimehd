@@ -667,19 +667,23 @@ int fthd_isp_cmd_channel_camera_config_select(struct fthd_private *dev_priv, int
 }
 
 int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
-				  int x1, int y1, int x2, int y2)
+				  int x, int y, int width, int height)
 {
 	struct isp_cmd_channel_set_crop cmd;
 	int len;
 
-	pr_debug("set crop: [%d, %d] -> [%d, %d]\n", x1, y1, x2, y2);
+	/* 4:2:2 chroma is subsampled horizontally; align width and offset to even */
+	x &= ~1;
+	width &= ~1;
+
+	pr_debug("set crop: %dx%d at [%d, %d]\n", width, height, x, y);
 
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
-	cmd.x1 = x1;
-	cmd.y2 = y2;
-	cmd.x2 = x2;
-	cmd.y2 = y2;
+	cmd.x1 = x;
+	cmd.y1 = y;
+	cmd.x2 = width;
+	cmd.y2 = height;
 	len = sizeof(cmd);
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
 }
@@ -1159,17 +1163,9 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 
 	switch(dev_priv->fmt.fmt.pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
-		pixelformat = 1;
-		break;
-	case V4L2_PIX_FMT_YVYU:
-		pixelformat = 2;
-		break;
-	case V4L2_PIX_FMT_NV16:
-		pixelformat = 0;
-		break;
 	default:
 		pixelformat = 1;
-		WARN_ON(1);
+		break;
 	}
 	ret = fthd_isp_cmd_channel_output_config_set(dev_priv, 0,
 						     dev_priv->fmt.fmt.width,
@@ -1240,6 +1236,12 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
 	if (ret)
 		return ret;
+
+	/* Start Auto White Balance (AWB) */
+	ret = fthd_isp_cmd_channel_awb(dev_priv, 0, 1);
+	if (ret)
+		pr_debug("fthd: awb start returned %d\n", ret);
+
 	ret = fthd_isp_cmd_channel_start(dev_priv);
 	if (ret)
 		return ret;

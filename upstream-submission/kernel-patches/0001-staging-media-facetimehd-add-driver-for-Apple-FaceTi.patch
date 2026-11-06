@@ -1,8 +1,8 @@
-From 6127e9dad4b8ab2d8c6d0cf5c448acf17aa7503a Mon Sep 17 00:00:00 2001
+From fabd2c0c0fe028b1f32b2b7ebf348823e372797b Mon Sep 17 00:00:00 2001
 From: Carlos Alberto <carlosalberto4ti@gmail.com>
-Date: Fri, 6 Nov 2026 15:07:58 -0300
-Subject: [PATCH 1/2] staging: media: facetimehd: add driver for Apple FaceTime
- HD (BCM1570) PCIe camera
+Date: Fri, 6 Nov 2026 15:49:57 -0300
+Subject: [PATCH] staging: media: facetimehd: add driver for Apple FaceTime HD
+ (BCM1570) PCIe camera
 
 Add support for the Apple FaceTime HD (Broadcom BCM1570, PCI ID 14e4:1570)
 PCIe Image Signal Processor found across Apple MacBook Pro, MacBook Air,
@@ -26,7 +26,7 @@ Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
  drivers/staging/media/facetimehd/Kconfig      |   16 +
  drivers/staging/media/facetimehd/Makefile     |    5 +
  drivers/staging/media/facetimehd/TODO         |   18 +
- .../staging/media/facetimehd/fthd_buffer.c    |  125 ++
+ .../staging/media/facetimehd/fthd_buffer.c    |  138 ++
  .../staging/media/facetimehd/fthd_buffer.h    |   73 +
  drivers/staging/media/facetimehd/fthd_ddr.c   |  670 ++++++++
  drivers/staging/media/facetimehd/fthd_ddr.h   |   30 +
@@ -36,14 +36,14 @@ Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
  drivers/staging/media/facetimehd/fthd_drv.h   |  133 ++
  drivers/staging/media/facetimehd/fthd_hw.c    |  712 ++++++++
  drivers/staging/media/facetimehd/fthd_hw.h    |  128 ++
- drivers/staging/media/facetimehd/fthd_isp.c   | 1483 +++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_isp.c   | 1485 +++++++++++++++++
  drivers/staging/media/facetimehd/fthd_isp.h   |  768 +++++++++
  drivers/staging/media/facetimehd/fthd_reg.h   |  184 ++
  .../staging/media/facetimehd/fthd_ringbuf.c   |  135 ++
  .../staging/media/facetimehd/fthd_ringbuf.h   |   44 +
- drivers/staging/media/facetimehd/fthd_v4l2.c  |  881 ++++++++++
+ drivers/staging/media/facetimehd/fthd_v4l2.c  |  840 ++++++++++
  drivers/staging/media/facetimehd/fthd_v4l2.h  |   34 +
- 20 files changed, 6254 insertions(+)
+ 20 files changed, 6228 insertions(+)
  create mode 100644 drivers/staging/media/facetimehd/Kconfig
  create mode 100644 drivers/staging/media/facetimehd/Makefile
  create mode 100644 drivers/staging/media/facetimehd/TODO
@@ -124,10 +124,10 @@ index 0000000..140a6fc
 +  devel@driverdev.osuosl.org
 diff --git a/drivers/staging/media/facetimehd/fthd_buffer.c b/drivers/staging/media/facetimehd/fthd_buffer.c
 new file mode 100644
-index 0000000..fae443c
+index 0000000..3ef90a1
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_buffer.c
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,138 @@
 +/*
 + * SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -172,8 +172,21 @@ index 0000000..fae443c
 +	int total_len = 0, dma_length;
 +	dma_addr_t dma_addr;
 +	
-+	for(i = 0; i < sgtable->nents; i++)
-+		total_len += sg_dma_len(sgtable->sgl + i);
++	for(i = 0; i < sgtable->nents; i++) {
++		sg = sgtable->sgl + i;
++
++		/* The S2 IOMMU descriptor holds page numbers only. A segment
++		 * that is not page-aligned causes offset drift and memory corruption.
++		 */
++		if (sg->offset || (sg_dma_address(sg) & 0xfff)) {
++			dev_err(&dev_priv->pdev->dev,
++				"Buffer segment %d is not page aligned (offset %u), refusing\n",
++				i, sg->offset);
++			return NULL;
++		}
++
++		total_len += sg_dma_len(sg);
++	}
 +	
 +	if (!total_len)
 +		return NULL;
@@ -2870,10 +2883,10 @@ index 0000000..58d8024
 +#endif
 diff --git a/drivers/staging/media/facetimehd/fthd_isp.c b/drivers/staging/media/facetimehd/fthd_isp.c
 new file mode 100644
-index 0000000..908848c
+index 0000000..4e21b78
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_isp.c
-@@ -0,0 +1,1483 @@
+@@ -0,0 +1,1485 @@
 +/*
 + * SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -3543,19 +3556,23 @@ index 0000000..908848c
 +}
 +
 +int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
-+				  int x1, int y1, int x2, int y2)
++				  int x, int y, int width, int height)
 +{
 +	struct isp_cmd_channel_set_crop cmd;
 +	int len;
 +
-+	pr_debug("set crop: [%d, %d] -> [%d, %d]\n", x1, y1, x2, y2);
++	/* 4:2:2 chroma is subsampled horizontally; align width and offset to even */
++	x &= ~1;
++	width &= ~1;
++
++	pr_debug("set crop: %dx%d at [%d, %d]\n", width, height, x, y);
 +
 +	memset(&cmd, 0, sizeof(cmd));
 +	cmd.channel = channel;
-+	cmd.x1 = x1;
-+	cmd.y2 = y2;
-+	cmd.x2 = x2;
-+	cmd.y2 = y2;
++	cmd.x1 = x;
++	cmd.y1 = y;
++	cmd.x2 = width;
++	cmd.y2 = height;
 +	len = sizeof(cmd);
 +	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
 +}
@@ -4035,17 +4052,9 @@ index 0000000..908848c
 +
 +	switch(dev_priv->fmt.fmt.pixelformat) {
 +	case V4L2_PIX_FMT_YUYV:
-+		pixelformat = 1;
-+		break;
-+	case V4L2_PIX_FMT_YVYU:
-+		pixelformat = 2;
-+		break;
-+	case V4L2_PIX_FMT_NV16:
-+		pixelformat = 0;
-+		break;
 +	default:
 +		pixelformat = 1;
-+		WARN_ON(1);
++		break;
 +	}
 +	ret = fthd_isp_cmd_channel_output_config_set(dev_priv, 0,
 +						     dev_priv->fmt.fmt.width,
@@ -4116,6 +4125,12 @@ index 0000000..908848c
 +	ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
 +	if (ret)
 +		return ret;
++
++	/* Start Auto White Balance (AWB) */
++	ret = fthd_isp_cmd_channel_awb(dev_priv, 0, 1);
++	if (ret)
++		pr_debug("fthd: awb start returned %d\n", ret);
++
 +	ret = fthd_isp_cmd_channel_start(dev_priv);
 +	if (ret)
 +		return ret;
@@ -5514,10 +5529,10 @@ index 0000000..a59fb5e
 +#endif
 diff --git a/drivers/staging/media/facetimehd/fthd_v4l2.c b/drivers/staging/media/facetimehd/fthd_v4l2.c
 new file mode 100644
-index 0000000..a799ce2
+index 0000000..72b6a3d
 --- /dev/null
 +++ b/drivers/staging/media/facetimehd/fthd_v4l2.c
-@@ -0,0 +1,881 @@
+@@ -0,0 +1,840 @@
 +/*
 + * SPDX-License-Identifier: GPL-2.0-only
 + *
@@ -5562,7 +5577,9 @@ index 0000000..a799ce2
 +#define FTHD_MAX_HEIGHT 1080
 +#define FTHD_MIN_WIDTH 320
 +#define FTHD_MIN_HEIGHT 240
-+#define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
++#define FTHD_SENSOR_WIDTH 1280
++#define FTHD_SENSOR_HEIGHT 720
++#define FTHD_NUM_FORMATS 1
 +
 +static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 +				   unsigned int *nbuffers,
@@ -5875,29 +5892,12 @@ index 0000000..a799ce2
 +static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 +				   struct v4l2_fmtdesc *fmt)
 +{
-+	char *desc = NULL;
-+
-+	switch (fmt->index) {
-+	case 0:
-+		fmt->pixelformat = V4L2_PIX_FMT_YUYV;
-+		desc = "YUYV";
-+		break;
-+	case 1:
-+		fmt->pixelformat = V4L2_PIX_FMT_YVYU;
-+		desc = "YVYU";
-+		break;
-+	/* We don't support the mplane yet
-+	case 2:
-+		fmt->pixelformat = V4L2_PIX_FMT_NV16;
-+		desc = "NV16";
-+		break;
-+	*/
-+	default:
++	if (fmt->index > 0)
 +		return -EINVAL;
-+	}
 +
 +	fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-+	strncpy(fmt->description, desc, sizeof(fmt->description));
++	fmt->pixelformat = V4L2_PIX_FMT_YUYV;
++	strncpy(fmt->description, "YUYV 4:2:2", sizeof(fmt->description));
 +
 +	return 0;
 +}
@@ -5905,10 +5905,7 @@ index 0000000..a799ce2
 +static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 +				   struct v4l2_pix_format *pix)
 +{
-+
-+	if (pix->pixelformat != V4L2_PIX_FMT_YUYV &&
-+	    pix->pixelformat != V4L2_PIX_FMT_YVYU)
-+		pix->pixelformat = V4L2_PIX_FMT_YUYV;
++	pix->pixelformat = V4L2_PIX_FMT_YUYV;
 +
 +	if (pix->width < FTHD_MIN_WIDTH)
 +		pix->width = FTHD_MIN_WIDTH;
@@ -5921,22 +5918,10 @@ index 0000000..a799ce2
 +
 +	pix->colorspace = V4L2_COLORSPACE_SRGB;
 +	pix->field = V4L2_FIELD_NONE;
-+	pix->width = ALIGN(pix->width, 7);
++	pix->width = ALIGN(pix->width, 8);
 +
-+	switch (pix->pixelformat) {
-+/*
-+	case V4L2_PIX_FMT_NV16:
-+		pix->sizeimage = pix->width * pix->height;
-+		pix->bytesperline = pix->width;
-+		break;
-+*/
-+	case V4L2_PIX_FMT_YUYV:
-+	case V4L2_PIX_FMT_YVYU:
-+	default:
-+		pix->bytesperline = pix->width * 2;
-+		pix->sizeimage = pix->bytesperline * pix->height;
-+		break;
-+	}
++	pix->bytesperline = pix->width * 2;
++	pix->sizeimage = pix->bytesperline * pix->height;
 +
 +	return 0;
 +}
@@ -5985,16 +5970,7 @@ index 0000000..a799ce2
 +		 fmt->fmt.pix.pixelformat >> 16, fmt->fmt.pix.pixelformat >> 24);
 +
 +	dev_priv->fmt.fmt = fmt->fmt.pix;
-+
-+	switch (fmt->fmt.pix.pixelformat) {
-+	case V4L2_PIX_FMT_NV16:
-+		dev_priv->fmt.planes = 2;
-+		break;
-+	case V4L2_PIX_FMT_YUYV:
-+	case V4L2_PIX_FMT_YVYU:
-+		dev_priv->fmt.planes = 1;
-+		break;
-+	}
++	dev_priv->fmt.planes = 1;
 +
 +	return 0;
 +}
@@ -6047,8 +6023,7 @@ index 0000000..a799ce2
 +	if (sizes->index >= ARRAY_SIZE(fthd_sizes))
 +		return -EINVAL;
 +
-+	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV &&
-+	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
++	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV)
 +		return -EINVAL;
 +
 +	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
@@ -6070,9 +6045,7 @@ index 0000000..a799ce2
 +	if (interval->index != 0)
 +		return -EINVAL;
 +
-+	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
-+	    interval->pixel_format != V4L2_PIX_FMT_YVYU &&
-+	    interval->pixel_format != V4L2_PIX_FMT_NV16)
++	if (interval->pixel_format != V4L2_PIX_FMT_YUYV)
 +		return -EINVAL;
 +
 +	for (i = 0; i < ARRAY_SIZE(fthd_sizes); i++) {
@@ -6108,7 +6081,7 @@ index 0000000..a799ce2
 + * Educational Note for Developers:
 + * The BCM1570 ISP coprocessor contains a dedicated silicon scaling and cropping
 + * engine. Instead of burdening the host CPU, we instruct the ISP directly to
-+ * extract a sub-window of the sensor array (x1, y1 to x2, y2) and scale it to
++ * extract a sub-window of the physical sensor array (1280x720) and scale it to
 + * the active video stream size.
 + *
 + * This provides lossless digital zoom, pan, and tilt (ePTZ) compatible with
@@ -6125,11 +6098,11 @@ index 0000000..a799ce2
 +	switch (s->target) {
 +	case V4L2_SEL_TGT_CROP_BOUNDS:
 +	case V4L2_SEL_TGT_CROP_DEFAULT:
-+		/* Entire sensor bounds available for cropping */
++		/* Physical sensor bounds available for cropping */
 +		s->r.left = 0;
 +		s->r.top = 0;
-+		s->r.width = FTHD_MAX_WIDTH;
-+		s->r.height = FTHD_MAX_HEIGHT;
++		s->r.width = FTHD_SENSOR_WIDTH;
++		s->r.height = FTHD_SENSOR_HEIGHT;
 +		break;
 +	case V4L2_SEL_TGT_CROP:
 +		/* Currently active crop rectangle */
@@ -6155,28 +6128,29 @@ index 0000000..a799ce2
 +		return -EINVAL;
 +
 +	/*
-+	 * Clamp crop coordinates within valid physical bounds:
-+	 * Minimum width/height: 320x240
-+	 * Maximum width/height: 1920x1080
++	 * Clamp crop coordinates within valid physical sensor bounds (1280x720)
++	 * and enforce even alignment for horizontal/vertical chroma pairs (4:2:2).
 +	 */
-+	s->r.left = clamp_t(u32, s->r.left, 0, FTHD_MAX_WIDTH - FTHD_MIN_WIDTH);
-+	s->r.top = clamp_t(u32, s->r.top, 0, FTHD_MAX_HEIGHT - FTHD_MIN_HEIGHT);
-+	s->r.width = clamp_t(u32, s->r.width, FTHD_MIN_WIDTH, FTHD_MAX_WIDTH - s->r.left);
-+	s->r.height = clamp_t(u32, s->r.height, FTHD_MIN_HEIGHT, FTHD_MAX_HEIGHT - s->r.top);
++	s->r.left = clamp_t(u32, s->r.left, 0, FTHD_SENSOR_WIDTH - FTHD_MIN_WIDTH) & ~1u;
++	s->r.top = clamp_t(u32, s->r.top, 0, FTHD_SENSOR_HEIGHT - FTHD_MIN_HEIGHT) & ~1u;
++	s->r.width = clamp_t(u32, s->r.width, FTHD_MIN_WIDTH, FTHD_SENSOR_WIDTH - s->r.left) & ~1u;
++	s->r.height = clamp_t(u32, s->r.height, FTHD_MIN_HEIGHT, FTHD_SENSOR_HEIGHT - s->r.top) & ~1u;
 +
 +	dev_priv->crop_x1 = s->r.left;
 +	dev_priv->crop_y1 = s->r.top;
 +	dev_priv->crop_x2 = s->r.left + s->r.width;
 +	dev_priv->crop_y2 = s->r.top + s->r.height;
 +
-+	pr_info("fthd: Applying hardware ePTZ crop [%u, %u -> %u, %u]\n",
-+		dev_priv->crop_x1, dev_priv->crop_y1,
-+		dev_priv->crop_x2, dev_priv->crop_y2);
++	pr_info("fthd: Applying hardware ePTZ crop: %ux%u at [%u, %u]\n",
++		s->r.width, s->r.height, s->r.left, s->r.top);
 +
-+	/* Dispatch command CISP_CMD_CH_CROP_SET directly to the ISP coprocessor */
++	/*
++	 * Note: BCM1570 CISP_CMD_CH_CROP_SET parameters:
++	 * x, y, width, height (NOT x1, y1, x2, y2).
++	 */
 +	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0,
-+					    dev_priv->crop_x1, dev_priv->crop_y1,
-+					    dev_priv->crop_x2, dev_priv->crop_y2);
++					    s->r.left, s->r.top,
++					    s->r.width, s->r.height);
 +	return ret;
 +}
 +

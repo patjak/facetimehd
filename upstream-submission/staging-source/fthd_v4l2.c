@@ -42,7 +42,9 @@ static const struct fthd_frame_size fthd_sizes[] = {
 #define FTHD_MAX_HEIGHT 1080
 #define FTHD_MIN_WIDTH 320
 #define FTHD_MIN_HEIGHT 240
-#define FTHD_NUM_FORMATS 2 /* NV16 is disabled for now */
+#define FTHD_SENSOR_WIDTH 1280
+#define FTHD_SENSOR_HEIGHT 720
+#define FTHD_NUM_FORMATS 1
 
 static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 				   unsigned int *nbuffers,
@@ -355,29 +357,12 @@ static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 				   struct v4l2_fmtdesc *fmt)
 {
-	char *desc = NULL;
-
-	switch (fmt->index) {
-	case 0:
-		fmt->pixelformat = V4L2_PIX_FMT_YUYV;
-		desc = "YUYV";
-		break;
-	case 1:
-		fmt->pixelformat = V4L2_PIX_FMT_YVYU;
-		desc = "YVYU";
-		break;
-	/* We don't support the mplane yet
-	case 2:
-		fmt->pixelformat = V4L2_PIX_FMT_NV16;
-		desc = "NV16";
-		break;
-	*/
-	default:
+	if (fmt->index > 0)
 		return -EINVAL;
-	}
 
 	fmt->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	strncpy(fmt->description, desc, sizeof(fmt->description));
+	fmt->pixelformat = V4L2_PIX_FMT_YUYV;
+	strncpy(fmt->description, "YUYV 4:2:2", sizeof(fmt->description));
 
 	return 0;
 }
@@ -385,10 +370,7 @@ static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 				   struct v4l2_pix_format *pix)
 {
-
-	if (pix->pixelformat != V4L2_PIX_FMT_YUYV &&
-	    pix->pixelformat != V4L2_PIX_FMT_YVYU)
-		pix->pixelformat = V4L2_PIX_FMT_YUYV;
+	pix->pixelformat = V4L2_PIX_FMT_YUYV;
 
 	if (pix->width < FTHD_MIN_WIDTH)
 		pix->width = FTHD_MIN_WIDTH;
@@ -401,22 +383,10 @@ static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 
 	pix->colorspace = V4L2_COLORSPACE_SRGB;
 	pix->field = V4L2_FIELD_NONE;
-	pix->width = ALIGN(pix->width, 7);
+	pix->width = ALIGN(pix->width, 8);
 
-	switch (pix->pixelformat) {
-/*
-	case V4L2_PIX_FMT_NV16:
-		pix->sizeimage = pix->width * pix->height;
-		pix->bytesperline = pix->width;
-		break;
-*/
-	case V4L2_PIX_FMT_YUYV:
-	case V4L2_PIX_FMT_YVYU:
-	default:
-		pix->bytesperline = pix->width * 2;
-		pix->sizeimage = pix->bytesperline * pix->height;
-		break;
-	}
+	pix->bytesperline = pix->width * 2;
+	pix->sizeimage = pix->bytesperline * pix->height;
 
 	return 0;
 }
@@ -465,16 +435,7 @@ static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 		 fmt->fmt.pix.pixelformat >> 16, fmt->fmt.pix.pixelformat >> 24);
 
 	dev_priv->fmt.fmt = fmt->fmt.pix;
-
-	switch (fmt->fmt.pix.pixelformat) {
-	case V4L2_PIX_FMT_NV16:
-		dev_priv->fmt.planes = 2;
-		break;
-	case V4L2_PIX_FMT_YUYV:
-	case V4L2_PIX_FMT_YVYU:
-		dev_priv->fmt.planes = 1;
-		break;
-	}
+	dev_priv->fmt.planes = 1;
 
 	return 0;
 }
@@ -527,8 +488,7 @@ static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
 	if (sizes->index >= ARRAY_SIZE(fthd_sizes))
 		return -EINVAL;
 
-	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV &&
-	    sizes->pixel_format != V4L2_PIX_FMT_YVYU)
+	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV)
 		return -EINVAL;
 
 	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
@@ -550,9 +510,7 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	if (interval->index != 0)
 		return -EINVAL;
 
-	if (interval->pixel_format != V4L2_PIX_FMT_YUYV &&
-	    interval->pixel_format != V4L2_PIX_FMT_YVYU &&
-	    interval->pixel_format != V4L2_PIX_FMT_NV16)
+	if (interval->pixel_format != V4L2_PIX_FMT_YUYV)
 		return -EINVAL;
 
 	for (i = 0; i < ARRAY_SIZE(fthd_sizes); i++) {
@@ -588,7 +546,7 @@ static int fthd_v4l2_ioctl_subscribe_event(struct v4l2_fh *fh,
  * Educational Note for Developers:
  * The BCM1570 ISP coprocessor contains a dedicated silicon scaling and cropping
  * engine. Instead of burdening the host CPU, we instruct the ISP directly to
- * extract a sub-window of the sensor array (x1, y1 to x2, y2) and scale it to
+ * extract a sub-window of the physical sensor array (1280x720) and scale it to
  * the active video stream size.
  *
  * This provides lossless digital zoom, pan, and tilt (ePTZ) compatible with
@@ -605,11 +563,11 @@ static int fthd_v4l2_ioctl_g_selection(struct file *filp, void *fh,
 	switch (s->target) {
 	case V4L2_SEL_TGT_CROP_BOUNDS:
 	case V4L2_SEL_TGT_CROP_DEFAULT:
-		/* Entire sensor bounds available for cropping */
+		/* Physical sensor bounds available for cropping */
 		s->r.left = 0;
 		s->r.top = 0;
-		s->r.width = FTHD_MAX_WIDTH;
-		s->r.height = FTHD_MAX_HEIGHT;
+		s->r.width = FTHD_SENSOR_WIDTH;
+		s->r.height = FTHD_SENSOR_HEIGHT;
 		break;
 	case V4L2_SEL_TGT_CROP:
 		/* Currently active crop rectangle */
@@ -635,28 +593,29 @@ static int fthd_v4l2_ioctl_s_selection(struct file *filp, void *fh,
 		return -EINVAL;
 
 	/*
-	 * Clamp crop coordinates within valid physical bounds:
-	 * Minimum width/height: 320x240
-	 * Maximum width/height: 1920x1080
+	 * Clamp crop coordinates within valid physical sensor bounds (1280x720)
+	 * and enforce even alignment for horizontal/vertical chroma pairs (4:2:2).
 	 */
-	s->r.left = clamp_t(u32, s->r.left, 0, FTHD_MAX_WIDTH - FTHD_MIN_WIDTH);
-	s->r.top = clamp_t(u32, s->r.top, 0, FTHD_MAX_HEIGHT - FTHD_MIN_HEIGHT);
-	s->r.width = clamp_t(u32, s->r.width, FTHD_MIN_WIDTH, FTHD_MAX_WIDTH - s->r.left);
-	s->r.height = clamp_t(u32, s->r.height, FTHD_MIN_HEIGHT, FTHD_MAX_HEIGHT - s->r.top);
+	s->r.left = clamp_t(u32, s->r.left, 0, FTHD_SENSOR_WIDTH - FTHD_MIN_WIDTH) & ~1u;
+	s->r.top = clamp_t(u32, s->r.top, 0, FTHD_SENSOR_HEIGHT - FTHD_MIN_HEIGHT) & ~1u;
+	s->r.width = clamp_t(u32, s->r.width, FTHD_MIN_WIDTH, FTHD_SENSOR_WIDTH - s->r.left) & ~1u;
+	s->r.height = clamp_t(u32, s->r.height, FTHD_MIN_HEIGHT, FTHD_SENSOR_HEIGHT - s->r.top) & ~1u;
 
 	dev_priv->crop_x1 = s->r.left;
 	dev_priv->crop_y1 = s->r.top;
 	dev_priv->crop_x2 = s->r.left + s->r.width;
 	dev_priv->crop_y2 = s->r.top + s->r.height;
 
-	pr_info("fthd: Applying hardware ePTZ crop [%u, %u -> %u, %u]\n",
-		dev_priv->crop_x1, dev_priv->crop_y1,
-		dev_priv->crop_x2, dev_priv->crop_y2);
+	pr_info("fthd: Applying hardware ePTZ crop: %ux%u at [%u, %u]\n",
+		s->r.width, s->r.height, s->r.left, s->r.top);
 
-	/* Dispatch command CISP_CMD_CH_CROP_SET directly to the ISP coprocessor */
+	/*
+	 * Note: BCM1570 CISP_CMD_CH_CROP_SET parameters:
+	 * x, y, width, height (NOT x1, y1, x2, y2).
+	 */
 	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0,
-					    dev_priv->crop_x1, dev_priv->crop_y1,
-					    dev_priv->crop_x2, dev_priv->crop_y2);
+					    s->r.left, s->r.top,
+					    s->r.width, s->r.height);
 	return ret;
 }
 
