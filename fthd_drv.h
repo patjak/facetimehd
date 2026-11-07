@@ -1,6 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
@@ -34,9 +33,9 @@
 #define FTHD_FRAME_RATE_MAX (30 * FTHD_FRAME_RATE_SCALE)
 
 enum FW_CHAN_TYPE {
-	FW_CHAN_TYPE_OUT=0,
-	FW_CHAN_TYPE_IN=1,
-	FW_CHAN_TYPE_UNI_IN=2,
+	FW_CHAN_TYPE_OUT = 0,
+	FW_CHAN_TYPE_IN = 1,
+	FW_CHAN_TYPE_UNI_IN = 2,
 };
 
 struct fw_channel {
@@ -118,16 +117,28 @@ struct fthd_private {
 	struct vb2_queue vb2_queue;
 	struct mutex vb2_queue_lock;
 	struct list_head buffer_queue;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
-	struct vb2_alloc_ctx *alloc_ctx;
-#endif
 	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
+	bool channel_started;
 
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	u32 frame_rate; /* 1/256 fps */
 	int exposure_auto_priority;
 	unsigned int sequence;
 	struct dentry *debugfs;
+
+	/* Digital Zoom / Pan-Tilt (ePTZ) Hardware Crop Coordinates */
+	u32 crop_x1;
+	u32 crop_y1;
+	u32 crop_x2;
+	u32 crop_y2;
 };
+
+/* Module parameters exposed system-wide via /sys/module/facetimehd/parameters/ */
+extern int fthd_led_mode;
+extern int fthd_power_save;
+extern int fthd_default_width;
+extern int fthd_default_height;
+extern int fthd_drc_enable;
+extern int fthd_ae_metering;
 
 #endif

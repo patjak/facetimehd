@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-2.0-only
+config VIDEO_FACETIMEHD
+	tristate "Broadcom BCM1570 PCIe FaceTime HD Camera support"
+	depends on PCI && VIDEO_DEV
+	select VIDEOBUF2_DMA_SG
+	help
+	  This is a driver for the Broadcom BCM1570 PCIe camera coprocessor
+	  found in Apple MacBook Pro and MacBook Air laptops (2013-2015).
+
+	  The camera is connected directly to the PCIe bus and drives an
+	  OmniVision OV5650 sensor via MIPI CSI-2 and an AD5816 voice-coil
+	  autofocus motor via I2C.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called facetimehd.

@@ -1,6 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
@@ -22,9 +21,9 @@ int isp_mem_init(struct fthd_private *dev_priv)
 {
 	struct resource *root = &dev_priv->pdev->resource[FTHD_PCI_S2_MEM];
 
-        dev_priv->mem = kzalloc(sizeof(struct resource), GFP_KERNEL);
+	dev_priv->mem = kzalloc(sizeof(struct resource), GFP_KERNEL);
 	if (!dev_priv->mem)
-	    return -ENOMEM;
+		return -ENOMEM;
 
 	dev_priv->mem->start = root->start;
 	dev_priv->mem->end = root->end;
@@ -93,7 +92,7 @@ static int isp_acpi_set_power(struct fthd_private *dev_priv, int power)
 
 
 	handle = ACPI_HANDLE(&dev_priv->pdev->dev);
-	if(!handle) {
+	if (!handle) {
 		dev_err(&dev_priv->pdev->dev,
 			"Failed to get S2 CMPE ACPI handle\n");
 		ret = -ENODEV;
@@ -180,7 +179,8 @@ static void isp_free_channel_info(struct fthd_private *priv)
 {
 	struct fw_channel *chan;
 	int i;
-	for(i = 0; i < priv->num_channels; i++) {
+
+	for (i = 0; i < priv->num_channels; i++) {
 		chan = priv->channels[i];
 		if (!chan)
 			continue;
@@ -196,7 +196,8 @@ static void isp_free_channel_info(struct fthd_private *priv)
 static struct fw_channel *isp_get_chan_index(struct fthd_private *priv, const char *name)
 {
 	int i;
-	for(i = 0; i < priv->num_channels; i++) {
+
+	for (i = 0; i < priv->num_channels; i++) {
 		if (!strcasecmp(priv->channels[i]->name, name))
 			return priv->channels[i];
 	}
@@ -218,7 +219,7 @@ static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int 
 
 	dev_priv->num_channels = num_channels;
 
-	for(i = 0; i < num_channels; i++) {
+	for (i = 0; i < num_channels; i++) {
 		FTHD_S2_MEMCPY_FROMIO(&info, offset + i * 256, sizeof(info));
 
 		chan = kzalloc(sizeof(struct fw_channel), GFP_KERNEL);
@@ -311,7 +312,7 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 		goto out;
 	}
 
-        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_io, entry, 2000);
+	ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_io, entry, 2000);
 	if (ret) {
 		if (response_len)
 			*response_len = 0;
@@ -323,8 +324,9 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
 
-	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
-	        verification done? */
+	/* XXX: response size in the ringbuf is zero after command completion,
+	 * how is buffer size verification done?
+	 */
 	if (response_len && *response_len)
 		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
 				     *response_len);
@@ -380,7 +382,7 @@ int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command
 		goto out;
 	}
 
-        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_debug, entry, 20000);
+	ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_debug, entry, 20000);
 	if (ret) {
 		if (response_len)
 			*response_len = 0;
@@ -392,8 +394,9 @@ int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
 
-	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
-	        verification done? */
+	/* XXX: response size in the ringbuf is zero after command completion,
+	 * how is buffer size verification done?
+	 */
 	if (response_len && *response_len)
 		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
 				     *response_len);
@@ -530,7 +533,7 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 
 	memset(&cmd, 0, sizeof(cmd));
 
-	switch(dev_priv->sensor_id1) {
+	switch (dev_priv->sensor_id1) {
 	case 0x164:
 		filename = "facetimehd/8221_01XX.dat";
 		break;
@@ -538,7 +541,7 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		filename = "facetimehd/1222_01XX.dat";
 		break;
 	case 0x248:
-		switch(dev_priv->sensor_id0 >> 4) {
+		switch (dev_priv->sensor_id0 >> 4) {
 		case 5:
 			filename = "facetimehd/1575_01XX.dat";
 			break;
@@ -557,7 +560,7 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 			break;
 		}
 
-		switch(dev_priv->sensor_id0) {
+		switch (dev_priv->sensor_id0) {
 		case 4:
 			filename = "facetimehd/1874_01XX.dat";
 			break;
@@ -567,7 +570,7 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		}
 		break;
 	case 0x9774:
-		switch(dev_priv->sensor_id0) {
+		switch (dev_priv->sensor_id0) {
 		case 4:
 			filename = "facetimehd/1674_01XX.dat";
 			break;
@@ -670,7 +673,7 @@ int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv)
 	pr_debug("sending ch camera config\n");
 
 	memset(&cmd, 0, sizeof(cmd));
-	for(i = 0; i < dev_priv->sensor_count; i++) {
+	for (i = 0; i < dev_priv->sensor_count; i++) {
 		cmd.channel = i;
 
 		len = sizeof(cmd);
@@ -1099,6 +1102,35 @@ int fthd_isp_cmd_channel_ae_metering_mode_set(struct fthd_private *dev_priv, int
 	return fthd_isp_cmd(dev_priv, CISP_CMD_APPLE_CH_AE_METERING_MODE_SET, &cmd, sizeof(cmd), &len);
 }
 
+/*
+ * Control camera indicator LED:
+ * mode 0: Auto (firmware illuminates LED during active capture)
+ * mode 1: Force Off (stealth mode / disable indicator)
+ * mode 2: Force On (keep indicator illuminated)
+ */
+int fthd_isp_cmd_set_led(struct fthd_private *dev_priv, int channel, int mode)
+{
+	struct {
+		u32 channel;
+	} cmd;
+	int len = sizeof(cmd);
+	int ret = 0;
+
+	memset(&cmd, 0, sizeof(cmd));
+	cmd.channel = channel;
+
+	if (mode == 1) {
+		/* Turn off LED indicator */
+		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_LED_TORCH_OFF, &cmd, sizeof(cmd), &len);
+	} else if (mode == 2) {
+		/* Turn on indicator */
+		ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_LED_TORCH_ON_INDICATOR, &cmd, sizeof(cmd), &len);
+	}
+
+	pr_debug("set_led mode %d ret=%d\n", mode, ret);
+	return 0;
+}
+
 int fthd_isp_cmd_channel_brightness_set(struct fthd_private *dev_priv, int channel, int brightness)
 {
 	struct isp_cmd_channel_brightness_set cmd;
@@ -1235,19 +1267,11 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	if (ret)
 		return ret;
 
-	switch(dev_priv->fmt.fmt.pixelformat) {
+	switch (dev_priv->fmt.fmt.pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
-		pixelformat = 1;
-		break;
-	case V4L2_PIX_FMT_YVYU:
-		pixelformat = 2;
-		break;
-	case V4L2_PIX_FMT_NV16:
-		pixelformat = 0;
-		break;
 	default:
 		pixelformat = 1;
-		WARN_ON(1);
+		break;
 	}
 	ret = fthd_isp_cmd_channel_output_config_set(dev_priv, 0,
 						     dev_priv->fmt.fmt.width,
@@ -1262,15 +1286,17 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_recycle_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, 3);
+	ret = fthd_isp_cmd_channel_ae_metering_mode_set(dev_priv, 0, fthd_ae_metering);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
-	if (ret)
-		return ret;
-	ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
-	if (ret)
-		return ret;
+	if (fthd_drc_enable) {
+		ret = fthd_isp_cmd_channel_drc_start(dev_priv, 0);
+		if (ret)
+			return ret;
+		ret = fthd_isp_cmd_channel_tone_curve_adaptation_start(dev_priv, 0);
+		if (ret)
+			return ret;
+	}
 	ret = fthd_isp_cmd_channel_ae_speed_set(dev_priv, 0, 60);
 	if (ret)
 		return ret;
@@ -1312,9 +1338,25 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_streaming_mode(dev_priv, 0, 0);
 	if (ret)
 		return ret;
+	ret = fthd_isp_cmd_channel_brightness_set(dev_priv, 0, 0x80);
+	if (ret)
+		return ret;
+	ret = fthd_isp_cmd_channel_contrast_set(dev_priv, 0, 0x80);
+	if (ret)
+		return ret;
+
+	/* Start Auto White Balance (AWB) */
+	ret = fthd_isp_cmd_channel_awb(dev_priv, 0, 1);
+	if (ret)
+		pr_debug("fthd: awb start returned %d\n", ret);
+
 	ret = fthd_isp_cmd_channel_start(dev_priv);
 	if (ret)
 		return ret;
+
+	/* Apply LED indicator override if configured */
+	if (fthd_led_mode != 0)
+		fthd_isp_cmd_set_led(dev_priv, 0, fthd_led_mode);
 	msleep(200); /* Needed to settle AE */
 	return 0;
 }
@@ -1347,7 +1389,21 @@ int fthd_stop_channel(struct fthd_private *dev_priv, int channel)
 	if (ret)
 		return ret;
 
-	return fthd_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
+	ret = fthd_isp_cmd_channel_temporal_filter_stop(dev_priv, 0);
+	if (ret)
+		return ret;
+
+	/* Aggressive Low Power: power down sensor on stop */
+	if (fthd_power_save == 2) {
+		struct {
+			u32 channel;
+		} pcmd;
+		memset(&pcmd, 0, sizeof(pcmd));
+		pcmd.channel = 0;
+		fthd_isp_cmd(dev_priv, CISP_CMD_CH_SENSOR_POWER_OFF, &pcmd, sizeof(pcmd), NULL);
+	}
+
+	return 0;
 }
 
 int isp_init(struct fthd_private *dev_priv)
