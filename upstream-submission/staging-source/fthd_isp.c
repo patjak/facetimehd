@@ -1,6 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
@@ -22,9 +21,9 @@ int isp_mem_init(struct fthd_private *dev_priv)
 {
 	struct resource *root = &dev_priv->pdev->resource[FTHD_PCI_S2_MEM];
 
-        dev_priv->mem = kzalloc(sizeof(struct resource), GFP_KERNEL);
+	dev_priv->mem = kzalloc(sizeof(struct resource), GFP_KERNEL);
 	if (!dev_priv->mem)
-	    return -ENOMEM;
+		return -ENOMEM;
 
 	dev_priv->mem->start = root->start;
 	dev_priv->mem->end = root->end;
@@ -93,7 +92,7 @@ static int isp_acpi_set_power(struct fthd_private *dev_priv, int power)
 
 
 	handle = ACPI_HANDLE(&dev_priv->pdev->dev);
-	if(!handle) {
+	if (!handle) {
 		dev_err(&dev_priv->pdev->dev,
 			"Failed to get S2 CMPE ACPI handle\n");
 		ret = -ENODEV;
@@ -170,7 +169,8 @@ static void isp_free_channel_info(struct fthd_private *priv)
 {
 	struct fw_channel *chan;
 	int i;
-	for(i = 0; i < priv->num_channels; i++) {
+
+	for (i = 0; i < priv->num_channels; i++) {
 		chan = priv->channels[i];
 		if (!chan)
 			continue;
@@ -186,7 +186,8 @@ static void isp_free_channel_info(struct fthd_private *priv)
 static struct fw_channel *isp_get_chan_index(struct fthd_private *priv, const char *name)
 {
 	int i;
-	for(i = 0; i < priv->num_channels; i++) {
+
+	for (i = 0; i < priv->num_channels; i++) {
 		if (!strcasecmp(priv->channels[i]->name, name))
 			return priv->channels[i];
 	}
@@ -208,7 +209,7 @@ static int isp_fill_channel_info(struct fthd_private *dev_priv, int offset, int 
 
 	dev_priv->num_channels = num_channels;
 
-	for(i = 0; i < num_channels; i++) {
+	for (i = 0; i < num_channels; i++) {
 		FTHD_S2_MEMCPY_FROMIO(&info, offset + i * 256, sizeof(info));
 
 		chan = kzalloc(sizeof(struct fw_channel), GFP_KERNEL);
@@ -301,7 +302,7 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 		goto out;
 	}
 
-        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_io, entry, 2000);
+	ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_io, entry, 2000);
 	if (ret) {
 		if (response_len)
 			*response_len = 0;
@@ -313,8 +314,9 @@ static int fthd_isp_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds comman
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
 
-	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
-	        verification done? */
+	/* XXX: response size in the ringbuf is zero after command completion,
+	 * how is buffer size verification done?
+	 */
 	if (response_len && *response_len)
 		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
 				     *response_len);
@@ -370,7 +372,7 @@ int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command
 		goto out;
 	}
 
-        ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_debug, entry, 20000);
+	ret = fthd_channel_wait_ready(dev_priv, dev_priv->channel_debug, entry, 20000);
 	if (ret) {
 		if (response_len)
 			*response_len = 0;
@@ -382,8 +384,9 @@ int fthd_isp_debug_cmd(struct fthd_private *dev_priv, enum fthd_isp_cmds command
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
 
-	/* XXX: response size in the ringbuf is zero after command completion, how is buffer size
-	        verification done? */
+	/* XXX: response size in the ringbuf is zero after command completion,
+	 * how is buffer size verification done?
+	 */
 	if (response_len && *response_len)
 		FTHD_S2_MEMCPY_FROMIO(buf, (address & ~3) + sizeof(struct isp_cmd_hdr),
 				     *response_len);
@@ -520,7 +523,7 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 
 	memset(&cmd, 0, sizeof(cmd));
 
-	switch(dev_priv->sensor_id1) {
+	switch (dev_priv->sensor_id1) {
 	case 0x164:
 		filename = "facetimehd/8221_01XX.dat";
 		break;
@@ -532,12 +535,12 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		break;
 	case 0x9770:
 		if (vendor && board && !strcmp(vendor, "Apple Inc.") &&
-		    !strncmp(board, "MacBookAir", sizeof("MacBookAir")-1)) {
+		    !strncmp(board, "MacBookAir", sizeof("MacBookAir") - 1)) {
 			filename = "facetimehd/1771_01XX.dat";
 			break;
 		}
 
-		switch(dev_priv->sensor_id0) {
+		switch (dev_priv->sensor_id0) {
 		case 4:
 			filename = "facetimehd/1874_01XX.dat";
 			break;
@@ -547,7 +550,7 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 		}
 		break;
 	case 0x9774:
-		switch(dev_priv->sensor_id0) {
+		switch (dev_priv->sensor_id0) {
 		case 4:
 			filename = "facetimehd/1674_01XX.dat";
 			break;
@@ -639,7 +642,7 @@ int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv)
 	pr_debug("sending ch camera config\n");
 
 	memset(&cmd, 0, sizeof(cmd));
-	for(i = 0; i < dev_priv->sensor_count; i++) {
+	for (i = 0; i < dev_priv->sensor_count; i++) {
 		cmd.channel = i;
 
 		len = sizeof(cmd);
@@ -1161,7 +1164,7 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	if (ret)
 		return ret;
 
-	switch(dev_priv->fmt.fmt.pixelformat) {
+	switch (dev_priv->fmt.fmt.pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
 	default:
 		pixelformat = 1;

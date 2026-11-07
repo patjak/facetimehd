@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * FacetimeHD camera driver
  *
@@ -601,7 +602,7 @@ static int fthd_ddr_generic_shmoo_calibrate_wr_dq(struct fthd_private *dev_priv)
 	u32 fails[64];
 	u32 settings[64]; /* Size is actually 16? */
 	u32 setting, offset;
-	int bit, bl, ret = 0;
+	int bit, bl;
 
 	/* shmoo_wr_dq */
 	for (setting = 0; setting < 64; setting++) {
@@ -620,7 +621,7 @@ static int fthd_ddr_generic_shmoo_calibrate_wr_dq(struct fthd_private *dev_priv)
 
 	fthd_ddr_calibrate_wr_dq(dev_priv, fails, settings);
 
-	return ret;
+	return 0;
 }
 
 static int fthd_ddr_generic_shmoo_calibrate_wr_dm(struct fthd_private *dev_priv)

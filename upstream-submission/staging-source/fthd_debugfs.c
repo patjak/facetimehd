@@ -1,6 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
@@ -93,7 +92,7 @@ static int seq_channel_read(struct seq_file *seq, struct fthd_private *dev_priv,
 	u32 entry;
 
 	spin_lock_irq(&chan->lock);
-	for( i = 0; i < chan->size; i++) {
+	for (i = 0; i < chan->size; i++) {
 		if (chan->ringbuf.idx == i)
 			pos = '*';
 		else
@@ -110,51 +109,51 @@ static int seq_channel_read(struct seq_file *seq, struct fthd_private *dev_priv,
 }
 
 static int seq_channel_terminal_read(struct seq_file *seq, void *data)
-
 {
 	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
+
 	return seq_channel_read(seq, dev_priv, dev_priv->channel_terminal);
 }
 
 static int seq_channel_sharedmalloc_read(struct seq_file *seq, void *data)
-
 {
 	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
+
 	return seq_channel_read(seq, dev_priv, dev_priv->channel_shared_malloc);
 }
 
 static int seq_channel_io_read(struct seq_file *seq, void *data)
-
 {
 	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
+
 	return seq_channel_read(seq, dev_priv, dev_priv->channel_io);
 }
 
 static int seq_channel_io_t2h_read(struct seq_file *seq, void *data)
-
 {
 	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
+
 	return seq_channel_read(seq, dev_priv, dev_priv->channel_io_t2h);
 }
 
 static int seq_channel_buf_h2t_read(struct seq_file *seq, void *data)
-
 {
 	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
+
 	return seq_channel_read(seq, dev_priv, dev_priv->channel_buf_h2t);
 }
 
 static int seq_channel_buf_t2h_read(struct seq_file *seq, void *data)
-
 {
 	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
+
 	return seq_channel_read(seq, dev_priv, dev_priv->channel_buf_t2h);
 }
 
 static int seq_channel_debug_read(struct seq_file *seq, void *data)
-
 {
 	struct fthd_private *dev_priv = dev_get_drvdata(seq->private);
+
 	return seq_channel_read(seq, dev_priv, dev_priv->channel_debug);
 }
 
@@ -187,7 +186,7 @@ int fthd_debugfs_init(struct fthd_private *dev_priv)
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_buf_h2t", d, seq_channel_buf_h2t_read);
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_buf_t2h", d, seq_channel_buf_t2h_read);
 	debugfs_create_devm_seqfile(&dev_priv->pdev->dev, "channel_debug", d, seq_channel_debug_read);
-	debugfs_create_file("debug", S_IRUSR | S_IWUSR, d, dev_priv, &fops_debug);
+	debugfs_create_file("debug", 0600, d, dev_priv, &fops_debug);
 	dev_priv->debugfs = top;
 	return 0;
 }

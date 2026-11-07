@@ -1,6 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
@@ -45,7 +44,7 @@
  *
  * 5. ae_metering: Auto-exposure metering algorithm (0=Average, 1=Center, 2=Spot, 3=Matrix)
  */
-int fthd_led_mode = 0;
+int fthd_led_mode;
 module_param_named(led_mode, fthd_led_mode, int, 0644);
 MODULE_PARM_DESC(led_mode, "LED indicator mode: 0=Auto (on while streaming), 1=Always Off, 2=Always On");
 
@@ -61,7 +60,7 @@ int fthd_default_height = 720;
 module_param_named(default_height, fthd_default_height, int, 0644);
 MODULE_PARM_DESC(default_height, "Default capture height (default: 720)");
 
-int fthd_drc_enable = 0;
+int fthd_drc_enable;
 module_param_named(drc_enable, fthd_drc_enable, int, 0644);
 MODULE_PARM_DESC(drc_enable, "Default HDR / Dynamic Range Compression: 0=Disabled (default), 1=Enabled");
 
@@ -136,7 +135,7 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
-	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~ 3;
+	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~3;
 
 	if (address) {
 		pr_debug("Firmware wants to free memory at %08x\n", address);
@@ -145,7 +144,7 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 
 		ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
 		if (ret)
-			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __func__, ret);
 	} else {
 		if (!request_size)
 			return;
@@ -154,12 +153,12 @@ static void sharedmalloc_handler(struct fthd_private *dev_priv,
 			return;
 
 		pr_debug("Firmware allocated %d bytes at %08lx (tag %c%c%c%c)\n", request_size, obj->offset,
-			 response_size >> 24,response_size >> 16,
+			 response_size >> 24, response_size >> 16,
 			 response_size >> 8, response_size);
 		FTHD_S2_MEMCPY_TOIO(obj->offset, &obj, sizeof(obj));
 		ret = fthd_channel_ringbuf_send(dev_priv, chan, obj->offset + 64, 0, 0, NULL);
 		if (ret)
-			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+			pr_err("%s: fthd_channel_ringbuf_send: %d\n", __func__, ret);
 
 	}
 
@@ -175,7 +174,7 @@ static void terminal_handler(struct fthd_private *dev_priv,
 
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
-	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~ 3;
+	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS) & ~3;
 
 	if (!address || !request_size)
 		return;
@@ -192,6 +191,7 @@ static void buf_t2h_handler(struct fthd_private *dev_priv,
 {
 	u32 request_size, response_size, address;
 	int ret;
+
 	request_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE);
 	response_size = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE);
 	address = FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS);
@@ -199,12 +199,11 @@ static void buf_t2h_handler(struct fthd_private *dev_priv,
 	if (address & 1)
 		return;
 
-
 	fthd_buffer_return_handler(dev_priv, address & ~3, request_size);
 	ret = fthd_channel_ringbuf_send(dev_priv, chan, (response_size & 0x10000000) ? address : 0,
 					0, 0x80000000, NULL);
 	if (ret)
-		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __func__, ret);
 
 }
 
@@ -213,8 +212,9 @@ static void io_t2h_handler(struct fthd_private *dev_priv,
 				 u32 entry)
 {
 	int ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
+
 	if (ret)
-		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+		pr_err("%s: fthd_channel_ringbuf_send: %d\n", __func__, ret);
 
 }
 
@@ -241,7 +241,7 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 		return;
 	}
 
-	while((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
+	while ((entry = fthd_channel_ringbuf_receive(dev_priv, chan)) != (u32)-1) {
 		pr_debug("channel %s: message available, address %08x\n", chan->name, FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS));
 		if (chan == dev_priv->channel_shared_malloc) {
 			sharedmalloc_handler(dev_priv, chan, entry);
@@ -249,7 +249,7 @@ static void fthd_handle_irq(struct fthd_private *dev_priv, struct fw_channel *ch
 			terminal_handler(dev_priv, chan, entry);
 			ret = fthd_channel_ringbuf_send(dev_priv, chan, 0, 0, 0, NULL);
 			if (ret)
-				pr_err("%s: fthd_channel_ringbuf_send: %d\n", __FUNCTION__, ret);
+				pr_err("%s: fthd_channel_ringbuf_send: %d\n", __func__, ret);
 		} else if (chan == dev_priv->channel_buf_t2h) {
 			buf_t2h_handler(dev_priv, chan, entry);
 		} else if (chan == dev_priv->channel_io_t2h) {
@@ -271,7 +271,7 @@ static void fthd_irq_work(struct work_struct *work)
 	u32 pending;
 	int i = 0;
 
-	while(i++ < 500) {
+	while (i++ < 500) {
 		spin_lock_irq(&dev_priv->io_lock);
 		pending = FTHD_ISP_REG_READ(ISP_IRQ_STATUS);
 		spin_unlock_irq(&dev_priv->io_lock);
@@ -285,7 +285,7 @@ static void fthd_irq_work(struct work_struct *work)
 		spin_unlock_irq(&dev_priv->io_lock);
 		pci_write_config_dword(dev_priv->pdev, 0x90, 0x200);
 
-		for(i = 0; i < dev_priv->num_channels; i++) {
+		for (i = 0; i < dev_priv->num_channels; i++) {
 			chan = dev_priv->channels[i];
 
 
@@ -487,11 +487,9 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	dev_info(&pdev->dev, "Found FaceTime HD camera with device id: %x\n",
 		 pdev->device);
 
-	dev_priv = kzalloc(sizeof(struct fthd_private), GFP_KERNEL);
-	if (!dev_priv) {
-		dev_err(&pdev->dev, "Failed to allocate memory\n");
+	dev_priv = kzalloc(sizeof(*dev_priv), GFP_KERNEL);
+	if (!dev_priv)
 		return -ENOMEM;
-	}
 
 	dev_priv->ddr_model = 4;
 	dev_priv->ddr_speed = 450;

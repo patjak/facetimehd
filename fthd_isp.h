@@ -1,6 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2014 Patrik Jakobsson (patrik.r.jakobsson@gmail.com)
@@ -438,7 +437,7 @@ enum fthd_isp_cmds {
 };
 
 enum isp_debug_cmds {
-	CISP_CMD_DEBUG_BANNER=0,
+	CISP_CMD_DEBUG_BANNER = 0,
 	CISP_CMD_DEBUG_NOP1,
 	CISP_CMD_DEBUG_NOP2,
 	CISP_CMD_DEBUG_PS,

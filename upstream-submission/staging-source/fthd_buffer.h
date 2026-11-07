@@ -1,6 +1,5 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
@@ -33,7 +32,7 @@ struct dma_descriptor {
 
 struct dma_descriptor_list {
 	u32 field0;
-    	u32 count;
+	u32 count;
 	struct dma_descriptor desc[4];
 	char unknown[216];
 } __attribute__((packed));
