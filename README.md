@@ -172,12 +172,24 @@ Streaming & Realtime Pipeline Verification:
 
 ---
 
+## Clean-Room Reverse Engineering & Firmware Documentation
+
+To ensure 100% legal compliance and provide the open-source community with verifiable hardware documentation, all reverse engineering artifacts, hardware registers, and clean-room firmware sources are maintained in the companion [OpenFTHD project](https://github.com/programandosolucoes/open-fthd-firmware):
+
+- **Comprehensive Hardware Datasheet & Provenance (English)**: [DATASHEET_AND_PROVENANCE_REPORT.md](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/docs/DATASHEET_AND_PROVENANCE_REPORT.md)
+- **Relatório Técnico Completo de Engenharia Reversa (Português)**: [RELATORIO_TECNICO_E_PROVENIENCIA_PT.md](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
+- **Public Domain & Clean-Room Sources Register**: [SOURCES.md](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/SOURCES.md)
+- **Upstream Submission Package**: Complete kernel staging patch series and linux-firmware patch are available in [`upstream-submission/`](upstream-submission/).
+
+---
+
 ## Developer APIs & Companion Tools
 
-Companion didactic SDKs and CLI tools are provided in the [OpenFTHD project](https://github.com/carlos/open-fthd-firmware):
-- **Python**: `open-fthd-firmware/tools/fthd_camera_control.py`
-- **C Library**: `open-fthd-firmware/tools/c/libfthd.h` and `fthd-tool`
-- **Rust Crate**: `open-fthd-firmware/tools/rust/` (`fthd-ctl`)
+Companion developer SDKs, CLI tools, and QEMU test harnesses are provided in the [OpenFTHD Repository](https://github.com/programandosolucoes/open-fthd-firmware):
+- **Python**: [`tools/fthd_camera_control.py`](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/tools/fthd_camera_control.py) (Full V4L2 Control & ePTZ CLI/library)
+- **C Library**: [`tools/c/libfthd.h`](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/tools/c/libfthd.h) and `fthd-tool`
+- **Rust Crate**: [`tools/rust/`](https://github.com/programandosolucoes/open-fthd-firmware/tree/main/tools/rust) (`fthd-ctl`)
+- **Firmware Implementations**: Both Freestanding C (`src/`) and Embedded Rust `#![no_std]` (`rust/`) implementations with QEMU integration tests.
 
 ---
 
