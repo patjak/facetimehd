@@ -172,13 +172,21 @@ Streaming & Realtime Pipeline Verification:
 
 ---
 
-## Clean-Room Reverse Engineering & Firmware Documentation
+## Clean-Room Reverse Engineering, Study Dossier & Upstream Base Sources
 
-To ensure 100% legal compliance and provide the open-source community with verifiable hardware documentation, all reverse engineering artifacts, hardware registers, and clean-room firmware sources are maintained in the companion [OpenFTHD project](https://github.com/programandosolucoes/open-fthd-firmware):
+To ensure 100% legal compliance, scientific reproducibility, and provide the Linux kernel community with verifiable hardware documentation, all reverse engineering artifacts, base source codes, register maps, and clean-room firmware implementations are tracked directly in this repository and in the companion [OpenFTHD project](https://github.com/programandosolucoes/open-fthd-firmware):
 
-- **Comprehensive Hardware Datasheet & Provenance (English)**: [DATASHEET_AND_PROVENANCE_REPORT.md](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/docs/DATASHEET_AND_PROVENANCE_REPORT.md)
-- **Relatório Técnico Completo de Engenharia Reversa (Português)**: [RELATORIO_TECNICO_E_PROVENIENCIA_PT.md](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
-- **Public Domain & Clean-Room Sources Register**: [SOURCES.md](https://github.com/programandosolucoes/open-fthd-firmware/blob/main/SOURCES.md)
+- **Dossiê Técnico de Engenharia Reversa e Códigos-Base (Português)**: [`docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md`](docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md)
+- **Diretório de Códigos-Fonte de Referência (`references/`)**: [`references/README.md`](references/README.md)
+  - `references/01-sensor-ov5650/`: Open-source 1,708-line GPL OV5650 sensor driver and register tables from `allwinner-zh/linux-3.4-sunxi`.
+  - `references/02-actuator-vcm/`: Upstream Linux kernel media drivers for focus actuators (`ad5820.c`, `dw9714.c`).
+  - `references/03-pcie-mailbox-protocol/`: Mailbox ringbuffers and CISP command opcodes (`fthd_isp.h`).
+  - `references/04-crypto-aes128/`: NIST FIPS-197 AES-128 specification and test vectors.
+  - `references/05-simd-arm-neon/`: ARM NEON SIMD vector programming reference (`neon_kernels_reference.c`).
+  - `references/06-reverse-engineering/`: REA & Ghidra 12.1.4 decompilation analysis report (`ev_399af037b91ec90834825cc893d7857c725cb4a5f4d8b60c8c035049577d93a7`).
+- **Comprehensive Hardware Datasheet & Provenance (English)**: [`docs/DATASHEET_AND_PROVENANCE_REPORT.md`](docs/DATASHEET_AND_PROVENANCE_REPORT.md)
+- **Relatório Técnico de Proveniência (Português)**: [`docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md`](docs/RELATORIO_TECNICO_E_PROVENIENCIA_PT.md)
+- **Public Domain & Clean-Room Sources Register**: [`SOURCES.md`](SOURCES.md)
 - **Upstream Submission Package**: Complete kernel staging patch series and linux-firmware patch are available in [`upstream-submission/`](upstream-submission/).
 
 ---
