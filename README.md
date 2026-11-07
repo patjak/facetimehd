@@ -176,8 +176,9 @@ Streaming & Realtime Pipeline Verification:
 
 To ensure 100% legal compliance, scientific reproducibility, and provide the Linux kernel community with verifiable hardware documentation, all reverse engineering artifacts, base source codes, register maps, and clean-room firmware implementations are tracked directly in this repository and in the companion [OpenFTHD project](https://github.com/programandosolucoes/open-fthd-firmware):
 
+- **Technical Study Dossier & Base Sources (English)**: [`docs/REVERSE_ENGINEERING_STUDY_AND_BASE_SOURCES.md`](docs/REVERSE_ENGINEERING_STUDY_AND_BASE_SOURCES.md)
 - **Dossiê Técnico de Engenharia Reversa e Códigos-Base (Português)**: [`docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md`](docs/ESTUDO_ENGENHARIA_REVERSA_E_FONTES_BASE.md)
-- **Diretório de Códigos-Fonte de Referência (`references/`)**: [`references/README.md`](references/README.md)
+- **Upstream Reference Source Directory (`references/`)**: [`references/README.md`](references/README.md)
   - `references/01-sensor-ov5650/`: Open-source 1,708-line GPL OV5650 sensor driver and register tables from `allwinner-zh/linux-3.4-sunxi`.
   - `references/02-actuator-vcm/`: Upstream Linux kernel media drivers for focus actuators (`ad5820.c`, `dw9714.c`).
   - `references/03-pcie-mailbox-protocol/`: Mailbox ringbuffers and CISP command opcodes (`fthd_isp.h`).

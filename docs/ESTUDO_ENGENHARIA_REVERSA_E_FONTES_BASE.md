@@ -4,6 +4,7 @@
 **Autor Principal**: Carlos Alberto & Contribuidores do Projeto OpenFTHD  
 **Repositório Oficial Firmware**: [https://github.com/programandosolucoes/open-fthd-firmware](https://github.com/programandosolucoes/open-fthd-firmware)  
 **Repositório Driver Linux**: [https://github.com/programandosolucoes/facetimehd](https://github.com/programandosolucoes/facetimehd) (Upstream PR #368: [patjak/bcwc_pcie#368](https://github.com/patjak/bcwc_pcie/pull/368))  
+**Versão em Inglês (English Version)**: [REVERSE_ENGINEERING_STUDY_AND_BASE_SOURCES.md](REVERSE_ENGINEERING_STUDY_AND_BASE_SOURCES.md)  
 **Licença**: GNU General Public License v2.0 (GPL-2.0-only)
 
 ---
