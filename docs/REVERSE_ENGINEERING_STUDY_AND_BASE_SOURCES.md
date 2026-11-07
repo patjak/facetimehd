@@ -111,26 +111,41 @@ In response to upstream community inquiries regarding the availability of public
 
 ## 4. Implemented Clean-Room Firmware Architecture
 
-Using these public references, OpenFTHD provides two independent firmware builds:
+Using these public references and specifications, OpenFTHD implements a complete Image Signal Processor (ISP) pipeline, multi-resolution sensor driver, optical focus actuator control, and compute acceleration engine across two independent firmware implementations:
 
 ### A. Freestanding C Implementation (`src/`)
 * **Toolchain**: `arm-none-eabi-gcc` (`-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=softfp -nostdlib -nostartfiles -O2`).
 * **Components**:
-  * `src/boot.S`: ARMv7 vector table, Supervisor/IRQ stack initialization, CP10/CP11 NEON/VFP coprocessor enablement.
-  * `src/ipc.c`: 8-channel Mailbox initialization, active CISP command dispatcher (`CH_START`, `CH_STOP`, `CROP_SET`, `OUTPUT_CONFIG`, `AWB`, `DRC`, `LED`, `AE_METERING`).
-  * `src/sensor.c`: OmniVision OV5650 I2C state machine with multi-resolution profile tables.
+  * `src/boot.S`: ARMv7 exception vectors, stack initialization, and hardware enablement of CP10/CP11 VFP/NEON coprocessors in CP15 CPACR and FPEXC.
+  * `include/fthd_isp_pipeline.h` & `src/isp_pipeline.c`: Complete Image Signal Processor pipeline:
+    * **Auto-Exposure (AEC & AGC)**: 4 photometry metering modes (Average, Center-Weighted, Spot, Matrix), target luminance feedback loop, and anti-flicker step quantization (50Hz / 60Hz).
+    * **Auto-White-Balance (AWB & CCT)**: Gray-World assumption statistical estimator, temporal IIR filtering, and Correlated Color Temperature (CCT) Kelvin estimation across Tungsten (~2800K) and Daylight (~5500K) with 3x3 Color Correction Matrices (CCM).
+    * **Focus Actuator & Auto-Focus (CDAF)**: Analog Devices AD5816/AD5820 Voice Coil Motor (VCM) 10-bit DAC encoding with linear and 64/16 ramp modes, softlanding, and contrast-detection search sweep (coarse + fine + locked).
+    * **Dynamic Range Compression (DRC/HDR)**: 256-entry monotonic non-linear S-curve LUT generator for lifting shadow detail while preventing highlight clipping.
+    * **ePTZ Hardware Scaler & Cropping**: Hardware sensor active window cropping, 16.16 fixed-point scaling ratios ($H_{ratio}$, $V_{ratio}$), and 64-byte aligned PCIe DMA line stride.
+    * **Color Correction Engine**: Real-time Brightness, Contrast, Saturation, and Hue adjustment in YUV space.
+  * `include/ov5650.h` & `src/sensor.c`: OmniVision OV5650 sensor driver containing complete register sequencing for all 5 timing modes:
+    * Mode 0: 1280x720 @ 30fps (Standard HD)
+    * Mode 1: 1280x720 @ 60fps (High Speed HD)
+    * Mode 2: 1920x1080 @ 30fps (Full HD 16:9 crop)
+    * Mode 3: 640x480 @ 60fps (VGA 2x2 binned)
+    * Mode 4: 2592x1944 @ 15fps (Native 5.0 Megapixel QSXGA full sensor array)
+    * 20-bit exposure control (0x3500..0x3502), manual gain (0x3503), and PLL framerate divider (0x3012).
+  * `src/ipc.c`: 8-channel Mailbox ringbuffer manager and active CISP command dispatcher for all camera control, 3A, focus, scaler, and compute opcodes.
   * `src/neon_ops.c`: 128-bit NEON SIMD vector kernels (YUYV to RGB color conversion, 3x3 Sobel convolution, int16 dot product).
   * `src/aes.c`: NIST FIPS-197 AES-128 encryption and decryption engine (ECB and CBC modes).
-  * `src/compute.c`: Channel 7 (`COMPUTE`) offload dispatcher.
-* **Binary Footprint**: **7.2 KB** (`build/firmware.bin`).
+  * `src/compute.c`: Channel 7 (`COMPUTE`) coprocessor offload dispatcher.
+* **Binary Footprint**: **~13 KB** (`build/firmware.bin`).
 
 ### B. Bare-Metal Rust Implementation (`rust/`)
 * **Target**: `armv7a-none-eabi` using `#![no_std]` and `#![no_main]`.
 * **Components**:
-  * `rust/src/entry.rs`: Vector table and assembly entry.
-  * `rust/src/registers.rs`: Type-safe volatile MMIO access for Mailbox registers (`0xc3000`).
-  * `rust/src/ipc.rs`: 8-channel ringbuffer manager with CISP dispatcher and Compute opcodes.
-* **Binary Footprint**: **684 bytes** (`rust/target/firmware_rust.bin`).
+  * `rust/src/main.rs`: Vector table, reset bootstrap, stack setup, and mailbox registration.
+  * `rust/src/isp.rs`: Pure Rust implementation of 3A state machines (AEC, AWB, CDAF), AD5816 VCM 10-bit DAC encoding, DRC tone mapping, and ePTZ scaler coordinate math.
+  * `rust/src/sensor.rs`: OmniVision OV5650 multi-resolution driver with exposure, gain, and framerate control.
+  * `rust/src/registers.rs`: Type-safe volatile MMIO access for BCM1570 mailbox registers (`0xc3000`).
+  * `rust/src/ipc.rs`: 8-channel ringbuffer manager with full CISP command dispatcher.
+* **Binary Footprint**: **~2.1 KB** (`rust/target/firmware_rust.bin`).
 
 ---
 

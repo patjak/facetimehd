@@ -110,26 +110,41 @@ Em resposta ao feedback técnico da comunidade e à pergunta de Patrik Jakobsson
 
 ## 4. Arquitetura da Solução Desenvolvida
 
-Com base nessas referências 100% abertas e no mapeamento topológico, foram desenvolvidas duas implementações completas de firmware limpo:
+Com base nessas referências 100% abertas e no mapeamento topológico, foram implementados o pipeline ISP completo, o driver multi-resolução para o sensor OV5650, o controle do atuador de foco óptico AD5816/AD5820 e o motor de aceleração computacional, em duas linguagens independentes:
 
 ### A. Firmware em C Freestanding (`src/`)
 * **Compilador**: `arm-none-eabi-gcc` (`-mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=softfp -nostdlib -nostartfiles -O2`).
 * **Módulos**:
-  * `boot.S`: Vetor de interrupções ARMv7, configuração de pilhas de modo Supervisor/IRQ, ativação do coprocessador CP10/CP11 (NEON/VFP) e salto para `main()`.
-  * `ipc.c`: Inicializador dos 8 canais da Mailbox, despachante ativo para todos os comandos CISP (`CH_START`, `CH_STOP`, `CROP_SET`, `OUTPUT_CONFIG`, `AWB`, `DRC`, `LED`, `AE_METERING`).
-  * `sensor.c`: Máquina de estados I2C do sensor OmniVision OV5650 com perfis de resolução de 720p a 5MP.
-  * `neon_ops.c`: Kernels vetoriais NEON SIMD de 128 bits para conversão de cores YUYV-RGB, convolução Sobel 3x3 e produto escalar de matrizes/tensores.
-  * `aes.c`: Motor criptográfico AES-128 em conformidade com o padrão NIST FIPS-197.
-  * `compute.c`: Despachante do Canal 7 (`COMPUTE`) para offload de visão computacional e criptografia.
-* **Tamanho do Binário**: **7.2 KB** (`build/firmware.bin`).
+  * `boot.S`: Vetor de interrupções ARMv7, configuração de pilhas Supervisor/IRQ, ativação por hardware dos coprocessadores CP10/CP11 (VFP/NEON) no registrador CP15 CPACR e FPEXC, e salto para `main()`.
+  * `include/fthd_isp_pipeline.h` e `src/isp_pipeline.c`: Pipeline completo do processador de sinal de imagem (ISP):
+    * **Auto-Exposição (AEC & AGC)**: 4 modos de fotometria (Média Geral, Ponderada Central, Spot e Matricial), controle de luminância de alvo (18% cinza neutro), malha de realimentação proporcional e quantização de anti-flicker em múltiplos de 50Hz/60Hz.
+    * **Balanço de Branco Automático (AWB & CCT)**: Algoritmo Gray-World, filtragem temporal IIR para evitar oscilações, e estimador de temperatura de cor (CCT) em Kelvin para seleção dinâmica entre Matrizes de Correção de Cor (CCM) de Tungstênio (~2800K) e Luz do Dia (~5500K).
+    * **Atuador de Foco e Autofoco (CDAF)**: Codificação de palavras I2C de 16 bits para o DAC de 10 bits do motor de bobina de voz (VCM) Analog Devices AD5816/AD5820 com controle de rampa linear e 64/16, softlanding e máquina de varredura CDAF (busca grossa + busca fina + travamento).
+    * **Compressão de Alcance Dinâmico (DRC/HDR)**: Gerador de curva de tom não-linear monotônica em LUT de 256 entradas, elevando sombras sem estourar altas luzes.
+    * **Scaler e Enquadramento de Hardware (ePTZ)**: Recorte de janela no sensor, cálculo de razões de reamostragem em ponto fixo 16.16 e alinhamento de stride de linha em 64 bytes para o DMA PCIe.
+    * **Ajuste de Cor YUV**: Brilho, contraste, saturação e matiz (hue) em tempo real.
+  * `include/ov5650.h` e `src/sensor.c`: Driver do sensor OmniVision OV5650 com tabelas completas de registradores para os 5 modos de operação:
+    * Modo 0: 1280x720 @ 30fps (HD Padrão)
+    * Modo 1: 1280x720 @ 60fps (HD Alta Velocidade)
+    * Modo 2: 1920x1080 @ 30fps (Full HD 16:9 crop)
+    * Modo 3: 640x480 @ 60fps (VGA 2x2 binned)
+    * Modo 4: 2592x1944 @ 15fps (Nativo 5.0 Megapixel QSXGA matriz total)
+    * Controle de tempo de integração de 20 bits (0x3500..0x3502), ganho manual (0x3503) e divisor PLL de framerate (0x3012).
+  * `src/ipc.c`: Inicializador dos 8 canais da Mailbox e despachante ativo para todos os comandos CISP de controle de câmera, ISP 3A, foco, scaler e compute.
+  * `src/neon_ops.c`: Kernels vetoriais NEON SIMD de 128 bits para conversão de cores YUYV-RGB, convolução Sobel 3x3 e produto escalar de matrizes/tensores.
+  * `src/aes.c`: Motor criptográfico AES-128 em conformidade com o padrão NIST FIPS-197.
+  * `src/compute.c`: Despachante do Canal 7 (`COMPUTE`) para offload de visão computacional e criptografia.
+* **Tamanho do Binário**: **~13 KB** (`build/firmware.bin`).
 
 ### B. Firmware em Rust Bare-Metal (`rust/`)
 * **Target**: `armv7a-none-eabi` usando `#![no_std]` e `#![no_main]`.
 * **Módulos**:
-  * `entry.rs`: Ponto de entrada asm e tabela de vetores.
+  * `main.rs`: Tabela de vetores, bootstrap de reset, pilha e registro na Mailbox.
+  * `isp.rs`: Implementação pura em Rust das máquinas de estado 3A (AEC, AWB, CDAF), codificação do DAC de 10 bits do AD5816, curva DRC e scaler ePTZ.
+  * `sensor.rs`: Driver multi-resolução do sensor OV5650 com controle de exposição, ganho e framerate.
   * `registers.rs`: Acesso volátil tipado e seguro aos registradores MMIO da Mailbox (`0xc3000`).
-  * `ipc.rs`: Manipulação dos 8 canais de memória com despachante de comandos CISP e suporte a opcodes de Compute.
-* **Tamanho do Binário**: **684 bytes** (`rust/target/firmware_rust.bin`).
+  * `ipc.rs`: Manipulação dos 8 canais de memória com despachante completo de comandos CISP.
+* **Tamanho do Binário**: **~2.1 KB** (`rust/target/firmware_rust.bin`).
 
 ---
 
