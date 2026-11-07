@@ -364,6 +364,7 @@ static void fthd_pci_remove(struct pci_dev *pdev)
 	dev_priv = pci_get_drvdata(pdev);
 	if (!dev_priv)
 		goto out;
+	pci_set_drvdata(pdev, NULL);
 
 	fthd_debugfs_exit(dev_priv);
 
@@ -393,6 +394,7 @@ static void fthd_pci_remove(struct pci_dev *pdev)
 	pci_release_region(pdev, FTHD_PCI_S2_IO);
 	pci_release_region(pdev, FTHD_PCI_S2_MEM);
 	pci_release_region(pdev, FTHD_PCI_ISP_IO);
+	kfree(dev_priv);
 out:
 	pci_disable_device(pdev);
 }
@@ -474,6 +476,11 @@ static int fthd_firmware_start(struct fthd_private *dev_priv)
 	if (ret)
 		return ret;
 
+	/* Query the sensor's native resolution now so fthd_v4l2_register()
+	 * can advertise it. Non-fatal: if it fails the V4L2 layer falls back
+	 * to a default size. */
+	fthd_isp_cmd_channel_camera_config(dev_priv);
+
 	return fthd_isp_cmd_set_loadfile(dev_priv);
 
 }
@@ -493,7 +500,7 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 
 	dev_priv->ddr_model = 4;
 	dev_priv->ddr_speed = 450;
-	dev_priv->frametime = 40; /* 25 fps */
+	dev_priv->frame_rate = FTHD_FRAME_RATE_MAX;
 
 	/* Default full sensor crop window (1280x720) for ePTZ digital zoom */
 	dev_priv->crop_x1 = 0;
@@ -505,6 +512,7 @@ static int fthd_pci_probe(struct pci_dev *pdev,
 	mutex_init(&dev_priv->vb2_queue_lock);
 
 	mutex_init(&dev_priv->ioctl_lock);
+	atomic_set(&dev_priv->users, 0);
 	INIT_LIST_HEAD(&dev_priv->buffer_queue);
 	INIT_WORK(&dev_priv->irq_work, fthd_irq_work);
 
@@ -559,6 +567,17 @@ fail_work:
 #ifdef CONFIG_PM
 static int fthd_pci_suspend(struct pci_dev *pdev, pm_message_t state)
 {
+	struct fthd_private *dev_priv = pci_get_drvdata(pdev);
+
+	/* Tearing down the firmware and DMA mappings under an open V4L2 file
+	 * leaves the file handle pointing at freed driver state.  Refuse the
+	 * transition instead of risking a use-after-free on resume. */
+	if (dev_priv && atomic_read(&dev_priv->users)) {
+		dev_warn(&pdev->dev,
+			 "camera is in use; close video applications before suspend\n");
+		return -EBUSY;
+	}
+
 	fthd_pci_remove(pdev);
 
 	return 0;
@@ -566,9 +585,7 @@ static int fthd_pci_suspend(struct pci_dev *pdev, pm_message_t state)
 
 static int fthd_pci_resume(struct pci_dev *pdev)
 {
-	fthd_pci_probe(pdev, NULL);
-
-	return 0;
+	return fthd_pci_probe(pdev, NULL);
 }
 #endif /* CONFIG_PM */
 
@@ -592,6 +609,17 @@ static struct pci_driver fthd_pci_driver = {
 module_pci_driver(fthd_pci_driver);
 
 MODULE_FIRMWARE("facetimehd/firmware.bin");
+MODULE_FIRMWARE("facetimehd/1222_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1571_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1575_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1671_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1674_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1675_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1771_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1871_01XX.dat");
+MODULE_FIRMWARE("facetimehd/1874_01XX.dat");
+MODULE_FIRMWARE("facetimehd/8221_01XX.dat");
+MODULE_FIRMWARE("facetimehd/9112_01XX.dat");
 MODULE_DEVICE_TABLE(pci, fthd_pci_id_table);
 MODULE_AUTHOR("Patrik Jakobsson <patrik.r.jakobsson@gmail.com>");
 MODULE_DESCRIPTION("FacetimeHD camera driver");

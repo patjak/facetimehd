@@ -7,6 +7,8 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/gcd.h>
+#include <linux/math64.h>
 #include <linux/spinlock.h>
 #include <linux/sched.h>
 #include <linux/wait.h>
@@ -23,19 +25,6 @@
 #include "fthd_isp.h"
 #include "fthd_ringbuf.h"
 #include "fthd_buffer.h"
-
-struct fthd_frame_size {
-	u32 width;
-	u32 height;
-	u32 max_fps;
-};
-
-static const struct fthd_frame_size fthd_sizes[] = {
-	{ 1280, 720,  30 }, /* 720p HD 16:9 - Default */
-	{ 1920, 1080, 30 }, /* 1080p Full HD 16:9 */
-	{ 640,  480,  30 }, /* VGA 4:3 - Required by WebRTC / Chrome / Cheese */
-	{ 320,  240,  30 }, /* QVGA 4:3 */
-};
 
 #define FTHD_MAX_WIDTH 1920
 #define FTHD_MAX_HEIGHT 1080
@@ -74,6 +63,11 @@ static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 		return -ENOMEM;
 
 	if (create) {
+		/*
+		 * CREATE_BUFS asks for buffers on top of the ones already
+		 * there, so those are charged against the budget and against
+		 * the context count.
+		 */
 		for (i = 0; i < slots; i++) {
 			struct vb2_buffer *vb;
 			unsigned long used;
@@ -96,6 +90,12 @@ static int fthd_buffer_queue_setup(struct vb2_queue *vq,
 		if (!*nbuffers)
 			return -ENOMEM;
 	} else {
+		/*
+		 * REQBUFS asks for a total. vb2 calls back a second time to
+		 * confirm a partial allocation, and the buffers it asks about
+		 * then are the ones already allocated, so charging them here
+		 * would reject a count that is in fact usable.
+		 */
 		if (size > budget)
 			return -ENOMEM;
 		limit = min_t(unsigned int, FTHD_BUFFERS, budget / size);
@@ -266,7 +266,6 @@ void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int s
 {
 	struct dma_descriptor_list list;
 	struct h2t_buf_ctx *ctx;
-	struct vb2_v4l2_buffer *vbuf;
 	int i;
 
 	FTHD_S2_MEMCPY_FROMIO(&list, offset, sizeof(list));
@@ -277,6 +276,12 @@ void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int s
 			 list.desc[i].count, list.desc[i].pool, list.desc[i].addr0, list.desc[i].addr1, list.desc[i].tag, ctx->vb, ctx);
 
 		if (ctx->state == BUF_HW_QUEUED || ctx->state == BUF_DRV_QUEUED) {
+			struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(ctx->vb);
+
+			vbuf->sequence = dev_priv->sequence++;
+			vbuf->vb2_buf.timestamp = ktime_get_ns();
+			vbuf->field = V4L2_FIELD_NONE;
+
 			ctx->state = BUF_ALLOC;
 			ctx->vb->timestamp = ktime_get_ns();
 			vbuf = to_vb2_v4l2_buffer(ctx->vb);
@@ -369,14 +374,41 @@ static const struct vb2_ops vb2_queue_ops = {
 	.start_streaming        = fthd_start_streaming,
 	.stop_streaming         = fthd_stop_streaming,
 	.buf_queue              = fthd_buffer_queue,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+	.wait_prepare           = vb2_ops_wait_prepare,
+	.wait_finish            = vb2_ops_wait_finish,
+#endif
 };
+
+static int fthd_v4l2_open(struct file *filp)
+{
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	int ret;
+
+	ret = v4l2_fh_open(filp);
+	if (!ret)
+		atomic_inc(&dev_priv->users);
+
+	return ret;
+}
+
+static int fthd_v4l2_release(struct file *filp)
+{
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	int ret;
+
+	ret = vb2_fop_release(filp);
+	atomic_dec(&dev_priv->users);
+
+	return ret;
+}
 
 static const struct v4l2_file_operations fthd_vdev_fops = {
 	.owner          = THIS_MODULE,
-	.open           = v4l2_fh_open,
+	.open           = fthd_v4l2_open,
 
 	.read		= vb2_fop_read,
-	.release        = vb2_fop_release,
+	.release        = fthd_v4l2_release,
 	.poll           = vb2_fop_poll,
 	.mmap           = vb2_fop_mmap,
 	.unlocked_ioctl = video_ioctl2
@@ -426,7 +458,7 @@ static int fthd_v4l2_ioctl_querycap(struct file *filp, void *priv,
 }
 
 static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
-				   struct v4l2_fmtdesc *fmt)
+					   struct v4l2_fmtdesc *fmt)
 {
 	if (fmt->index > 0)
 		return -EINVAL;
@@ -441,16 +473,23 @@ static int fthd_v4l2_ioctl_enum_fmt_vid_cap(struct file *filp, void *priv,
 static int fthd_v4l2_adjust_format(struct fthd_private *dev_priv,
 				   struct v4l2_pix_format *pix)
 {
+	/* Upper bound is the sensor's native resolution (e.g. 1280x720 on
+	 * MacBookPro, 848x588 on the 12-inch MacBook); fall back to the generic
+	 * ceiling if it hasn't been detected yet.
+	 */
+	unsigned int max_w = dev_priv->sensor_width ? : FTHD_MAX_WIDTH;
+	unsigned int max_h = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+
 	pix->pixelformat = V4L2_PIX_FMT_YUYV;
 
 	if (pix->width < FTHD_MIN_WIDTH)
 		pix->width = FTHD_MIN_WIDTH;
-	if (pix->width > FTHD_MAX_WIDTH)
-		pix->width = FTHD_MAX_WIDTH;
+	if (pix->width > max_w)
+		pix->width = max_w;
 	if (pix->height < FTHD_MIN_HEIGHT)
 		pix->height = FTHD_MIN_HEIGHT;
-	if (pix->height > FTHD_MAX_HEIGHT)
-		pix->height = FTHD_MAX_HEIGHT;
+	if (pix->height > max_h)
+		pix->height = max_h;
 
 	pix->colorspace = V4L2_COLORSPACE_SRGB;
 	pix->field = V4L2_FIELD_NONE;
@@ -510,22 +549,30 @@ static int fthd_v4l2_ioctl_s_fmt_vid_cap(struct file *filp, void *priv,
 	return 0;
 }
 
-
 static int fthd_v4l2_ioctl_g_parm(struct file *filp, void *priv,
 				 struct v4l2_streamparm *parm)
 {
-	struct fthd_private *priv_dev = video_drvdata(filp);
-	struct v4l2_fract timeperframe = {
-		.numerator = priv_dev->frametime,
-		.denominator = 1000,
-	};
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	u32 rate = READ_ONCE(dev_priv->frame_rate);
+	u32 div = gcd(rate, FTHD_FRAME_RATE_SCALE);
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
 
 	parm->parm.capture.readbuffers = FTHD_BUFFERS;
 	parm->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
-	parm->parm.capture.timeperframe = timeperframe;
+	/*
+	 * S_PARM returns this too, and PipeWire's V4L2 source takes the stream
+	 * rate from it, so report the interval the sensor is set to. A value
+	 * that disagreed with the delivered rate (25 fps from frametime/1000
+	 * against a real 30 fps) made pipewiresrc compute negative frame
+	 * durations and freeze. Keep the fraction reduced as well: PipeWire
+	 * without the fixes in 1.4.10 (1.4.2, for one) gets pipewiresrc's
+	 * clock and latency wrong on 256/7680 instead of 1/30, and capture
+	 * stalls (#358).
+	 */
+	parm->parm.capture.timeperframe.numerator = FTHD_FRAME_RATE_SCALE / div;
+	parm->parm.capture.timeperframe.denominator = rate / div;
 	return 0;
 }
 
@@ -533,48 +580,59 @@ static int fthd_v4l2_ioctl_s_parm(struct file *filp, void *priv,
 				 struct v4l2_streamparm *parm)
 {
 	struct fthd_private *dev_priv = video_drvdata(filp);
-	struct v4l2_fract *timeperframe;
+	struct v4l2_fract *tpf = &parm->parm.capture.timeperframe;
+	u64 rate = FTHD_FRAME_RATE_MAX;
+	int ret;
 
 	if (parm->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
+	if (tpf->numerator && tpf->denominator)
+		rate = div_u64((u64)tpf->denominator * FTHD_FRAME_RATE_SCALE,
+			       tpf->numerator);
+	rate = clamp_t(u64, rate, FTHD_FRAME_RATE_MIN, FTHD_FRAME_RATE_MAX);
 
-	timeperframe = &parm->parm.capture.timeperframe;
-
-	if (timeperframe->denominator == 0) {
-		timeperframe->numerator = 20;
-		timeperframe->denominator = 1000;
+	ret = mutex_lock_interruptible(&dev_priv->vb2_queue_lock);
+	if (ret)
+		return ret;
+	/* Rate commands take effect at channel start. Do not promise a live change. */
+	if (vb2_is_streaming(&dev_priv->vb2_queue)) {
+		ret = -EBUSY;
+	} else {
+		WRITE_ONCE(dev_priv->frame_rate, (u32)rate);
+		ret = fthd_v4l2_ioctl_g_parm(filp, priv, parm);
 	}
-
-	dev_priv->frametime = clamp_t(unsigned int, timeperframe->numerator * 1000 /
-				timeperframe->denominator, 20, 500);
-
-	return fthd_v4l2_ioctl_g_parm(filp, priv, parm);
+	mutex_unlock(&dev_priv->vb2_queue_lock);
+	return ret;
 }
 
 static int fthd_v4l2_ioctl_enum_framesizes(struct file *filp, void *priv,
-		struct v4l2_frmsizeenum *sizes)
+					   struct v4l2_frmsizeenum *sizes)
 {
-	if (sizes->index >= ARRAY_SIZE(fthd_sizes))
+	struct fthd_private *dev_priv = video_drvdata(filp);
+
+	if (sizes->index)
 		return -EINVAL;
 
 	if (sizes->pixel_format != V4L2_PIX_FMT_YUYV)
 		return -EINVAL;
 
-	sizes->type = V4L2_FRMSIZE_TYPE_DISCRETE;
-	sizes->discrete.width = fthd_sizes[sizes->index].width;
-	sizes->discrete.height = fthd_sizes[sizes->index].height;
+	sizes->type = V4L2_FRMSIZE_TYPE_STEPWISE;
+	sizes->stepwise.min_width  = FTHD_MIN_WIDTH;
+	sizes->stepwise.max_width  = dev_priv->sensor_width ? : FTHD_MAX_WIDTH;
+	sizes->stepwise.step_width = 8;
+	sizes->stepwise.min_height  = FTHD_MIN_HEIGHT;
+	sizes->stepwise.max_height  = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
+	sizes->stepwise.step_height = 1;
 
 	return 0;
 }
 
 static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
-		struct v4l2_frmivalenum *interval)
+					       struct v4l2_frmivalenum *interval)
 {
-	int i;
-	u32 fps = 30;
-
-	pr_debug("%s: %dx%d fmt=%x idx=%d\n", __func__,
-		 interval->width, interval->height, interval->pixel_format, interval->index);
+	struct fthd_private *dev_priv = video_drvdata(filp);
+	unsigned int max_w = dev_priv->sensor_width ? : FTHD_MAX_WIDTH;
+	unsigned int max_h = dev_priv->sensor_height ? : FTHD_MAX_HEIGHT;
 
 	if (interval->index != 0)
 		return -EINVAL;
@@ -582,17 +640,14 @@ static int fthd_v4l2_ioctl_enum_frameintervals(struct file *filp, void *priv,
 	if (interval->pixel_format != V4L2_PIX_FMT_YUYV)
 		return -EINVAL;
 
-	for (i = 0; i < ARRAY_SIZE(fthd_sizes); i++) {
-		if (interval->width == fthd_sizes[i].width &&
-		    interval->height == fthd_sizes[i].height) {
-			fps = fthd_sizes[i].max_fps;
-			break;
-		}
-	}
+	if ((interval->width & 7) ||
+	    interval->width > max_w ||
+	    interval->height > max_h)
+		return -EINVAL;
 
 	interval->type = V4L2_FRMIVAL_TYPE_DISCRETE;
 	interval->discrete.numerator = 1;
-	interval->discrete.denominator = fps;
+	interval->discrete.denominator = 30;
 
 	return 0;
 }
@@ -733,6 +788,7 @@ static const struct v4l2_ioctl_ops fthd_ioctl_ops = {
 
 	.vidioc_g_parm          = fthd_v4l2_ioctl_g_parm,
 	.vidioc_s_parm          = fthd_v4l2_ioctl_s_parm,
+	.vidioc_g_selection     = fthd_v4l2_ioctl_g_selection,
 	.vidioc_enum_framesizes = fthd_v4l2_ioctl_enum_framesizes,
 	.vidioc_enum_frameintervals = fthd_v4l2_ioctl_enum_frameintervals,
 
@@ -777,6 +833,16 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_AUTO_WHITE_BALANCE:
 		ret = fthd_isp_cmd_channel_awb(dev_priv, 0, ctrl->val);
 		break;
+	case V4L2_CID_EXPOSURE_AUTO:
+		/* The firmware runs auto exposure unconditionally. */
+		ret = 0;
+		break;
+	case V4L2_CID_EXPOSURE_AUTO_PRIORITY:
+		ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0,
+							  fthd_isp_ae_frame_rate_min(dev_priv, ctrl->val));
+		if (!ret)
+			dev_priv->exposure_auto_priority = ctrl->val;
+		break;
 	case V4L2_CID_EXPOSURE_METERING:
 		/*
 		 * Auto-Exposure Metering Mode:
@@ -814,7 +880,6 @@ static int fthd_s_ctrl(struct v4l2_ctrl *ctrl)
 		fthd_led_mode = ctrl->val;
 		ret = fthd_isp_cmd_set_led(dev_priv, 0, ctrl->val);
 		break;
-
 	default:
 		break;
 
@@ -874,6 +939,12 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 			  V4L2_CID_HUE, 0, 0xff, 1, 0x80);
 	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
 			  V4L2_CID_AUTO_WHITE_BALANCE, 0, 1, 1, 1);
+	v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			       V4L2_CID_EXPOSURE_AUTO,
+			       V4L2_EXPOSURE_APERTURE_PRIORITY,
+			       ~(1 << V4L2_EXPOSURE_AUTO), V4L2_EXPOSURE_AUTO);
+	v4l2_ctrl_new_std(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
+			  V4L2_CID_EXPOSURE_AUTO_PRIORITY, 0, 1, 1, 0);
 
 	/* Auto-Exposure Metering: Average (0), Center-Weighted (1), Spot (2), Matrix (3) */
 	v4l2_ctrl_new_std_menu(&dev_priv->v4l2_ctrl_handler, &fthd_ctrl_ops,
@@ -912,9 +983,12 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 		video_device_release(vdev);
 		goto fail_vdev;
 	}
+	/* Default to the sensor's native resolution (detected at probe), or module
+	 * parameters / generic ceiling if detection didn't run.
+	 */
 	dev_priv->fmt.fmt.pixelformat = V4L2_PIX_FMT_YUYV;
-	dev_priv->fmt.fmt.width = fthd_default_width;
-	dev_priv->fmt.fmt.height = fthd_default_height;
+	dev_priv->fmt.fmt.width = dev_priv->sensor_width ? : fthd_default_width;
+	dev_priv->fmt.fmt.height = dev_priv->sensor_height ? : fthd_default_height;
 	dev_priv->fmt.fmt.sizeimage = dev_priv->fmt.fmt.width * dev_priv->fmt.fmt.height * 2;
 	dev_priv->fmt.planes = 1;
 

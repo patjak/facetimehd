@@ -9,6 +9,7 @@
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
 #include <linux/printk.h>
+#include <linux/scatterlist.h>
 #include "fthd_drv.h"
 #include "fthd_isp.h"
 #include "fthd_hw.h"

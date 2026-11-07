@@ -128,6 +128,16 @@ out:
 
 static int isp_enable_sensor(struct fthd_private *dev_priv)
 {
+	int ret;
+
+	/* Power on sensor CMOS via SMC; some systems may not have CMPE */
+	ret = isp_acpi_set_power(dev_priv, 1);
+	if (ret)
+		dev_warn(&dev_priv->pdev->dev,
+			 "ACPI sensor power-on failed (%d), continuing\n", ret);
+
+	mdelay(100); /* wait for sensor power rail to stabilize */
+
 	return 0;
 }
 
@@ -513,13 +523,13 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	struct isp_mem_obj *file;
 	const struct firmware *fw;
 	const char *filename = NULL;
-	const char *vendor, *board;
+	const char *vendor, *model;
 	int ret = 0;
 
 	pr_debug("set loadfile\n");
 
-	vendor = dmi_get_system_info(DMI_BOARD_VENDOR);
-	board = dmi_get_system_info(DMI_BOARD_NAME);
+	vendor = dmi_get_system_info(DMI_SYS_VENDOR);
+	model = dmi_get_system_info(DMI_PRODUCT_NAME);
 
 	memset(&cmd, 0, sizeof(cmd));
 
@@ -530,12 +540,22 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	case 0x190:
 		filename = "facetimehd/1222_01XX.dat";
 		break;
+	case 0x248:
+		switch (dev_priv->sensor_id0 >> 4) {
+		case 5:
+			filename = "facetimehd/1575_01XX.dat";
+			break;
+		default:
+			filename = "facetimehd/1571_01XX.dat";
+			break;
+		}
+		break;
 	case 0x8830:
 		filename = "facetimehd/9112_01XX.dat";
 		break;
 	case 0x9770:
-		if (vendor && board && !strcmp(vendor, "Apple Inc.") &&
-		    !strncmp(board, "MacBookAir", sizeof("MacBookAir") - 1)) {
+		if (vendor && model && !strcmp(vendor, "Apple Inc.") &&
+		    !strncmp(model, "MacBookAir", sizeof("MacBookAir") - 1)) {
 			filename = "facetimehd/1771_01XX.dat";
 			break;
 		}
@@ -568,15 +588,20 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	}
 
 	if (!filename) {
-		pr_debug("no set file for sensorid %04x %04x found\n",
+		dev_info(&dev_priv->pdev->dev,
+			 "no set file for sensor %04x %04x, continuing without calibration\n",
 			 dev_priv->sensor_id0, dev_priv->sensor_id1);
 		return 0;
 	}
 
 	/* The set file is allowed to be missing but we don't get calibration */
 	ret = request_firmware(&fw, filename, &dev_priv->pdev->dev);
-	if (ret)
+	if (ret) {
+		dev_info(&dev_priv->pdev->dev,
+			 "set file %s is missing, continuing without calibration\n",
+			 filename);
 		return 0;
+	}
 
 	/* Firmware memory is preallocated at init time */
 	BUG_ON(dev_priv->set_file);
@@ -590,7 +615,13 @@ int fthd_isp_cmd_set_loadfile(struct fthd_private *dev_priv)
 	pr_debug("set file: addr %08lx, size %d\n", file->offset, (int)file->size);
 	cmd.addr = file->offset;
 	cmd.length = file->size;
-	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
+	ret = fthd_isp_cmd(dev_priv, CISP_CMD_CH_SET_FILE_LOAD, &cmd, sizeof(cmd), NULL);
+	if (ret)
+		dev_warn(&dev_priv->pdev->dev,
+			 "set file load failed (%d), continuing without calibration\n", ret);
+	else
+		dev_info(&dev_priv->pdev->dev, "loaded set file %s\n", filename);
+	return 0;
 }
 
 int fthd_isp_cmd_channel_info(struct fthd_private *dev_priv)
@@ -651,6 +682,22 @@ int fthd_isp_cmd_channel_camera_config(struct fthd_private *dev_priv)
 			break;
 		snprintf(prefix, sizeof(prefix)-1, "CAMCONF%d ", i);
 		print_hex_dump_bytes(prefix, DUMP_PREFIX_OFFSET, &cmd, sizeof(cmd));
+
+		/* The first two u16s of the config payload are the sensor's
+		 * native width and height (e.g. 1280x720 on MacBookPro,
+		 * 848x588 on the 12-inch MacBook). Record sensor 0's size so
+		 * the V4L2 layer can advertise the real resolution instead of
+		 * a hardcoded one. */
+		if (i == 0) {
+			unsigned int w = cmd.data[0] | (cmd.data[1] << 8);
+			unsigned int h = cmd.data[2] | (cmd.data[3] << 8);
+
+			if (w && h) {
+				dev_priv->sensor_width = w;
+				dev_priv->sensor_height = h;
+				pr_debug("sensor native resolution: %ux%u\n", w, h);
+			}
+		}
 	}
 	return ret;
 }
@@ -673,20 +720,34 @@ int fthd_isp_cmd_channel_crop_set(struct fthd_private *dev_priv, int channel,
 				  int x, int y, int width, int height)
 {
 	struct isp_cmd_channel_set_crop cmd;
+	unsigned int sw = dev_priv->sensor_width;
+	unsigned int sh = dev_priv->sensor_height;
 	int len;
-
-	/* 4:2:2 chroma is subsampled horizontally; align width and offset to even */
-	x &= ~1;
-	width &= ~1;
 
 	pr_debug("set crop: %dx%d at [%d, %d]\n", width, height, x, y);
 
+	if (x < 0 || y < 0 || width <= 0 || height <= 0 ||
+	    (sw && (unsigned int)x + width > sw) ||
+	    (sh && (unsigned int)y + height > sh)) {
+		dev_err(&dev_priv->pdev->dev,
+			"crop %dx%d at %d,%d leaves the %ux%u sensor\n",
+			width, height, x, y, sw, sh);
+		return -ERANGE;
+	}
+
+	if ((x & 1) && (width & 1)) {
+		dev_err(&dev_priv->pdev->dev,
+			"crop width %d and x offset %d must not both be odd\n",
+			width, x);
+		return -ERANGE;
+	}
+
 	memset(&cmd, 0, sizeof(cmd));
 	cmd.channel = channel;
-	cmd.x1 = x;
-	cmd.y1 = y;
-	cmd.x2 = width;
-	cmd.y2 = height;
+	cmd.x = x;
+	cmd.y = y;
+	cmd.width = width;
+	cmd.height = height;
 	len = sizeof(cmd);
 	return fthd_isp_cmd(dev_priv, CISP_CMD_CH_CROP_SET, &cmd, sizeof(cmd), &len);
 }
@@ -1140,9 +1201,28 @@ int fthd_isp_cmd_channel_awb(struct fthd_private *dev_priv, int channel, int ena
 	return fthd_isp_cmd(dev_priv, op, &cmd, sizeof(cmd), &len);
 }
 
+/* Slowest frame rate the auto exposure may fall back to, in 1/256 fps units. */
+#define FTHD_AE_FPS_MIN		(5 * 256)
+
+/*
+ * The auto exposure gathers light by lengthening the exposure, which it can
+ * only do by slowing down. Give it room to do so down to FTHD_AE_FPS_MIN when
+ * the application allows a varying frame rate.
+ */
+int fthd_isp_ae_frame_rate_min(struct fthd_private *dev_priv, bool auto_priority)
+{
+	int rate = dev_priv->frame_rate;
+
+	if (auto_priority && rate > FTHD_AE_FPS_MIN)
+		rate = FTHD_AE_FPS_MIN;
+
+	return rate;
+}
+
 int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 {
-	int ret, x1 = 0, x2 = 0, pixelformat;
+	unsigned int sw, sh, ow, oh, cw, ch;
+	int ret, x, y, pixelformat;
 
 	ret = fthd_isp_cmd_channel_camera_config(dev_priv);
 	if (ret)
@@ -1151,16 +1231,39 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	if (ret)
 		return ret;
 
-	if (dev_priv->fmt.fmt.width < 1280 ||
-	    dev_priv->fmt.fmt.height < 720) {
-		x1 = 160;
-		x2 = 960;
-	} else {
-		x1 = 0;
-		x2 = 1280;
-	}
+	/* Crop the largest centred window with the output's aspect ratio and
+	 * let the ISP scale it down. The window and its offset are derived
+	 * from the sensor's own reported size, so neither can exceed it.
+	 */
+	sw = dev_priv->sensor_width  ? : dev_priv->fmt.fmt.width;
+	sh = dev_priv->sensor_height ? : dev_priv->fmt.fmt.height;
+	ow = dev_priv->fmt.fmt.width;
+	oh = dev_priv->fmt.fmt.height;
 
-	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x1, 0, x2, 720);
+	if (!ow || !oh) {
+		cw = sw;
+		ch = sh;
+	} else if (ow * sh >= sw * oh) {
+		/* output is wider than the sensor: keep the full width */
+		cw = sw;
+		ch = sw * oh / ow;
+	} else {
+		/* output is taller than the sensor: keep the full height */
+		ch = sh;
+		cw = sh * ow / oh;
+	}
+	/*
+	 * An odd width at an odd offset makes the sensor interface fault on
+	 * every frame, so keep the width even. That is enough: the offset
+	 * then cannot be odd at the same time.
+	 */
+	cw = min(cw, sw) & ~1u;
+	ch = min(ch, sh);
+
+	x = (sw - cw) / 2;
+	y = (sh - ch) / 2;
+
+	ret = fthd_isp_cmd_channel_crop_set(dev_priv, 0, x, y, cw, ch);
 	if (ret)
 		return ret;
 
@@ -1215,10 +1318,12 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	ret = fthd_isp_cmd_channel_face_detection_start(dev_priv, 0);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frametime * 256);
+	/* The cached rate uses the ISP's 1/256 fps units. */
+	ret = fthd_isp_cmd_channel_frame_rate_max(dev_priv, 0, dev_priv->frame_rate);
 	if (ret)
 		return ret;
-	ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0, dev_priv->frametime * 256);
+	ret = fthd_isp_cmd_channel_frame_rate_min(dev_priv, 0,
+						  fthd_isp_ae_frame_rate_min(dev_priv, dev_priv->exposure_auto_priority));
 	if (ret)
 		return ret;
 	ret = fthd_isp_cmd_channel_temporal_filter_start(dev_priv, 0);
@@ -1252,7 +1357,6 @@ int fthd_start_channel(struct fthd_private *dev_priv, int channel)
 	/* Apply LED indicator override if configured */
 	if (fthd_led_mode != 0)
 		fthd_isp_cmd_set_led(dev_priv, 0, fthd_led_mode);
-
 	msleep(200); /* Needed to settle AE */
 	return 0;
 }
@@ -1316,9 +1420,6 @@ int isp_init(struct fthd_private *dev_priv)
 	ret = isp_load_firmware(dev_priv);
 	if (ret)
 		return ret;
-
-	isp_acpi_set_power(dev_priv, 1);
-	mdelay(20);
 
 	pci_set_power_state(dev_priv->pdev, PCI_D0);
 	mdelay(10);

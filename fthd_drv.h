@@ -28,6 +28,10 @@
 
 #define FTHD_BUFFERS 8
 
+#define FTHD_FRAME_RATE_SCALE 256U
+#define FTHD_FRAME_RATE_MIN (2 * FTHD_FRAME_RATE_SCALE)
+#define FTHD_FRAME_RATE_MAX (30 * FTHD_FRAME_RATE_SCALE)
+
 enum FW_CHAN_TYPE {
 	FW_CHAN_TYPE_OUT = 0,
 	FW_CHAN_TYPE_IN = 1,
@@ -53,7 +57,7 @@ struct fthd_private {
 	struct v4l2_device v4l2_dev;
 	struct video_device *videodev;
 	struct mutex ioctl_lock;
-	int users;
+	atomic_t users;
 	/* lock for synchronizing with irq/workqueue */
 	spinlock_t io_lock;
 
@@ -102,6 +106,11 @@ struct fthd_private {
 	int sensor_count;
 	int sensor_id0;
 	int sensor_id1;
+	/* Native sensor resolution, read from the firmware's per-channel camera
+	 * config. MacBookPro sensors report 1280x720; the 12-inch MacBook
+	 * (MacBook8,1, sensor 1675) reports 848x588. 0 until detected. */
+	unsigned int sensor_width;
+	unsigned int sensor_height;
 
 	struct fthd_fmt fmt;
 
@@ -109,11 +118,12 @@ struct fthd_private {
 	struct mutex vb2_queue_lock;
 	struct list_head buffer_queue;
 	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
-	u32 sequence;
 	bool channel_started;
 
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
-	int frametime;
+	u32 frame_rate; /* 1/256 fps */
+	int exposure_auto_priority;
+	unsigned int sequence;
 	struct dentry *debugfs;
 
 	/* Digital Zoom / Pan-Tilt (ePTZ) Hardware Crop Coordinates */
