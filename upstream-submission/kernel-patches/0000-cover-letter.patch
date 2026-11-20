@@ -1,0 +1,102 @@
+From c087b7b17f776eaad506081ce105faf21404547b Mon Sep 17 00:00:00 2001
+From: Carlos Alberto <carlosalberto4ti@gmail.com>
+Date: Fri, 6 Nov 2026 15:08:11 -0300
+Subject: [PATCH 0/2] staging: media: facetimehd: add driver for Apple FaceTime HD camera
+
+This patch series introduces the facetimehd driver to drivers/staging/media/.
+The driver supports the Broadcom BCM1570 (PCI ID 14e4:1570) PCIe Image Signal
+Processor found in Apple MacBook Pro, MacBook Air, and iMac machines (spanning
+generations from 2013 to 2019).
+
+Historically, this driver remained out-of-tree primarily because it lacked a
+redistributable firmware binary and relied on extracting proprietary blobs from
+macOS recovery packages. We have addressed this blocker by developing OpenFTHD,
+a 100% clean-room, open-source firmware (GPL-2.0-only) written in freestanding
+C and bare-metal embedded Rust. A separate patch for linux-firmware adds
+facetimehd/firmware.bin.
+
+Key capabilities included in this submission:
+- Modern V4L2 and videobuf2-dma-sg implementation compatible with Linux 6.12+
+  through 7.0+ (removal of deprecated vb2 callbacks).
+- Seamless PipeWire and Flatpak streaming via in-page USERPTR offset support
+  (programming obj->byte_offset into ISP DMA descriptors) and chained scatterlist
+  iteration with for_each_sg().
+- Discrete framesize enumeration (1080p, 720p, VGA, QVGA) and matching
+  discrete frameintervals for WebRTC, PipeWire, OBS, and browser capture.
+- Native V4L2_PIX_FMT_YUYV pixel pipeline with power-of-two 8-pixel macroblock
+  stride alignment and immediate Auto White Balance (AWB) on channel start.
+- Hardware ePTZ digital zoom (VIDIOC_G_SELECTION / VIDIOC_S_SELECTION for
+  V4L2_SEL_TGT_CROP), executing lossless sensor crop without host CPU overhead.
+- Auto-Exposure Photometry Metering (V4L2_CID_EXPOSURE_METERING: Average,
+  Center-Weighted, Spot, Matrix).
+- Wide Dynamic Range / HDR (V4L2_CID_WIDE_DYNAMIC_RANGE) tone adaptation.
+- Camera status / privacy indicator LED control (V4L2_CID_ILLUMINATORS_1).
+- Runtime module parameters and power profiles (High Performance, Balanced,
+  Aggressive Low Power sensor sleep) exposed under /sys/module/facetimehd/parameters/.
+
+The driver has been validated on physical hardware (MacBook Pro Retina 15-inch
+Mid 2014, MacBookPro11,2, PCI 03:00.0) running Linux 7.0.0-14-generic,
+streaming cleanly at a steady 30.0 fps in both native V4L2 and PipeWire
+(GNOME Cheese / Snapshot in Flatpak containers) with zero dropped frames.
+
+Repository & Upstream Pull Request References:
+- Out-of-tree repository: https://github.com/patjak/facetimehd
+- Tracking Pull Request: https://github.com/patjak/facetimehd/pull/368
+- Active branch with test suite: https://github.com/programandosolucoes/facetimehd/tree/linux-6.12-compat
+- OpenFTHD clean-room firmware: https://github.com/programandosolucoes/open-fthd-firmware
+
+A TODO file is provided detailing the roadmap for graduating from staging
+into drivers/media/pci/facetimehd/.
+
+Carlos Alberto (2):
+  staging: media: facetimehd: add driver for Apple FaceTime HD (BCM1570)
+    PCIe camera
+  staging: media: wire up facetimehd in Kconfig and Makefile
+
+ drivers/staging/media/Kconfig                 |    1 +
+ drivers/staging/media/Makefile                |    1 +
+ drivers/staging/media/facetimehd/Kconfig      |   16 +
+ drivers/staging/media/facetimehd/Makefile     |    5 +
+ drivers/staging/media/facetimehd/TODO         |   18 +
+ .../staging/media/facetimehd/fthd_buffer.c    |  125 ++
+ .../staging/media/facetimehd/fthd_buffer.h    |   73 +
+ drivers/staging/media/facetimehd/fthd_ddr.c   |  670 ++++++++
+ drivers/staging/media/facetimehd/fthd_ddr.h   |   30 +
+ .../staging/media/facetimehd/fthd_debugfs.c   |  198 +++
+ .../staging/media/facetimehd/fthd_debugfs.h   |   17 +
+ drivers/staging/media/facetimehd/fthd_drv.c   |  600 +++++++
+ drivers/staging/media/facetimehd/fthd_drv.h   |  133 ++
+ drivers/staging/media/facetimehd/fthd_hw.c    |  712 ++++++++
+ drivers/staging/media/facetimehd/fthd_hw.h    |  128 ++
+ drivers/staging/media/facetimehd/fthd_isp.c   | 1483 +++++++++++++++++
+ drivers/staging/media/facetimehd/fthd_isp.h   |  768 +++++++++
+ drivers/staging/media/facetimehd/fthd_reg.h   |  184 ++
+ .../staging/media/facetimehd/fthd_ringbuf.c   |  135 ++
+ .../staging/media/facetimehd/fthd_ringbuf.h   |   44 +
+ drivers/staging/media/facetimehd/fthd_v4l2.c  |  881 ++++++++++
+ drivers/staging/media/facetimehd/fthd_v4l2.h  |   34 +
+ 22 files changed, 6256 insertions(+)
+ create mode 100644 drivers/staging/media/facetimehd/Kconfig
+ create mode 100644 drivers/staging/media/facetimehd/Makefile
+ create mode 100644 drivers/staging/media/facetimehd/TODO
+ create mode 100644 drivers/staging/media/facetimehd/fthd_buffer.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_buffer.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ddr.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ddr.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_debugfs.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_debugfs.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_drv.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_drv.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_hw.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_hw.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_isp.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_isp.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_reg.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ringbuf.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_ringbuf.h
+ create mode 100644 drivers/staging/media/facetimehd/fthd_v4l2.c
+ create mode 100644 drivers/staging/media/facetimehd/fthd_v4l2.h
+
+-- 
+2.53.0
+

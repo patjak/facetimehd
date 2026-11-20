@@ -1,0 +1,38 @@
+From c087b7b17f776eaad506081ce105faf21404547b Mon Sep 17 00:00:00 2001
+From: Carlos Alberto <carlosalberto4ti@gmail.com>
+Date: Fri, 6 Nov 2026 15:08:05 -0300
+Subject: [PATCH 2/2] staging: media: wire up facetimehd in Kconfig and
+ Makefile
+
+Enable building the Apple FaceTime HD (BCM1570) camera driver as part of
+the media staging subsystem.
+
+Signed-off-by: Carlos Alberto <carlosalberto4ti@gmail.com>
+---
+ drivers/staging/media/Kconfig  | 1 +
+ drivers/staging/media/Makefile | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/drivers/staging/media/Kconfig b/drivers/staging/media/Kconfig
+index e7f4c16..fab872f 100644
+--- a/drivers/staging/media/Kconfig
++++ b/drivers/staging/media/Kconfig
+@@ -4,5 +4,6 @@ if STAGING_MEDIA
+ source "drivers/staging/media/ipu3/Kconfig"
+ source "drivers/staging/media/max96712/Kconfig"
+ source "drivers/staging/media/starfive/Kconfig"
++source "drivers/staging/media/facetimehd/Kconfig"
+ 
+ endif
+diff --git a/drivers/staging/media/Makefile b/drivers/staging/media/Makefile
+index 7d704eb..aaa3e2d 100644
+--- a/drivers/staging/media/Makefile
++++ b/drivers/staging/media/Makefile
+@@ -2,3 +2,4 @@
+ obj-$(CONFIG_VIDEO_IPU3_IMGU)	+= ipu3/
+ obj-$(CONFIG_VIDEO_MAX96712)	+= max96712/
+ obj-$(CONFIG_VIDEO_STARFIVE_CAMSS) += starfive/
++obj-$(CONFIG_VIDEO_FACETIMEHD)	+= facetimehd/
+-- 
+2.53.0
+

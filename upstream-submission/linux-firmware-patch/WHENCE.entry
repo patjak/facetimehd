@@ -1,0 +1,14 @@
+--------------------------------------------------------------------------
+Driver: facetimehd - Apple FaceTime HD (Broadcom BCM1570) PCIe Camera
+
+File: facetimehd/firmware.bin
+Link: facetimehd/firmware_rust.bin -> firmware.bin
+
+Licence: GPLv2
+Source: https://github.com/programandosolucoes/open-fthd-firmware
+
+OpenFTHD clean-room open-source firmware for the Broadcom BCM1570 PCIe
+Image Signal Processor found in Apple MacBook Pro and MacBook Air devices.
+Written in freestanding C and bare-metal embedded Rust without proprietary
+Apple code, compiled and tested under QEMU ARMv7-A emulation.
+--------------------------------------------------------------------------

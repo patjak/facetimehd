@@ -1,6 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
- * SPDX-License-Identifier: GPL-2.0-only
- *
  * FacetimeHD camera driver
  *
  * Copyright (C) 2015 Sven Schnelle <svens@stackframe.org>
@@ -29,17 +28,17 @@ void fthd_channel_ringbuf_dump(struct fthd_private *dev_priv, struct fw_channel 
 	char pos;
 	int i;
 
-	for( i = 0; i < chan->size; i++) {
+	for (i = 0; i < chan->size; i++) {
 		if (chan->ringbuf.idx == i)
 			pos = '*';
 		else
 			pos = ' ';
 		entry = get_entry_addr(dev_priv, chan, i);
-	    pr_debug("%s: %c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
-		     chan->name, pos, i,
-		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS),
-		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
-		     FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE));
+		pr_debug("%s: %c%3.3d: ADDRESS %08x REQUEST_SIZE %08x RESPONSE_SIZE %08x\n",
+			 chan->name, pos, i,
+			 FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_ADDRESS_FLAGS),
+			 FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_REQUEST_SIZE),
+			 FTHD_S2_MEM_READ(entry + FTHD_RINGBUF_RESPONSE_SIZE));
 	}
 }
 
@@ -55,7 +54,7 @@ void fthd_channel_ringbuf_init(struct fthd_private *dev_priv, struct fw_channel 
 			 chan->name, chan->offset, chan->size);
 
 		spin_lock_irq(&chan->lock);
-		for(i = 0; i < chan->size; i++) {
+		for (i = 0; i < chan->size; i++) {
 			entry = get_entry_addr(dev_priv, chan, i);
 			FTHD_S2_MEM_WRITE(1, entry + FTHD_RINGBUF_ADDRESS_FLAGS);
 			FTHD_S2_MEM_WRITE(0, entry + FTHD_RINGBUF_REQUEST_SIZE);
@@ -86,6 +85,7 @@ int fthd_channel_ringbuf_send(struct fthd_private *dev_priv, struct fw_channel *
 
 	FTHD_S2_MEM_WRITE(request_size, entry + FTHD_RINGBUF_REQUEST_SIZE);
 	FTHD_S2_MEM_WRITE(response_size, entry + FTHD_RINGBUF_RESPONSE_SIZE);
+	/* Ensure request and response sizes are visible before setting address flag */
 	wmb();
 	FTHD_S2_MEM_WRITE(data_offset | (chan->type == 0 ? 0 : 1),
 			  entry + FTHD_RINGBUF_ADDRESS_FLAGS);
