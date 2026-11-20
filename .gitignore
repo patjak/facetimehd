@@ -3,6 +3,7 @@
 *.o
 Module.symvers
 *.ko
+*.mod
 *.mod.c
 modules.order
 firmware/firmware.bin
