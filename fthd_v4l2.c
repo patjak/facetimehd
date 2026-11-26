@@ -39,6 +39,23 @@
 # define VFL_TYPE_VIDEO VFL_TYPE_GRABBER
 #endif
 
+/*
+ * The S2 IOMMU has 4096 page slots (16 MiB), which is not enough to keep a
+ * capture queue of the depth PipeWire asks for (16 buffers) mapped. Buffers
+ * are therefore only mapped while the firmware owns them, and the firmware
+ * is given at most this many at a time. A buffer that starts inside a page
+ * needs one slot more than its size suggests.
+ */
+static unsigned int fthd_hw_buffer_limit(unsigned long size)
+{
+	unsigned long slots = (PAGE_ALIGN(size) >> PAGE_SHIFT) + 1;
+	unsigned long fit = FTHD_IOMMU_SLOTS / slots;
+
+	if (fit < 2)
+		return 0;
+	return min_t(unsigned long, fit, FTHD_HW_BUFFERS);
+}
+
 static int fthd_buffer_queue_setup(
     struct vb2_queue *vq,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,4,0)
@@ -59,17 +76,13 @@ static int fthd_buffer_queue_setup(
 
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 	struct v4l2_pix_format *cur_fmt = &dev_priv->fmt.fmt;
-	unsigned long budget = 16 * 1024 * 1024;
-	unsigned long size;
-	unsigned int i, allocated, slots, limit;
+	unsigned int allocated;
 	bool create = *nplanes != 0;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
 	allocated = vb2_get_num_buffers(vq);
-	slots = vq->max_num_buffers;
 #else
 	allocated = vq->num_buffers;
-	slots = vq->num_buffers;
 #endif
 	if (create) {
 		if (*nplanes != 1 || sizes[0] < cur_fmt->sizeimage)
@@ -79,53 +92,23 @@ static int fthd_buffer_queue_setup(
 		sizes[0] = cur_fmt->sizeimage;
 	}
 
-	size = PAGE_ALIGN((unsigned long)sizes[0]);
-	if (!size)
+	/*
+	 * Buffers are only mapped into the S2 IOMMU while the firmware owns
+	 * them (see fthd_pump_buffers()), so its 16 MiB bound what is handed
+	 * to the firmware at once and not how many buffers may exist. The
+	 * count is only limited by the number of capture contexts.
+	 */
+	if (!sizes[0] || !fthd_hw_buffer_limit(sizes[0]))
 		return -ENOMEM;
 
 	if (create) {
-		/*
-		 * CREATE_BUFS asks for buffers on top of the ones already
-		 * there, so those are charged against the budget and against
-		 * the context count.
-		 */
-		for (i = 0; i < slots; i++) {
-			struct vb2_buffer *vb;
-			unsigned long used;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
-			vb = vb2_get_buffer(vq, i);
-#else
-			vb = vq->bufs[i];
-#endif
-			if (!vb)
-				continue;
-			used = PAGE_ALIGN((unsigned long)vb2_plane_size(vb, 0));
-			if (!used || used >= budget)
-				return -ENOMEM;
-			budget -= used;
-		}
+		/* CREATE_BUFS asks for buffers on top of the existing ones. */
 		if (allocated >= FTHD_BUFFERS)
 			return -ENOBUFS;
-		if (size > budget)
-			return -ENOMEM;
-		limit = min_t(unsigned int, FTHD_BUFFERS - allocated,
-			      budget / size);
-		*nbuffers = min(*nbuffers, limit);
-		if (!*nbuffers)
-			return -ENOMEM;
+		*nbuffers = min_t(unsigned int, *nbuffers, FTHD_BUFFERS - allocated);
 	} else {
-		/*
-		 * REQBUFS asks for a total. vb2 calls back a second time to
-		 * confirm a partial allocation, and the buffers it asks about
-		 * then are the ones already allocated, so charging them here
-		 * would reject a count that is in fact usable.
-		 */
-		if (size > budget)
-			return -ENOMEM;
-		limit = min_t(unsigned int, FTHD_BUFFERS, budget / size);
-		*nbuffers = min(max(*nbuffers, 2U), limit);
-		if (*nbuffers < 2)
-			return -ENOMEM;
+		/* REQBUFS asks for a total. */
+		*nbuffers = clamp_t(unsigned int, *nbuffers, 2, FTHD_BUFFERS);
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0)
@@ -136,29 +119,87 @@ static int fthd_buffer_queue_setup(
 	return 0;
 }
 
+static struct h2t_buf_ctx *fthd_find_ctx(struct fthd_private *dev_priv,
+					struct vb2_buffer *vb)
+{
+	int i;
+
+	for (i = 0; i < FTHD_BUFFERS; i++) {
+		if (dev_priv->h2t_bufs[i].state != BUF_FREE &&
+		    dev_priv->h2t_bufs[i].vb == vb)
+			return dev_priv->h2t_bufs + i;
+	}
+	return NULL;
+}
+
+static void fthd_unmap_buffer(struct fthd_private *dev_priv, struct h2t_buf_ctx *ctx)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ctx->plane); i++) {
+		if (ctx->plane[i]) {
+			iommu_free(dev_priv, ctx->plane[i]);
+			ctx->plane[i] = NULL;
+		}
+	}
+}
+
+/* Map a buffer into the S2 IOMMU and describe it to the firmware. */
+static int fthd_map_buffer(struct fthd_private *dev_priv, struct h2t_buf_ctx *ctx)
+{
+	struct dma_descriptor_list *dma_list = &ctx->dma_desc_list;
+	struct sg_table *sgtable;
+	int i;
+
+	for (i = 0; i < dev_priv->fmt.planes; i++) {
+		sgtable = vb2_dma_sg_plane_desc(ctx->vb, i);
+		ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
+		if (!ctx->plane[i]) {
+			fthd_unmap_buffer(dev_priv, ctx);
+			return -ENOMEM;
+		}
+	}
+
+	memset(dma_list, 0, 0x180);
+
+	dma_list->field0 = 1;
+	dma_list->count = 1;
+	dma_list->desc[0].count = 1;
+	dma_list->desc[0].pool = 0x02;
+	dma_list->desc[0].addr0 = ((ctx->plane[0]->offset << 12) | 0xc0000000) +
+		ctx->plane[0]->byte_offset;
+
+	if (dev_priv->fmt.planes >= 2)
+		dma_list->desc[0].addr1 = ((ctx->plane[1]->offset << 12) | 0xc0000000) +
+		ctx->plane[1]->byte_offset;
+	if (dev_priv->fmt.planes >= 3)
+		dma_list->desc[0].addr2 = ((ctx->plane[2]->offset << 12) | 0xc0000000) +
+		ctx->plane[2]->byte_offset;
+
+	dma_list->desc[0].tag = (u64)ctx;
+	return 0;
+}
+
 static void fthd_buffer_cleanup(struct vb2_buffer *vb)
 {
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vb->vb2_queue);
-	struct h2t_buf_ctx *ctx = NULL;
-	int i;
+	struct h2t_buf_ctx *ctx;
+	unsigned long flags;
 
 	pr_debug("%p\n", vb);
-	for(i = 0; i < FTHD_BUFFERS; i++) {
-		if (dev_priv->h2t_bufs[i].vb == vb) {
-			ctx = dev_priv->h2t_bufs + i;
-			break;
-		};
-	}
-	if (!ctx || ctx->state == BUF_FREE)
+	ctx = fthd_find_ctx(dev_priv, vb);
+	if (!ctx)
 		return;
 
+	spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+	if (ctx->state == BUF_DRV_QUEUED)
+		list_del_init(&ctx->list);
 	ctx->state = BUF_FREE;
 	ctx->vb = NULL;
+	spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+
+	fthd_unmap_buffer(dev_priv, ctx);
 	isp_mem_destroy(ctx->dma_desc_obj);
-	for(i = 0; i < dev_priv->fmt.planes; i++) {
-		iommu_free(dev_priv, ctx->plane[i]);
-		ctx->plane[i] = NULL;
-	}
 	ctx->dma_desc_obj = NULL;
 }
 
@@ -179,149 +220,195 @@ static int fthd_send_h2t_buffer(struct fthd_private *dev_priv, struct h2t_buf_ct
 	return fthd_channel_wait_ready(dev_priv, dev_priv->channel_buf_h2t, entry, 2000);
 }
 
+/*
+ * Hand waiting buffers to the firmware, oldest first, until it owns as many
+ * as fit the S2 IOMMU. Sending sleeps until the irq work signals the h2t
+ * channel, so this must not be called from the irq work itself.
+ */
+static void fthd_pump_buffers(struct fthd_private *dev_priv)
+{
+	struct h2t_buf_ctx *ctx;
+	unsigned long flags;
+	int ret, failed;
+
+	mutex_lock(&dev_priv->h2t_pump_lock);
+	for (;;) {
+		spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+		if (!dev_priv->h2t_streaming ||
+		    dev_priv->h2t_hw_count >= dev_priv->h2t_hw_limit ||
+		    list_empty(&dev_priv->h2t_pending)) {
+			spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+			break;
+		}
+		ctx = list_first_entry(&dev_priv->h2t_pending, struct h2t_buf_ctx, list);
+		list_del_init(&ctx->list);
+		ctx->state = BUF_HW_MAPPING;
+		dev_priv->h2t_hw_count++;
+		spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+
+		ret = fthd_map_buffer(dev_priv, ctx);
+		if (!ret) {
+			/* From here on the firmware may return the buffer. */
+			spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+			ctx->state = BUF_HW_QUEUED;
+			spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+			ret = fthd_send_h2t_buffer(dev_priv, ctx);
+		}
+		if (!ret)
+			continue;
+
+		/* Failed, unless the firmware returned the buffer anyway. */
+		spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+		failed = (ctx->state == BUF_HW_MAPPING || ctx->state == BUF_HW_QUEUED);
+		if (failed) {
+			ctx->state = BUF_ALLOC;
+			dev_priv->h2t_hw_count--;
+		}
+		spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+		if (failed) {
+			fthd_unmap_buffer(dev_priv, ctx);
+			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
+		}
+		break;
+	}
+	mutex_unlock(&dev_priv->h2t_pump_lock);
+}
+
+static void fthd_refill_work(struct work_struct *work)
+{
+	struct fthd_private *dev_priv = container_of(work, struct fthd_private, h2t_refill_work);
+
+	fthd_pump_buffers(dev_priv);
+}
+
 static void fthd_buffer_queue(struct vb2_buffer *vb)
 {
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vb->vb2_queue);
-	struct dma_descriptor_list *list;
-	struct h2t_buf_ctx *ctx = NULL;
+	struct h2t_buf_ctx *ctx;
+	unsigned long flags;
+	int streaming;
 
-	int i;
 	pr_debug("vb = %p\n", vb);
-	for(i = 0; i < FTHD_BUFFERS; i++) {
-		if (dev_priv->h2t_bufs[i].vb == vb) {
-			ctx = dev_priv->h2t_bufs + i;
-			break;
-		};
+	ctx = fthd_find_ctx(dev_priv, vb);
+	if (!ctx) {
+		vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
+		return;
 	}
 
-	if (!ctx)
-		return;
+	spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+	ctx->state = BUF_DRV_QUEUED;
+	list_add_tail(&ctx->list, &dev_priv->h2t_pending);
+	streaming = dev_priv->h2t_streaming;
+	spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
 
-	if (ctx->state != BUF_ALLOC)
-		return;
-
-	if (!vb->vb2_queue->streaming) {
-		ctx->state = BUF_DRV_QUEUED;
-	} else {
-		list = &ctx->dma_desc_list;
-		list->field0 = 1;
-		ctx->state = BUF_HW_QUEUED;
-		wmb();
-		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p\n", i, list->field0,
-			 list->desc[0].count, list->desc[0].pool, list->desc[0].addr0, list->desc[0].addr1, list->desc[0].tag, ctx->vb);
-
-		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
-			vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
-			ctx->state = BUF_ALLOC;
-		}
-	}
-	return;
+	if (streaming)
+		fthd_pump_buffers(dev_priv);
 }
 
 static int fthd_buffer_prepare(struct vb2_buffer *vb)
 {
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vb->vb2_queue);
-	struct sg_table *sgtable;
-	struct h2t_buf_ctx *ctx = NULL;
-	struct dma_descriptor_list *dma_list;
+	struct h2t_buf_ctx *ctx;
+	unsigned long flags;
 	int i;
 
 	pr_debug("%p\n", vb);
-	for(i = 0; i < FTHD_BUFFERS; i++) {
-		if (dev_priv->h2t_bufs[i].state == BUF_FREE ||
-		    (dev_priv->h2t_bufs[i].state == BUF_ALLOC && dev_priv->h2t_bufs[i].vb == vb)) {
-			ctx = dev_priv->h2t_bufs + i;
-			break;
+	ctx = fthd_find_ctx(dev_priv, vb);
+	if (!ctx) {
+		for (i = 0; i < FTHD_BUFFERS; i++) {
+			if (dev_priv->h2t_bufs[i].state == BUF_FREE) {
+				ctx = dev_priv->h2t_bufs + i;
+				break;
+			}
 		}
-	}
+		if (!ctx)
+			return -ENOBUFS;
 
-	if (!ctx)
-		return -ENOBUFS;
-
-	if (ctx->state == BUF_FREE) {
 		pr_debug("allocating new entry\n");
 		ctx->dma_desc_obj = isp_mem_create(dev_priv, FTHD_MEM_BUFFER, 0x180);
 		if (!ctx->dma_desc_obj)
 			return -ENOMEM;
 
+		memset(ctx->plane, 0, sizeof(ctx->plane));
+		INIT_LIST_HEAD(&ctx->list);
+		init_waitqueue_head(&ctx->wq);
+		spin_lock_irqsave(&dev_priv->h2t_lock, flags);
 		ctx->vb = vb;
 		ctx->state = BUF_ALLOC;
-
-		for(i = 0; i < dev_priv->fmt.planes; i++) {
-		  sgtable = vb2_dma_sg_plane_desc(vb, i);
-		  ctx->plane[i] = iommu_allocate_sgtable(dev_priv, sgtable);
-		  if(!ctx->plane[i])
-			  goto err_free;
-		}
+		spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
 	}
 
 	vb2_set_plane_payload(vb, 0, dev_priv->fmt.fmt.sizeimage);
-
-	dma_list = &ctx->dma_desc_list;
-	memset(dma_list, 0, 0x180);
-
-	dma_list->field0 = 1;
-	dma_list->count = 1;
-	dma_list->desc[0].count = 1;
-	dma_list->desc[0].pool = 0x02;
-	dma_list->desc[0].addr0 = ((ctx->plane[0]->offset << 12) | 0xc0000000) +
-		ctx->plane[0]->byte_offset;
-
-	if (dev_priv->fmt.planes >= 2)
-		dma_list->desc[0].addr1 = ((ctx->plane[1]->offset << 12) | 0xc0000000) +
-		ctx->plane[1]->byte_offset;
-	if (dev_priv->fmt.planes >= 3)
-		dma_list->desc[0].addr2 = ((ctx->plane[2]->offset << 12) | 0xc0000000) +
-		ctx->plane[2]->byte_offset;
-
-	dma_list->desc[0].tag = (u64)ctx;
-	init_waitqueue_head(&ctx->wq);
 	return 0;
-
-err_free:
-	for(i = 0; i < dev_priv->fmt.planes; i++) {
-		iommu_free(dev_priv, ctx->plane[i]);
-		ctx->plane[i] = NULL;
-	}
-	isp_mem_destroy(ctx->dma_desc_obj);
-	ctx->dma_desc_obj = NULL;
-	ctx->vb = NULL;
-	ctx->state = BUF_FREE;
-	return -ENOMEM;
 }
 
 void fthd_buffer_return_handler(struct fthd_private *dev_priv, u32 offset, int size)
 {
 	struct dma_descriptor_list list;
+	struct vb2_v4l2_buffer *vbuf;
 	struct h2t_buf_ctx *ctx;
-	int i;
+	unsigned long flags;
+	int i, returned;
 
 	FTHD_S2_MEMCPY_FROMIO(&list, offset, sizeof(list));
 
-	for(i = 0; i < list.count; i++) {
+	for(i = 0; i < list.count && i < ARRAY_SIZE(list.desc); i++) {
 		ctx = (struct h2t_buf_ctx *)list.desc[i].tag;
+		if (ctx < dev_priv->h2t_bufs || ctx >= dev_priv->h2t_bufs + FTHD_BUFFERS)
+			continue;
+
 		pr_debug("%d: field0: %d, count %d, pool %d, addr0 0x%08x, addr1 0x%08x tag 0x%08llx vb = %p, ctx = %p\n", i, list.field0,
 			 list.desc[i].count, list.desc[i].pool, list.desc[i].addr0, list.desc[i].addr1, list.desc[i].tag, ctx->vb, ctx);
 
-		if (ctx->state == BUF_HW_QUEUED || ctx->state == BUF_DRV_QUEUED) {
-			struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(ctx->vb);
-
-			vbuf->sequence = dev_priv->sequence++;
-			vbuf->vb2_buf.timestamp = ktime_get_ns();
-			vbuf->field = V4L2_FIELD_NONE;
-
+		spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+		returned = (ctx->state == BUF_HW_QUEUED);
+		if (returned) {
 			ctx->state = BUF_ALLOC;
-			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
+			dev_priv->h2t_hw_count--;
 		}
+		spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+		if (!returned)
+			continue;
 
+		/* The firmware is done with it, make room for the next one. */
+		fthd_unmap_buffer(dev_priv, ctx);
+
+		vbuf = to_vb2_v4l2_buffer(ctx->vb);
+		vbuf->sequence = dev_priv->sequence++;
+		vbuf->vb2_buf.timestamp = ktime_get_ns();
+		vbuf->field = V4L2_FIELD_NONE;
+		vb2_buffer_done(ctx->vb, VB2_BUF_STATE_DONE);
+	}
+
+	/* Sending sleeps until this very work wakes it up, so defer it. */
+	schedule_work(&dev_priv->h2t_refill_work);
+}
+
+/* Give every buffer that never reached the firmware back to vb2. */
+static void fthd_return_pending(struct fthd_private *dev_priv, enum vb2_buffer_state state)
+{
+	struct h2t_buf_ctx *ctx;
+	unsigned long flags;
+
+	for (;;) {
+		spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+		ctx = list_first_entry_or_null(&dev_priv->h2t_pending, struct h2t_buf_ctx, list);
+		if (ctx) {
+			list_del_init(&ctx->list);
+			ctx->state = BUF_ALLOC;
+		}
+		spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+		if (!ctx)
+			break;
+		vb2_buffer_done(ctx->vb, state);
 	}
 }
 
 static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
-	struct h2t_buf_ctx *ctx;
-	int i, ret;
+	unsigned long flags;
+	int ret;
 
 	pr_debug("count = %d\n", count);
 	dev_priv->sequence = 0;
@@ -329,31 +416,19 @@ static int fthd_start_streaming(struct vb2_queue *vq, unsigned int count)
 	ret = fthd_start_channel(dev_priv, 0);
 	if (ret) {
 		/* vb2 owns the buffers again if the queue never starts. */
-		for (i = 0; i < FTHD_BUFFERS; i++) {
-			ctx = dev_priv->h2t_bufs + i;
-			if (ctx->state != BUF_DRV_QUEUED)
-				continue;
-			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_QUEUED);
-			ctx->state = BUF_ALLOC;
-		}
+		fthd_return_pending(dev_priv, VB2_BUF_STATE_QUEUED);
 		return ret;
 	}
 
 	/* Starting the channel resets the ISP, so push the control values down. */
 	v4l2_ctrl_handler_setup(&dev_priv->v4l2_ctrl_handler);
 
-	for(i = 0; i < FTHD_BUFFERS; i++) {
-		ctx = dev_priv->h2t_bufs + i;
-		if (ctx->state != BUF_DRV_QUEUED)
-			continue;
+	spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+	dev_priv->h2t_hw_limit = fthd_hw_buffer_limit(dev_priv->fmt.fmt.sizeimage);
+	dev_priv->h2t_streaming = 1;
+	spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
 
-		if (fthd_send_h2t_buffer(dev_priv, ctx)) {
-			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
-			ctx->state = BUF_ALLOC;
-			continue;
-		}
-		ctx->state = BUF_HW_QUEUED;
-	}
+	fthd_pump_buffers(dev_priv);
 	return 0;
 }
 
@@ -361,33 +436,43 @@ static void fthd_stop_streaming(struct vb2_queue *vq)
 {
 	struct fthd_private *dev_priv = vb2_get_drv_priv(vq);
 	struct h2t_buf_ctx *ctx;
-	int ret, i;
+	unsigned long flags;
+	int ret, i, held;
+
+	spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+	dev_priv->h2t_streaming = 0;
+	spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+
+	/* Nothing new reaches the firmware once the refill work is idle. */
+	cancel_work_sync(&dev_priv->h2t_refill_work);
 
 	ret = fthd_stop_channel(dev_priv, 0);
 
 	/* Buffers never sent to the firmware will not come back from it */
-	for(i = 0; i < FTHD_BUFFERS; i++) {
-		ctx = dev_priv->h2t_bufs + i;
-		if (ctx->state == BUF_DRV_QUEUED) {
-			ctx->state = BUF_ALLOC;
-			vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
-		}
-	}
+	fthd_return_pending(dev_priv, VB2_BUF_STATE_ERROR);
 
 	if (!ret) {
 		pr_debug("waiting for buffers...\n");
 		vb2_wait_for_all_buffers(vq);
 		pr_debug("done\n");
 	} else {
-	    /* Firmware doesn't respond. */
-	    for(i = 0; i < FTHD_BUFFERS;i++) {
-		    ctx = dev_priv->h2t_bufs + i;
-		    if (ctx->state == BUF_DRV_QUEUED || ctx->state == BUF_HW_QUEUED) {
-			    vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
-			    ctx->state = BUF_ALLOC;
+		/* Firmware doesn't respond. */
+		for (i = 0; i < FTHD_BUFFERS; i++) {
+			ctx = dev_priv->h2t_bufs + i;
+			spin_lock_irqsave(&dev_priv->h2t_lock, flags);
+			held = (ctx->state == BUF_HW_QUEUED);
+			if (held) {
+				ctx->state = BUF_ALLOC;
+				dev_priv->h2t_hw_count--;
+			}
+			spin_unlock_irqrestore(&dev_priv->h2t_lock, flags);
+			if (held) {
+				fthd_unmap_buffer(dev_priv, ctx);
+				vb2_buffer_done(ctx->vb, VB2_BUF_STATE_ERROR);
+			}
 		}
-	    }
 	}
+	cancel_work_sync(&dev_priv->h2t_refill_work);
 }
 
 static struct vb2_ops vb2_queue_ops = {
@@ -880,6 +965,11 @@ int fthd_v4l2_register(struct fthd_private *dev_priv)
 	}
 	dev_priv->videodev = vdev;
 
+	spin_lock_init(&dev_priv->h2t_lock);
+	mutex_init(&dev_priv->h2t_pump_lock);
+	INIT_LIST_HEAD(&dev_priv->h2t_pending);
+	INIT_WORK(&dev_priv->h2t_refill_work, fthd_refill_work);
+
 	q = &dev_priv->vb2_queue;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	q->io_modes = VB2_MMAP | VB2_USERPTR | VB2_DMABUF | VB2_READ;
@@ -970,4 +1060,6 @@ void fthd_v4l2_unregister(struct fthd_private *dev_priv)
 #endif
 	video_unregister_device(dev_priv->videodev);
 	v4l2_device_unregister(&dev_priv->v4l2_dev);
+	if (dev_priv->h2t_refill_work.func)
+		cancel_work_sync(&dev_priv->h2t_refill_work);
 }
