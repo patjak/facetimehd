@@ -15,8 +15,9 @@
 enum fthd_buffer_state {
 	BUF_FREE,
 	BUF_ALLOC,
-	BUF_DRV_QUEUED,
-	BUF_HW_QUEUED,
+	BUF_DRV_QUEUED,	/* queued by vb2, waiting for a firmware slot */
+	BUF_HW_MAPPING,	/* being mapped and sent to the firmware */
+	BUF_HW_QUEUED,	/* owned by the firmware */
 };
 
 struct dma_descriptor {
@@ -57,6 +58,7 @@ struct fthd_plane {
 struct h2t_buf_ctx {
 	enum fthd_buffer_state state;
 	struct vb2_buffer *vb;
+	struct list_head list;
 	struct iommu_obj *plane[4];
 	struct isp_mem_obj *dma_desc_obj;
 	struct dma_descriptor_list dma_desc_list;

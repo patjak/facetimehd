@@ -27,7 +27,12 @@
 #define FTHD_PCI_S2_MEM 2
 #define FTHD_PCI_ISP_IO 4
 
-#define FTHD_BUFFERS 8
+/* Capture buffers userspace may allocate */
+#define FTHD_BUFFERS 16
+/* Capture buffers the firmware is given at a time, see fthd_pump_buffers() */
+#define FTHD_HW_BUFFERS 4
+/* Page slots of the S2 IOMMU */
+#define FTHD_IOMMU_SLOTS 4096
 
 #define FTHD_FRAME_RATE_SCALE 256U
 #define FTHD_FRAME_RATE_MIN (2 * FTHD_FRAME_RATE_SCALE)
@@ -122,6 +127,16 @@ struct fthd_private {
 	struct vb2_alloc_ctx *alloc_ctx;
 #endif
 	struct h2t_buf_ctx h2t_bufs[FTHD_BUFFERS];
+	/* protects the h2t_bufs states, h2t_pending, h2t_hw_count, h2t_streaming */
+	spinlock_t h2t_lock;
+	/* serializes handing buffers to the firmware */
+	struct mutex h2t_pump_lock;
+	/* queued buffers waiting for a free firmware slot, oldest first */
+	struct list_head h2t_pending;
+	struct work_struct h2t_refill_work;
+	unsigned int h2t_hw_count;
+	unsigned int h2t_hw_limit;
+	int h2t_streaming;
 
 	struct v4l2_ctrl_handler v4l2_ctrl_handler;
 	u32 frame_rate; /* 1/256 fps */
